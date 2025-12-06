@@ -1,0 +1,45 @@
+import { useState, useEffect } from 'react';
+import accountService from '../services/api/compteService';
+
+const useAccounts = (initialFilters = {}) => {
+  const [accounts, setAccounts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [filters, setFilters] = useState(initialFilters);
+
+  const loadAccounts = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await accountService.filterAccounts(filters);
+      setAccounts(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateFilters = (newFilters) => {
+    setFilters(newFilters);
+  };
+
+  const refresh = () => {
+    loadAccounts();
+  };
+
+  useEffect(() => {
+    loadAccounts();
+  }, [filters]);
+
+  return {
+    accounts,
+    loading,
+    error,
+    filters,
+    updateFilters,
+    refresh,
+  };
+};
+
+export default useAccounts;

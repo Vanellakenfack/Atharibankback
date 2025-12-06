@@ -1,0 +1,24 @@
+import React from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import MainLayout from '../components/layout/MainLayout';
+import AccountsPage from '../pages/compte/ComptePage';
+import AccountCreatePage from '../pages/compte/CreationCompte';
+import AccountEditPage from '../pages/compte/EditionPage';
+import AccountDetailPage from '../pages/compte/DetailCompte';
+
+const AppRoutes = () => {
+  return (
+    <Routes>
+      <Route path="/" element={<MainLayout />}>
+        <Route index element={<Navigate to="/accounts" replace />} />
+        <Route path="accounts" element={<AccountsPage />} />
+        <Route path="accounts/create" element={<AccountCreatePage />} />
+        <Route path="accounts/:id" element={<AccountDetailPage />} />
+        <Route path="accounts/:id/edit" element={<AccountEditPage />} />
+        {/* Ajouter d'autres routes ici au fur et à mesure */}
+      </Route>
+    </Routes>
+  );
+};
+
+export default AppRoutes;

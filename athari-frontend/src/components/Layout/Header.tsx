@@ -1,4 +1,4 @@
-import { Bell, Filter, Menu, Plus, Search, Sun } from 'lucide-react'
+import { Bell, ChevronDown, Filter, Menu, Plus, Search, Settings, Sun } from 'lucide-react'
 import React from 'react'
 
 function Header() {
@@ -60,10 +60,31 @@ function Header() {
             hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors'>
                 <Bell className="w-5 h-5"/>
                 <span className='absolute -top-1 w-5 h-5 bg-red-500 text-white text-xs
-                rounded-full flex items-center justify-center animate-pulse'>
+                rounded-full flex items-center justify-center'>
                     3
                 </span>
             </button>
+
+            {/* Parametre */}
+            <button className='p-2.5 rounded-xl text-slate-600 dark:text-slate-300
+            hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors'>
+                <Settings className='w-5 h-5'/>
+            </button>
+
+            {/* Profil utilisateur */}
+            <div className='flex items-center space-x-3 pl-3 border-l border-slate-200 dark:border-slate-700'>
+                <img src="https://i.pravatar.cc/300" alt="User Avatar" className='w-8 h-8 rounded-full ring-2 ring-blue-500'/>
+                <div className='hidden md:block'>
+                    <p className='text-sm font-medium text-slate-500 dark:text-slate-400'>
+                        Steve blondo
+                    </p>
+                    <p className='text-xl text-slate-500 dark:text-slate-400'>
+                        Administrateur
+                    </p>
+                </div>
+                <ChevronDown className='w-4 h-4 text-slate-400'/>
+            </div>
+
           </div>
         </div>
     </div>

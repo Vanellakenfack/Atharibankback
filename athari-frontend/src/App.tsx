@@ -11,7 +11,7 @@ dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 transition-all duration
       <div className='flex h-screen overflow-hidden'>
         <Sidebar />
         <div className='flex-1 flex flex-col overflow-hidden'>
-          <Header />
+        <Header />
         </div>
       </div>
     </div>

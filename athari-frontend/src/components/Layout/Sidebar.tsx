@@ -1,9 +1,30 @@
 import React from 'react'
 import { Zap } from 'lucide-react'
 
+const menuItems = [
+  {
+    name: 'Tableau de bord',
+    icon: 'home',
+    link: '/dashboard',
+    active: true,
+    badge: 'New',
+  },
+  {
+    id: "analytics",
+    icon: "BarChart3",
+    label: "Analytics",
+    submenu:[
+      {id: "overview", label:"Overview", link:"#"},
+      {id: "reports", label:"Reports", link:"#"},
+      {id: "insights", label:"Insights", link:"#"},
+    ]
+  },
+
+]
+
 function Sidebar() {
   return (
-    <div className='transition duration-300 ease-in-out bg-white/80 dark:bg-slate-900/80
+    <div className='w-72 transition duration-300 ease-in-out bg-white/80 dark:bg-slate-900/80
     backdrop-blur-xl border-r border-slate-200/50 dark:border-slate-700/50 flex flex-col
     relative z-10'>
         {/* LOGO */}
@@ -27,7 +48,13 @@ function Sidebar() {
         </div>
 
         {/* NAVIGATION */}
-        <nav className='flex-1 p-4 space-y-2 overflow-y-auto'></nav>
+        <nav className='flex-1 p-4 space-y-2 overflow-y-auto'>
+          {menuItems.map((item)=>(
+            <div key={item.id || item.name} className='p-3 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer'>
+              <p className='text-sm font-medium text-slate-700 dark:text-slate-300'>{item.name || item.label}</p>
+            </div>
+          ))}
+        </nav>
 
         {/* PROFILE */}
         <div className='p-4 border-t border-slate-200/50 dark:border-slate-700/50'>

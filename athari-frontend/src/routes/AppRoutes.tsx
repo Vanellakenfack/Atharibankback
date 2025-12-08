@@ -5,6 +5,7 @@ import AccountsPage from '../pages/compte/ComptePage';
 import AccountCreatePage from '../pages/compte/CreationCompte';
 import AccountEditPage from '../pages/compte/EditionPage';
 import AccountDetailPage from '../pages/compte/DetailCompte';
+import Home from '../pages/Home';
 import Login from '../pages/Login';
 
 const AppRoutes = () => {
@@ -21,6 +22,8 @@ const AppRoutes = () => {
 
       <Route>
         <Route path="/login" element={<Login/>} />
+          <Route path="/home" element={<Home/>} />
+
       </Route>
     </Routes>
   );

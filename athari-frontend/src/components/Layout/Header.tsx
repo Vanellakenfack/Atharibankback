@@ -1,4 +1,4 @@
-import { Filter, Menu, Plus } from 'lucide-react'
+import { Bell, Filter, Menu, Plus, Search, Sun } from 'lucide-react'
 import React from 'react'
 
 function Header() {
@@ -25,7 +25,7 @@ function Header() {
           {/* centre */}
           <div className='flex-1 max-w-md mx-8'>
             <div className='relative'>
-              <search className='w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2
+              <Search className='w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2
               text-slate-400'/>
               <input type="text" placeholder='Rechercher' className='w-full pl-10 pr-4
               py-2.5 bg-slate-100 dark:bg-slate-800 border-slate-200
@@ -41,12 +41,29 @@ function Header() {
 
           {/* Section de droite */}
           <div className='flex items-center space-x-3'>
+            
             {/* Action rapide */}
-            <div className='hidden lg:flex items-center space-x-2 py-2 px-4 bg-gradien-to-r
-            from-blue-500 to-purple-600 text-white rounded-xl hover:shadow-lg transition-a'>
+            <button className='hidden lg:flex items-center space-x-2 py-2 px-4 bg-gradient-to-r
+            from-blue-500 to-purple-600 text-white rounded-xl hover:shadow-lg transition-all'>
               <Plus className='w-4 h-4'/>
-              <span className='text-sm font-medium'>Nouvelle transaction</span>
-            </div>
+              <span className='text-sm font-medium'>Nouvelle</span>
+            </button>
+
+            {/* changer de theme */}
+            <button className='p-2.5 rounded-xl text-slate-600 dark:text-slate-300
+            hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors'>
+                <Sun className="w-5 h-5"/>
+            </button>
+
+            {/* Notification */}
+            <button className='relative p-2.5 rounded-xl text-slate-600 dark:text-slate-300
+            hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors'>
+                <Bell className="w-5 h-5"/>
+                <span className='absolute -top-1 w-5 h-5 bg-red-500 text-white text-xs
+                rounded-full flex items-center justify-center animate-pulse'>
+                    3
+                </span>
+            </button>
           </div>
         </div>
     </div>

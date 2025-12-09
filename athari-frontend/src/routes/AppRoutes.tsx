@@ -8,6 +8,7 @@ import Formclient from '../pages/client/FormClient';
 //import Home from '../pages/Home';
 import Login from '../pages/Login'; 
 import Home from '../pages/Home';
+import ListeClient from '../pages/client/ListeClient';
 
 const AppRoutes = () => {
   return (
@@ -25,7 +26,7 @@ const AppRoutes = () => {
       <Route path="/accounts/:id/edit" element={<AccountEditPage />} />
         
 
-        <Route path='/client' element= {<Formclient/>} > </Route>
+        <Route path='/client' element= {<ListeClient/>} > </Route>
         <Route path='/creerclient' element= {<Formclient/>} > </Route>
 
       

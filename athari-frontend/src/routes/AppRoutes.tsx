@@ -26,8 +26,11 @@ const AppRoutes = () => {
       <Route path="/accounts/:id/edit" element={<AccountEditPage />} />
         
 
-        <Route path='/client' element= {<ListeClient/>} > </Route>
-        <Route path='/creerclient' element= {<Formclient/>} > </Route>
+        <Route path='/client' element= {<ListeClient/>} /> 
+           
+        <Route path='/client/creer' element= {<Formclient/>} /> 
+        <Route path='/client/:id/edit' element= {<Formclient/>} />
+   
 
       
 

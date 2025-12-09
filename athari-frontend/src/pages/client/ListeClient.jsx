@@ -2,15 +2,20 @@ import React, { useState } from 'react';
 import {
     Paper, Table, TableBody, TableCell, TableContainer,
     TableHead, TableRow, TableSortLabel, TablePagination, Box,
-    IconButton, Typography, TextField, InputAdornment, useTheme
+    IconButton, Typography, TextField, InputAdornment, useTheme,
+    Button,
 } from '@mui/material';
+import Header from '../../layouts/Header';
 import { visuallyHidden } from '@mui/utils';
 import {
     Edit as EditIcon,
     Visibility as VisibilityIcon,
     Delete as DeleteIcon,
-    Search as SearchIcon
+    Search as SearchIcon,
+    Add as AddIcon,
 } from '@mui/icons-material';
+// 1. IMPORT DU HOOK DE NAVIGATION
+import { useNavigate } from 'react-router-dom'; 
 
 // --- Données du Tableau ---
 
@@ -23,7 +28,7 @@ const initialData = [
 
 const headCells = [
     { id: 'nom', label: 'Nom et prenom' },
-    { id: 'typepersone', label: 'Type de personne' }, 
+    { id: 'typepersone', label: 'Type de personne' },
     { id: 'date_naissance', label: 'Date de naissance' },
     { id: 'numerocni', label: 'Numéro CNI' },
     { id: 'telephone', label: 'Téléphone' },
@@ -31,7 +36,7 @@ const headCells = [
     { id: 'actions', label: 'Actions', disableSorting: true },
 ];
 
-// --- Fonctions de Tri ---
+// --- Fonctions de Tri (Inchngées) ---
 
 function descendingComparator(a, b, orderBy) {
     if (b[orderBy] < a[orderBy]) return -1;
@@ -64,6 +69,8 @@ const handleDelete = (id) => { console.log(`Supprimer le client ID: ${id}`); };
 export default function ListeClient() {
     // Hooks Material-UI et états
     const theme = useTheme(); 
+    const navigate = useNavigate(); // 2. INITIALISATION DU HOOK DE NAVIGATION
+
     const [order, setOrder] = useState('asc');
     const [orderBy, setOrderBy] = useState('nom');
     const [page, setPage] = useState(0);
@@ -85,6 +92,13 @@ export default function ListeClient() {
         setPage(0);
     };
 
+    // 3. FONCTION DE NAVIGATION POUR LE BOUTON
+    const handleAddClient = () => {
+        // Le chemin doit correspondre à celui que vous avez configuré pour le FormClient
+        navigate('/client/creer'); 
+        console.log("Action: Navigation vers le formulaire d'ajout de client");
+    };
+
     // Filtrage des données
     const filteredData = initialData.filter(client => 
         client.nom.toLowerCase().includes(searchTerm.toLowerCase())
@@ -96,12 +110,31 @@ export default function ListeClient() {
 
     return (
         <Box sx={{ p: 3, pt: 0 }}>
+                          <Header/>
+
             <Typography variant="h4" gutterBottom sx={{ mb: 3, color: 'primary.main', fontWeight: 600 }}>
-                Liste des Clients du Système Bancaire 
+                
             </Typography>
 
-            {/* Zone de recherche/filtre */}
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+            {/* Zone d'actions (Ajouter Client + Recherche) */}
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                {/* BOUTON AJOUTER CLIENT */}
+                <Button
+                    variant="contained"
+                    color="primary" // Utilise la couleur principale (bleu foncé) du thème
+                    startIcon={<AddIcon />}
+                    onClick={handleAddClient} // 4. LIEN DE NAVIGATION
+                    sx={{
+                        fontWeight: 'bold', 
+                        textTransform: 'none',
+                        minWidth: 200, 
+                        height: 40 
+                    }}
+                >
+                    Ajouter un nouveau client
+                </Button>
+
+                {/* Champ de recherche/filtre */}
                 <TextField
                     variant="outlined"
                     size="small"
@@ -124,7 +157,7 @@ export default function ListeClient() {
                 <TableContainer sx={{ maxHeight: 600 }}>
                     <Table stickyHeader aria-label="tableau des clients">
                         
-                        {/* EN-TÊTE DU TABLEAU AVEC STYLES FORCÉS POUR LA LISIBILITÉ */}
+                        {/* EN-TÊTE DU TABLEAU AVEC LE FOND BLEU FONCÉ */}
                         <TableHead>
                             <TableRow>
                                 {headCells.map((headCell) => (
@@ -132,22 +165,21 @@ export default function ListeClient() {
                                         key={headCell.id}
                                         align={headCell.id === 'actions' ? 'center' : 'left'}
                                         sortDirection={orderBy === headCell.id ? order : false}
-                                        // STYLES CRITIQUES : Fond gris foncé et Texte blanc
+                                        // Utilisation de primary.main (Bleu Foncé)
                                         sx={{
-                                            backgroundColor: '#1e69f5ff', // Fond gris très foncé (couleur solide)
-                                            color: 'white',         // Texte blanc
+                                            backgroundColor: theme.palette.primary.main, 
+                                            color: theme.palette.primary.contrastText, // Texte blanc
                                             fontWeight: 'bold',
                                             
-                                            // Assurer la couleur blanche pour les éléments triables (TableSortLabel)
+                                            // Assurer la couleur blanche pour les éléments triables
                                             '& .MuiTableSortLabel-root': {
-                                                color: 'white',
+                                                color: theme.palette.primary.contrastText,
                                                 '&:hover': {
-                                                    color: 'white', 
+                                                    color: theme.palette.primary.contrastText, 
                                                 },
                                             },
-                                            // Assurer la couleur blanche pour l'icône de tri
                                             '& .MuiTableSortLabel-icon': {
-                                                color: 'white !important', // Utilisation de !important
+                                                color: `${theme.palette.primary.contrastText} !important`,
                                             },
                                         }}
                                     >
@@ -171,7 +203,6 @@ export default function ListeClient() {
                                 ))}
                             </TableRow>
                         </TableHead>
-                        {/* FIN EN-TÊTE CORRIGÉ */}
 
                         <TableBody>
                             {visibleRows.map((row) => (

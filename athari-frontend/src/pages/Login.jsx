@@ -13,6 +13,8 @@ import EmailIcon from "@mui/icons-material/Email";
 import LockIcon from "@mui/icons-material/Lock";
 import "../assets/css/login.css";
 import "../assets/css/bubbles.css";
+import Sidebar from "../components/layout/Sidebar";
+import { CenterFocusStrong } from "@mui/icons-material";
 
 export default function Login() {
   return (
@@ -48,9 +50,9 @@ export default function Login() {
       >
         <CardContent sx={{ textAlign: "center", p: 4 }}>
           {/* Logo */}
-          <Box sx={{ mb: 2 }}>
+          <Box sx={{ mb:1, position: 'center' }}>
             <img
-              src="/images/logo.png"
+              src="../assets/img/logo.png"
               alt="Logo"
               style={{
                 width: 100,

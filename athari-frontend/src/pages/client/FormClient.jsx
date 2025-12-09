@@ -712,11 +712,11 @@ export default function FormClient() {
   return (
     
     <ThemeProvider theme={muiTheme}>
-   
+    <Header />
 
       <CssBaseline />
       <Container maxWidth="lg" sx={{ py: 6, bgcolor: "white", minHeight: '100vh' }}>
-        <Header />
+       
         <Paper elevation={3} sx={{ p: { xs: 3, md: 5 }, borderRadius: 3 }}>
           <Typography variant="h4" sx={{ color: blueGrey[800], fontWeight: 'bold', mb: 1 }}>
             Nouveau Client

@@ -76,7 +76,7 @@ function Header() {
             <Bell className="w-5 h-5"/>
             {/* Pastille de notification avec couleur vibrante */}
             <span className={`absolute -top-1 -right-1 w-5 h-5 text-white text-xs
-            rounded-full flex items-center justify-center font-bold ${vibrantAccentClass}`}>
+            rounded-full flex items-center justify-center font-bold ${primaryColorClass}`}>
               3
             </span>
           </button>
@@ -98,7 +98,7 @@ function Header() {
             
             {/* Avatar */}
             <img 
-              src="https://i.pravatar.cc/300" 
+              src="" 
               alt="User Avatar" 
               // Anneau de couleur primaire autour de l'avatar
               className={`w-8 h-8 rounded-full ring-2 ring-indigo-500`}

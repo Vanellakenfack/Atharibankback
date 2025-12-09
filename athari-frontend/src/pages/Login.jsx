@@ -39,6 +39,7 @@ export default function Login() {
       </div>
 
       <Card
+
         sx={{
           width: "100%",
           maxWidth: 430,
@@ -48,6 +49,7 @@ export default function Login() {
           background: "rgba(255,255,255,0.9)",
         }}
       >
+        
         <CardContent sx={{ textAlign: "center", p: 4 }}>
           {/* Logo */}
           <Box sx={{ mb:1, position: 'center' }}>

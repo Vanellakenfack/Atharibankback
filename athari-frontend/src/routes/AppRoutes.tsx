@@ -4,6 +4,7 @@ import AccountsPage from '../pages/compte/ComptePage';
 import AccountCreatePage from '../pages/compte/CreationCompte';
 import AccountEditPage from '../pages/compte/EditionPage';
 import AccountDetailPage from '../pages/compte/DetailCompte';
+import Formclient from '../pages/client/FormClient';
 //import Home from '../pages/Home';
 import Login from '../pages/Login'; 
 import Home from '../pages/Home';
@@ -22,7 +23,11 @@ const AppRoutes = () => {
       <Route path="/accounts/create" element={<AccountCreatePage />} />
       <Route path="/accounts/:id" element={<AccountDetailPage />} />
       <Route path="/accounts/:id/edit" element={<AccountEditPage />} />
-      
+        
+
+        <Route path='/client' element= {<Formclient/>} > </Route>
+        <Route path='/creerclient' element= {<Formclient/>} > </Route>
+
       
 
       {/* Route Catch-all (URL inexistante / 404) */}

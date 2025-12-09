@@ -27,7 +27,7 @@ export default function Login() {
         justifyContent: "center",
         position: "relative",
         overflow: "visible",
-
+        zIndex: 1,
       }}
     >
       {/* Bulles animées */}
@@ -39,7 +39,6 @@ export default function Login() {
       </div>
 
       <Card
-
         sx={{
           width: "100%",
           maxWidth: 430,
@@ -47,6 +46,8 @@ export default function Login() {
           boxShadow: 5,
           backdropFilter: "blur(20px)",
           background: "rgba(255,255,255,0.9)",
+          position: "relative",
+          zIndex: 10,
         }}
       >
         

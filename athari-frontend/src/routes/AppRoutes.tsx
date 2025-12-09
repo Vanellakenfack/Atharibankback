@@ -1,35 +1,33 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import MainLayout from '../components/layout/MainLayout';
 import AccountsPage from '../pages/compte/ComptePage';
 import AccountCreatePage from '../pages/compte/CreationCompte';
 import AccountEditPage from '../pages/compte/EditionPage';
 import AccountDetailPage from '../pages/compte/DetailCompte';
 //import Home from '../pages/Home';
 import Login from '../pages/Login'; 
+import Home from '../pages/Home';
 
 const AppRoutes = () => {
   return (
-    <Routes>
-      <Route path="/" element={<MainLayout />}>
-        <Route index element={<Navigate to="/accounts" replace />} />
-        <Route path="accounts" element={<AccountsPage />} />
-        <Route path="accounts/create" element={<AccountCreatePage />} />
-        <Route path="accounts/:id" element={<AccountDetailPage />} />
-        <Route path="accounts/:id/edit" element={<AccountEditPage />} />
-        {/* Ajouter d'autres routes ici au fur et à mesure */}
+      <Routes>
+      {/* Route de connexion (URL: /login) */}
+      <Route path="/login" element={<Login />} />
 
+      {/* Page d'Accueil (URL: /) */}
+      <Route path="/" element={<Home />} />
+      
+      {/* Routes Comptes */}
+      <Route path="/accounts" element={<AccountsPage />} />
+      <Route path="/accounts/create" element={<AccountCreatePage />} />
+      <Route path="/accounts/:id" element={<AccountDetailPage />} />
+      <Route path="/accounts/:id/edit" element={<AccountEditPage />} />
+      
+      
 
-        {/*       <Route path="*" element={<Navigate to="/login" replace />} /> */}
-        <Route path="/login" element={<Login/>} />
-        {/* <Route path="/home" element={<Home/>} /> */}
-      </Route>
+      {/* Route Catch-all (URL inexistante / 404) */}
+      <Route path="*" element={<div>Page Non Trouvée (404)</div>} />
 
-{/*       <Route>
-        <Route path="/login" element={<Login/>} />
-          <Route path="/home" element={<Home/>} />
-
-      </Route> */}
     </Routes>
   );
 };

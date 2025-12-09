@@ -20,11 +20,7 @@ function App() {
           /> */}
           
           <div className="flex-1 flex flex-col overflow-hidden">
-            <Header 
-              sideBarCollapsed={sideBarCollapsed} 
-              onToggleSidebar={() => setSideBarCollapsed(!sideBarCollapsed)} 
-              currentPage={currentPage}
-            />
+           
             
             {/* Zone de contenu pour les routes */}
             <main className="flex-1 overflow-y-auto p-4 md:p-6">

@@ -206,7 +206,7 @@ header {
     gap: 1.5rem;
     max-width: 600px;
     width: 100%;
-    height: 400px;
+    height: 200px;
     animation: fadeInUp 0.8s ease-out 0.4s both;
     position: relative;
     padding: 2rem;

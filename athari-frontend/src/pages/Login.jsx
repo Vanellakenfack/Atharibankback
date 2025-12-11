@@ -15,6 +15,7 @@ import "../assets/css/login.css";
 import "../assets/css/bubbles.css";
 import Sidebar from "../components/layout/Sidebar";
 import { CenterFocusStrong } from "@mui/icons-material";
+import logo from "../assets/img/logo.png";
 
 export default function Login() {
   return (
@@ -53,9 +54,9 @@ export default function Login() {
         
         <CardContent sx={{ textAlign: "center", p: 4 }}>
           {/* Logo */}
-          <Box sx={{ mb:1, position: 'center' }}>
+          <Box sx={{ mb: 2, display: "flex", justifyContent: "center", alignItems: "center" }}>
             <img
-              src="../assets/img/logo.png"
+              src={logo}
               alt="Logo"
               style={{
                 width: 100,
@@ -63,6 +64,7 @@ export default function Login() {
                 borderRadius: "50%",
                 border: "3px solid white",
                 objectFit: "cover",
+                display: "block",
               }}
             />
           </Box>

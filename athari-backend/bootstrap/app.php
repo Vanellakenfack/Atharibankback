@@ -16,6 +16,10 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     
     ->withMiddleware(function (Middleware $middleware): void {
+        // Enregistrer le middleware CORS pour les routes API
+        $middleware->api(append: [
+            \Illuminate\Http\Middleware\HandleCors::class,
+        ]);
         
         // --- ENREGISTREMENT DES MIDDLEWARES SPATIE (ACL) ---
         $middleware->alias([

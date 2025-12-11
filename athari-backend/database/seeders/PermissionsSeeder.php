@@ -69,18 +69,18 @@ class PermissionsSeeder extends Seeder
 
         ];
 
-        foreach ($permissions as $permission) {
-            Permission::firstOrCreate(['name' => $permission]);
-        }
+          foreach ($permissions as $permission) {
+              Permission::firstOrCreate(['name' => $permission, 'guard_name' => 'web']);
+          }
 
         // --- 2. CRÉATION DES 9 RÔLES ET ATTRIBUTION ---
 
         // Rôle 1: DG (Accès total)
-        $roleDG = Role::firstOrCreate(['name' => 'DG']);
-        $roleDG->givePermissionTo(Permission::all());
+        $roleDG = Role::firstOrCreate(['name' => 'DG', 'guard_name' => 'web']);
+        $roleDG->givePermissionTo(Permission::where('guard_name', 'web')->get());
         
         // Rôle 2: Chef Comptable (CC) - Validation intermédiaire, Comptabilité, Crédits 2M
-        $roleCC = Role::firstOrCreate(['name' => 'Chef Comptable']);
+        $roleCC = Role::firstOrCreate(['name' => 'Chef Comptable', 'guard_name' => 'web']);
         $roleCC->givePermissionTo([
             'generer etats financiers', 
             'saisir od', 
@@ -91,7 +91,7 @@ class PermissionsSeeder extends Seeder
         ]);
 
         // Rôle 3: Chef d'Agence (CA) - Opérations Agence, Crédits 500K
-        $roleCA = Role::firstOrCreate(['name' => 'Chef d\'Agence (CA)']);
+        $roleCA = Role::firstOrCreate(['name' => 'Chef d\'Agence (CA)', 'guard_name' => 'web']);
         $roleCA->givePermissionTo([
             'ouvrir compte', 
             'valider operation caisse',
@@ -105,7 +105,7 @@ class PermissionsSeeder extends Seeder
         ]);
 
         // Rôle 4: Assistant Juridique (AJ) - Conformité, Crédits 2M
-        $roleAJ = Role::firstOrCreate(['name' => 'Assistant Juridique (AJ)']);
+        $roleAJ = Role::firstOrCreate(['name' => 'Assistant Juridique (AJ)', 'guard_name' => 'web']);
         $roleAJ->givePermissionTo([
             'valider credit:2m', // Co-validation pour le plafond 2M
             'valider credit:500k', // Implicite
@@ -114,22 +114,22 @@ class PermissionsSeeder extends Seeder
         ]);
 
         // Rôle 5: Assistant Comptable (AC) - Saisie
-        $roleAC = Role::firstOrCreate(['name' => 'Assistant Comptable (AC)']);
+        $roleAC = Role::firstOrCreate(['name' => 'Assistant Comptable (AC)', 'guard_name' => 'web']);
         $roleAC->givePermissionTo(['saisir od', 'generer etats financiers']);
 
         // Rôle 6: Caissière - Opérations Caisse
-        Role::firstOrCreate(['name' => 'Caissière'])->givePermissionTo('saisir depot retrait');
+        Role::firstOrCreate(['name' => 'Caissière', 'guard_name' => 'web'])->givePermissionTo('saisir depot retrait');
 
         // Rôle 7: Agent de Crédit (AC) - Collecte et consultation
-        Role::firstOrCreate(['name' => 'Agent de Crédit (AC)'])->givePermissionTo('consulter logs');
+        Role::firstOrCreate(['name' => 'Agent de Crédit (AC)', 'guard_name' => 'web'])->givePermissionTo('consulter logs');
         
         // Rôle 8: Collecteur - Mobile App (Dépôt/Retrait)
-        Role::firstOrCreate(['name' => 'Collecteur'])->givePermissionTo('saisir depot retrait');
+        Role::firstOrCreate(['name' => 'Collecteur', 'guard_name' => 'web'])->givePermissionTo('saisir depot retrait');
         
         // Rôle 9: Audit/Contrôle (IV) - Lecture seule
-        Role::firstOrCreate(['name' => 'Audit/Contrôle (IV)'])->givePermissionTo('consulter logs');
+        Role::firstOrCreate(['name' => 'Audit/Contrôle (IV)', 'guard_name' => 'web'])->givePermissionTo('consulter logs');
 
         // Rôle 10: Admin (Accès complet)
-        Role::firstOrCreate(['name' => 'Admin'])->givePermissionTo(Permission::all());
+        Role::firstOrCreate(['name' => 'Admin', 'guard_name' => 'web'])->givePermissionTo(Permission::where('guard_name', 'web')->get());
     }
 }

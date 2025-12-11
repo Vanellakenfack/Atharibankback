@@ -13,7 +13,10 @@ use Laravel\Sanctum\HasApiTokens;
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-use HasFactory, Notifiable, HasRoles,HasApiTokens; // <-- AJOUTEZ HasRoles ICI
+    use HasFactory, Notifiable, HasRoles, HasApiTokens;
+
+    // Utiliser 'web' pour l'auth par session (interface web). Mobile/API pourra être ajouté plus tard.
+    protected $guard_name = 'web';
 
     /**
      * The attributes that are mass assignable.

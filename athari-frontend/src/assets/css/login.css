@@ -14,6 +14,7 @@ html, body {
     padding: 0;
 }
 
+
 .login-body {
     background: linear-gradient(to right, #6a11cb, #2575fc);
     min-height: 100vh;
@@ -23,6 +24,7 @@ html, body {
     font-family: 'Inter', sans-serif;
     position: relative;
 }
+
 
 .financial-bubbles {
     position: fixed;
@@ -49,12 +51,14 @@ html, body {
 .bubble:nth-child(3) { left: 70%; width: 80px; height: 80px; animation-duration: 10s; animation-delay: 1s; }
 .bubble:nth-child(4) { left: 90%; width: 50px; height: 50px; animation-duration: 18s; animation-delay: 4s; }
 
+
 @keyframes float {
     0% { transform: translateY(100vh) scale(0.8); opacity: 0; }
     10% { opacity: 1; }
     90% { opacity: 1; }
     100% { transform: translateY(-100px) scale(1.2); opacity: 0; }
 }
+
 
 .login-card {
     background: rgba(255,255,255,0.9);
@@ -67,6 +71,7 @@ html, body {
     animation: fadeInUp 0.8s;
 }
 
+
 .logo-container img {
     width: 90px;
     height: 90px;
@@ -74,24 +79,29 @@ html, body {
     margin-bottom: 1.5rem;
 }
 
+
 h2 {
     color: var(--primary-color);
     margin-bottom: 0.5rem;
 }
+
 
 .subtitle {
     color: var(--text-secondary);
     margin-bottom: 2rem;
 }
 
+
 .form-group {
     margin-bottom: 1.5rem;
     text-align: left;
 }
 
+
 .input-wrapper {
     position: relative;
 }
+
 
 .input-wrapper i {
     position: absolute;
@@ -101,6 +111,7 @@ h2 {
     color: var(--text-secondary);
 }
 
+
 input {
     width: 100%;
     padding: 12px 12px 12px 45px;
@@ -109,10 +120,12 @@ input {
     background: #f8fafc;
 }
 
+
 input:focus {
     border-color: var(--secondary-color);
     background: white;
 }
+
 
 .btn-submit {
     width: 100%;
@@ -125,6 +138,7 @@ input:focus {
     margin-top: 1rem;
 }
 
+
 .alert-error {
     background: #fef2f2;
     color: var(--error-color);
@@ -134,9 +148,57 @@ input:focus {
     border: 1px solid #fee2e2;
 }
 
+
 .back-link {
     margin-top: 1rem;
     display: inline-block;
     color: var(--text-secondary);
     text-decoration: none;
 }
+
+
+
+
+
+
+.financial-bubbles {
+  position: fixed;
+  z-index: 999 !important;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+
+.bubble {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.25);
+  color: #1e3a8a;
+  font-size: 1.3rem;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: float 12s infinite linear;
+  opacity: 0;
+}
+
+
+.bubble:nth-child(1) { left: 10%; width: 60px; height: 60px; animation-duration: 12s; }
+.bubble:nth-child(2) { left: 30%; width: 40px; height: 40px; animation-duration: 15s; animation-delay: 2s; }
+.bubble:nth-child(3) { left: 70%; width: 80px; height: 80px; animation-duration: 10s; animation-delay: 1s; }
+.bubble:nth-child(4) { left: 90%; width: 50px; height: 50px; animation-duration: 18s; animation-delay: 4s; }
+
+
+@keyframes float {
+  0% { transform: translateY(100vh) scale(0.8); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateY(-100px) scale(1.2); opacity: 0; }
+}
+
+
+

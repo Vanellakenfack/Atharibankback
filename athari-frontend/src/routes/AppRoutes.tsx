@@ -9,27 +9,30 @@ import Formclient from '../pages/client/FormClient';
 import Login from '../pages/Login'; 
 import Home from '../pages/Home';
 import ListeClient from '../pages/client/ListeClient';
-import UsersList from "../pages/users/UsersList";
-import UserCreate from "../pages/users/UserCreate";
-import UserEdit from "../pages/users/UserEdit";
+import UsersList from "../pages/users/UserList";
+import RoleManagement from "../pages/users/RoleManagement";
+import UserManagement from "../pages/users/UserManagement";
 import ProtectedRoute from "../components/users/ProtectedRoute";
 
 const AppRoutes = () => {
   return (
-      <Routes>
+    <Routes>
       {/* Route de connexion (URL: /login) */}
-      <Route path="/login" element={<Login />} />
+      <Route 
+          path="/login" 
+          element={<Login />} 
+        />
       <Route
           path="/users"
           element={<UsersList />}
         />
         <Route
-          path="/users/new"
-          element={<UserCreate />}
+          path="/users/roles"
+          element={<RoleManagement />}
         />
         <Route
-          path="/users/:id/edit"
-          element={<UserEdit />}
+          path="/users/management"
+          element={<UserManagement />}
         />
 
       {/* Page d'Accueil (URL: /) */}

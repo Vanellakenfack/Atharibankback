@@ -1,6 +1,6 @@
 import React from 'react'
 import { BrowserRouter as Router } from 'react-router-dom'
-import Sidebar from './components/layout/Sidebar'
+import Sidebar from './components/layout/Sidebar.tsx'
 import Header from './components/layout/Header'
 import AppRoutes from './routes/AppRoutes'
 
@@ -23,9 +23,9 @@ function App() {
            
             
             {/* Zone de contenu pour les routes */}
-            <main className="flex-1 overflow-y-auto p-4 md:p-6">
+            <div className="flex-1 overflow-y-auto p-4 md:p-6">
               <AppRoutes />  {/* AppRoutes gère ses propres Routes */}
-            </main>
+            </div>
           </div>
         </div>
       </div>

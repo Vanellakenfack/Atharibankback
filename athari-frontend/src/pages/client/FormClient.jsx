@@ -1,96 +1,51 @@
 import React, { useEffect, useMemo, useState } from "react";
-import {
-  ThemeProvider,
-  createTheme,
-  CssBaseline,
-  Container,
-  Box,
-  Grid,
-  TextField,
-  Button,
-  Stepper,
-  Step,
-  StepLabel,
-  RadioGroup,
-  FormControlLabel,
-  Radio,
-  Select,
-  MenuItem,
-  InputLabel,
-  FormControl,
-  Avatar,
-  Typography,
-  Checkbox,
-  FormGroup,
-  FormLabel,
-  Divider,
-  Paper,
-} from "@mui/material";
-// Import des couleurs pour le nouveau thème
-import { indigo, blueGrey, cyan } from "@mui/material/colors"; 
+// Lightweight local wrappers to replace MUI components so we can remove the dependency.
+const Box = ({ children, className = '', ...rest }) => <div className={className} {...rest}>{children}</div>;
+const Grid = ({ children, className = '', container, item }) => <div className={className}>{children}</div>;
+const TextField = ({ label, helperText, error, ...props }) => (
+  <label className="block">
+    {label && <div className="text-sm text-gray-700 mb-1">{label}</div>}
+    <input className={`border rounded px-2 py-1 w-full ${error ? 'border-red-400' : ''}`} {...props} />
+    {helperText && <div className="text-xs text-gray-500 mt-1">{helperText}</div>}
+  </label>
+);
+const Button = ({ children, className = '', ...props }) => <button className={className || 'px-3 py-2 bg-blue-600 text-white rounded'} {...props}>{children}</button>;
+const Stepper = ({ children }) => <div className="flex gap-2">{children}</div>;
+const Step = ({ children }) => <div>{children}</div>;
+const StepLabel = ({ children }) => <div className="text-sm">{children}</div>;
+const RadioGroup = ({ children, ...props }) => <div {...props}>{children}</div>;
+const FormControlLabel = ({ control, label }) => <label className="flex items-center gap-2"><input {...control.props} />{label}</label>;
+const Radio = (props) => <input type="radio" {...props} />;
+const Select = ({ children, ...props }) => <select {...props} className="border rounded px-2 py-1 w-full">{children}</select>;
+const MenuItem = ({ children, value }) => <option value={value}>{children}</option>;
+const InputLabel = ({ children }) => <div className="text-sm text-gray-700 mb-1">{children}</div>;
+const FormControl = ({ children }) => <div className="mb-2">{children}</div>;
+const Avatar = ({ src, alt, className = '' }) => <img src={src} alt={alt} className={className || 'w-20 h-20 rounded-full object-cover'} />;
+const Typography = ({ children, className = '' }) => <div className={className}>{children}</div>;
+const Checkbox = (props) => <input type="checkbox" {...props} />;
+const FormGroup = ({ children }) => <div>{children}</div>;
+const FormLabel = ({ children }) => <div className="text-sm font-medium mb-1">{children}</div>;
+const Divider = () => <hr className="my-3" />;
+const Paper = ({ children, className = '' }) => <div className={`bg-white border rounded p-3 ${className}`}>{children}</div>;
+// removed MUI theme/colors usage
 import axios from "axios";
 import { useForm, Controller } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as Yup from "yup";
 
 /**
- * THÈME DÉFINITIF - Bleu Foncé (Indigo)
- */
-const muiTheme = createTheme({
-  palette: {
-    mode: "light",
-    primary: {
-      // Couleur principale : Indigo 700 (Bleu Foncé)
-      main: indigo[700], 
-      light: indigo[500],
-      dark: indigo[900],
-      contrastText: "#fff",
-    },
-    secondary: {
-      // Couleur secondaire (Cyan pour un contraste vif)
-      main: cyan.A700, 
-    },
-    background: {
-      // Fond de page : Gris très clair (pour un meilleur contraste avec le blanc du formulaire)
-      default: blueGrey[50], 
-      paper: "#ffffff",
-    },
-  },
-  typography: {
-    fontFamily: "Inter, Roboto, Arial",
-  },
-  shape: {
-    borderRadius: 12,
-  },
-  components: {
-    MuiButton: {
-      defaultProps: {
-        disableElevation: true,
-      },
-      styleOverrides: {
-        root: {
-          borderRadius: 8,
-          textTransform: 'none',
-        },
-      },
-    },
-    MuiPaper: {
-        styleOverrides: {
-            root: {
-                // Style pour le StepLabel actif (couleur principale)
-                "& .MuiStepLabel-label.Mui-active": {
-                    fontWeight: 700,
-                    color: indigo[700], // Bleu foncé
-                },
-                // Style pour le StepLabel complété
-                "& .MuiStepLabel-label.Mui-completed": {
-                    color: blueGrey[700],
-                },
-            }
-        }
-    }
-  },
-});
+// Minimal color tokens and theme placeholder to satisfy legacy references in this file.
+const indigo = {300: '#7C83FF', 500: '#4F46E5', 700: '#3730A3', 900: '#1E1B4B'};
+const blueGrey = {50: '#F8FAFC', 200: '#E6EDF3', 600: '#475569', 700: '#374151', 800: '#1F2937'};
+const cyan = { A700: '#06B6D4' };
+
+const muiTheme = { palette: { background: { default: blueGrey[50] } } };
+
+// Lightweight ThemeProvider + Container wrappers
+const ThemeProvider = ({ children }) => children;
+const Container = ({ children, className = '', style = {}, maxWidth }) => (
+  <div className={`mx-auto ${className}`} style={{ maxWidth: maxWidth === 'lg' ? '1024px' : '100%', ...style }}>{children}</div>
+);
 
 /** Étapes */
 const STEPS = [
@@ -709,9 +664,9 @@ export default function FormClient() {
 
 
   return (
-    <ThemeProvider theme={muiTheme}>
+      <ThemeProvider theme={muiTheme}>
       <CssBaseline />
-      <Container maxWidth="lg" sx={{ py: 6, bgcolor: muiTheme.palette.background.default, minHeight: '100vh' }}>
+      <Container maxWidth="lg" style={{ paddingTop: '3rem', paddingBottom: '3rem', backgroundColor: muiTheme.palette.background.default, minHeight: '100vh' }}>
         <Paper elevation={3} sx={{ p: { xs: 3, md: 5 }, borderRadius: 3 }}>
           <Typography variant="h4" sx={{ color: blueGrey[800], fontWeight: 'bold', mb: 1 }}>
             Nouveau Client
@@ -721,7 +676,7 @@ export default function FormClient() {
           </Typography>
 
           {/* Stepper MUI */}
-          <Box sx={{ mb: 4 }}>
+          <Box style={{ marginBottom: '2rem' }}>
             <Stepper activeStep={activeStep} alternativeLabel>
               {STEPS.map((label, index) => (
                 <Step key={label}>
@@ -746,7 +701,7 @@ export default function FormClient() {
           </Box>
 
           {/* Progress Bar Tailwind (couleur changée) */}
-          <Box sx={{ width: '100%', bgcolor: blueGrey[200], borderRadius: 1, height: 10, mb: 4, overflow: 'hidden' }}>
+          <Box style={{ width: '100%', backgroundColor: blueGrey[200], borderRadius: '4px', height: '10px', marginBottom: '2rem', overflow: 'hidden' }}>
             <Box
               sx={{
                 height: 10,
@@ -763,7 +718,7 @@ export default function FormClient() {
             {renderFormFields()}
 
             {/* NAVIGATION */}
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', pt: 4, borderTop: `1px solid ${blueGrey[200]}` }}>
+            <Box style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '2rem', borderTop: `1px solid ${blueGrey[200]}` }}>
               <Button
                 variant="outlined"
                 onClick={handleBack}

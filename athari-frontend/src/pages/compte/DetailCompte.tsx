@@ -1,24 +1,20 @@
 import React from 'react';
-import { useParams } from 'react-router-dom';
-import { Box, Typography, Breadcrumbs, Link } from '@mui/material';
-import { NavigateNext as NavigateNextIcon } from '@mui/icons-material';
-import { Link as RouterLink } from 'react-router-dom';
+import { useParams, Link as RouterLink } from 'react-router-dom';
 import AccountView from '../../components/compte/CompteView';
 
 const AccountDetailPage = () => {
   const { id } = useParams();
 
   return (
-    <Box>
-      <Breadcrumbs separator={<NavigateNextIcon fontSize="small" />} sx={{ mb: 3 }}>
-        <Link component={RouterLink} to="/accounts" color="inherit">
-          Comptes
-        </Link>
-        <Typography color="text.primary">Détails du compte</Typography>
-      </Breadcrumbs>
+    <div>
+      <nav className="text-sm text-gray-500 mb-3">
+        <RouterLink to="/accounts" className="text-blue-600">Comptes</RouterLink>
+        <span className="px-2">/</span>
+        <span className="text-gray-800">Détails du compte</span>
+      </nav>
 
       <AccountView accountId={id} />
-    </Box>
+    </div>
   );
 };
 

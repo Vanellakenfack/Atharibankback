@@ -1,30 +1,4 @@
 import React, { useEffect } from 'react';
-import {
-  Box,
-  Card,
-  CardContent,
-  Grid,
-  Typography,
-  Chip,
-  Stack,
-  Button,
-  Divider,
-  LinearProgress,
-  Alert,
-} from '@mui/material';
-import {
-  ArrowBack as BackIcon,
-  Edit as EditIcon,
-  Print as PrintIcon,
-  History as HistoryIcon,
-  Download as DownloadIcon,
-  AccountBalance as AccountIcon,
-  Person as PersonIcon,
-  LocationOn as BranchIcon,
-  Event as DateIcon,
-  MonetizationOn as BalanceIcon,
-  AccountBalanceWallet as WalletIcon,
-} from '@mui/icons-material';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useParams } from 'react-router-dom';
 import { fetchAccountById } from '../../store/compte/compteThunks';
@@ -49,407 +23,180 @@ const AccountDetailPage: React.FC = () => {
   }, [dispatch, id]);
 
   if (isLoading) {
-    return <LinearProgress />;
+    return (
+      <div className="w-full">
+        <div className="h-1 bg-blue-600 animate-pulse" />
+      </div>
+    );
   }
 
   if (error) {
-    return <Alert severity="error">{error}</Alert>;
+    return <div className="p-4 bg-red-50 border border-red-200 rounded text-red-800">{error}</div>;
   }
 
   if (!account) {
-    return <Alert severity="info">Compte non trouvé</Alert>;
+    return <div className="p-4 bg-blue-50 border border-blue-200 rounded text-blue-800">Compte non trouvé</div>;
   }
 
-  const getTypeColor = (type: string) => {
-    const colors: Record<string, 'primary' | 'secondary' | 'success' | 'warning' | 'info'> = {
-      courant: 'primary',
-      epargne: 'success',
-      bloque: 'warning',
-      mata_boost: 'info',
-      collecte_journaliere: 'secondary',
-    };
-    return colors[type] || 'primary';
+  const getTypeStyle = (type: string) => {
+    switch (type) {
+      case 'courant': return 'border-blue-300 text-blue-700';
+      case 'epargne': return 'border-green-300 text-green-700';
+      case 'bloque': return 'border-yellow-300 text-yellow-700';
+      case 'mata_boost': return 'border-indigo-300 text-indigo-700';
+      case 'collecte_journaliere': return 'border-gray-300 text-gray-700';
+      default: return 'border-gray-300 text-gray-700';
+    }
   };
 
-  const getStatusColor = (status: string) => {
-    const colors: Record<string, 'success' | 'error' | 'warning' | 'default'> = {
-      active: 'success',
-      blocked: 'error',
-      pending: 'warning',
-      closed: 'default',
-    };
-    return colors[status] || 'default';
+  const getStatusStyle = (status: string) => {
+    switch (status) {
+      case 'active': return 'bg-green-100 text-green-800';
+      case 'blocked': return 'bg-red-100 text-red-800';
+      case 'pending': return 'bg-yellow-100 text-yellow-800';
+      case 'closed': return 'bg-gray-100 text-gray-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
   };
 
   return (
-    <Box>
-      {/* En-tête avec boutons d'action */}
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
-        <Stack direction="row" spacing={2} alignItems="center">
-          <Button
-            startIcon={<BackIcon />}
-            onClick={() => navigate('/accounts')}
-          >
+    <div>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-4">
+          <button onClick={() => navigate('/accounts')} className="px-3 py-2 rounded border hover:bg-gray-50 flex items-center gap-2">
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
             Retour
-          </Button>
-          <Typography variant="h4" fontWeight="bold">
-            Détails du Compte
-          </Typography>
-        </Stack>
+          </button>
+          <h1 className="text-2xl font-bold">Détails du Compte</h1>
+        </div>
 
-        <Stack direction="row" spacing={1}>
-          <Button
-            startIcon={<PrintIcon />}
-            variant="outlined"
-          >
-            Imprimer
-          </Button>
-          <Button
-            startIcon={<DownloadIcon />}
-            variant="outlined"
-          >
-            Exporter
-          </Button>
-          <Button
-            startIcon={<EditIcon />}
-            variant="contained"
-            onClick={() => navigate(`/accounts/${account.id}/edit`)}
-          >
-            Modifier
-          </Button>
-        </Stack>
-      </Stack>
+        <div className="flex items-center gap-2">
+          <button className="px-3 py-2 border rounded">Imprimer</button>
+          <button className="px-3 py-2 border rounded">Exporter</button>
+          <button onClick={() => navigate(`/accounts/${account.id}/edit`)} className="px-3 py-2 bg-blue-600 text-white rounded">Modifier</button>
+        </div>
+      </div>
 
-      <Grid container spacing={3}>
-        {/* Colonne gauche - Informations principales */}
-        <Grid item xs={12} md={8}>
-          <Card>
-            <CardContent>
-              <Grid container spacing={3}>
-                {/* En-tête du compte */}
-                <Grid item xs={12}>
-                  <Stack direction="row" justifyContent="space-between" alignItems="center">
-                    <Stack direction="row" spacing={2} alignItems="center">
-                      <AccountIcon color="primary" sx={{ fontSize: 40 }} />
-                      <Box>
-                        <Typography variant="h5" fontWeight="bold">
-                          {account.accountNumber}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          {account.clientName}
-                        </Typography>
-                      </Box>
-                    </Stack>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-4">
+          <div className="bg-white border rounded p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="text-3xl text-blue-600">🏦</div>
+                <div>
+                  <div className="text-xl font-bold">{account.accountNumber}</div>
+                  <div className="text-sm text-gray-600">{account.clientName}</div>
+                </div>
+              </div>
 
-                    <Stack direction="row" spacing={1}>
-                      <Chip
-                        label={account.type.toUpperCase()}
-                        color={getTypeColor(account.type)}
-                        variant="outlined"
-                      />
-                      <Chip
-                        label={account.status.toUpperCase()}
-                        color={getStatusColor(account.status)}
-                      />
-                    </Stack>
-                  </Stack>
-                </Grid>
+              <div className="flex items-center gap-2">
+                <span className={`px-2 py-1 border rounded text-xs font-medium ${getTypeStyle(account.type)}`}>{account.type.toUpperCase()}</span>
+                <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusStyle(account.status)}`}>{account.status.toUpperCase()}</span>
+              </div>
+            </div>
 
-                <Grid item xs={12}>
-                  <Divider />
-                </Grid>
+            <div className="border-t mt-4 pt-4">
+              <h3 className="text-lg font-semibold mb-3">Informations Financières</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="border rounded p-3 bg-gray-50">
+                  <div className="text-xs text-gray-500">Solde Actuel</div>
+                  <div className="text-xl font-bold text-blue-600">{account.balance.toLocaleString()} {account.currency}</div>
+                </div>
+                <div className="border rounded p-3 bg-gray-50">
+                  <div className="text-xs text-gray-500">Solde Disponible</div>
+                  <div className="text-xl font-bold text-green-600">{account.availableBalance.toLocaleString()} {account.currency}</div>
+                </div>
+                <div className="border rounded p-3 bg-gray-50">
+                  <div className="text-xs text-gray-500">Taux d'Intérêt</div>
+                  <div className="text-xl font-bold">{account.interestRate || 0}%</div>
+                </div>
+                <div className="border rounded p-3 bg-gray-50">
+                  <div className="text-xs text-gray-500">Frais Mensuels</div>
+                  <div className="text-xl font-bold">{(account.monthlyFees || 0).toLocaleString()} {account.currency}</div>
+                </div>
+              </div>
+            </div>
 
-                {/* Informations financières */}
-                <Grid item xs={12}>
-                  <Typography variant="h6" gutterBottom>
-                    Informations Financières
-                  </Typography>
-                  <Grid container spacing={2}>
-                    <Grid item xs={6} md={3}>
-                      <Card variant="outlined">
-                        <CardContent>
-                          <Typography variant="caption" color="text.secondary" display="block">
-                            Solde Actuel
-                          </Typography>
-                          <Typography variant="h5" fontWeight="bold" color="primary.main">
-                            {account.balance.toLocaleString()} {account.currency}
-                          </Typography>
-                        </CardContent>
-                      </Card>
-                    </Grid>
+            <div className="mt-4">
+              <h3 className="text-lg font-semibold mb-2">Limites et Restrictions</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <div className="flex justify-between"><div className="text-sm">Limite de retrait:</div><div className="font-medium">{account.withdrawalLimit?.toLocaleString() || 'Non définie'} {account.currency}</div></div>
+                  <div className="flex justify-between"><div className="text-sm">Limite journalière:</div><div className="font-medium">{account.dailyWithdrawalLimit?.toLocaleString() || 'Non définie'} {account.currency}</div></div>
+                  <div className="flex justify-between"><div className="text-sm">Solde minimum:</div><div className="font-medium">{account.minimumBalance?.toLocaleString() || 'Non défini'} {account.currency}</div></div>
+                </div>
 
-                    <Grid item xs={6} md={3}>
-                      <Card variant="outlined">
-                        <CardContent>
-                          <Typography variant="caption" color="text.secondary" display="block">
-                            Solde Disponible
-                          </Typography>
-                          <Typography variant="h5" fontWeight="bold" color="success.main">
-                            {account.availableBalance.toLocaleString()} {account.currency}
-                          </Typography>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-
-                    <Grid item xs={6} md={3}>
-                      <Card variant="outlined">
-                        <CardContent>
-                          <Typography variant="caption" color="text.secondary" display="block">
-                            Taux d'Intérêt
-                          </Typography>
-                          <Typography variant="h5" fontWeight="bold">
-                            {account.interestRate || 0}%
-                          </Typography>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-
-                    <Grid item xs={6} md={3}>
-                      <Card variant="outlined">
-                        <CardContent>
-                          <Typography variant="caption" color="text.secondary" display="block">
-                            Frais Mensuels
-                          </Typography>
-                          <Typography variant="h5" fontWeight="bold">
-                            {(account.monthlyFees || 0).toLocaleString()} {account.currency}
-                          </Typography>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                  </Grid>
-                </Grid>
-
-                {/* Limites et restrictions */}
-                <Grid item xs={12}>
-                  <Typography variant="h6" gutterBottom>
-                    Limites et Restrictions
-                  </Typography>
-                  <Grid container spacing={2}>
-                    <Grid item xs={12} md={6}>
-                      <Stack spacing={1}>
-                        <Stack direction="row" justifyContent="space-between">
-                          <Typography variant="body2">Limite de retrait:</Typography>
-                          <Typography variant="body2" fontWeight="medium">
-                            {account.withdrawalLimit?.toLocaleString() || 'Non définie'} {account.currency}
-                          </Typography>
-                        </Stack>
-                        <Stack direction="row" justifyContent="space-between">
-                          <Typography variant="body2">Limite journalière:</Typography>
-                          <Typography variant="body2" fontWeight="medium">
-                            {account.dailyWithdrawalLimit?.toLocaleString() || 'Non définie'} {account.currency}
-                          </Typography>
-                        </Stack>
-                        <Stack direction="row" justifyContent="space-between">
-                          <Typography variant="body2">Solde minimum:</Typography>
-                          <Typography variant="body2" fontWeight="medium">
-                            {account.minimumBalance?.toLocaleString() || 'Non défini'} {account.currency}
-                          </Typography>
-                        </Stack>
-                      </Stack>
-                    </Grid>
-
-                    <Grid item xs={12} md={6}>
-                      {account.restrictions && (
-                        <Card variant="outlined">
-                          <CardContent>
-                            <Typography variant="subtitle2" gutterBottom>
-                              Restrictions
-                            </Typography>
-                            <Stack spacing={0.5}>
-                              {account.restrictions.noDebit && (
-                                <Chip label="Pas de débit" size="small" color="error" variant="outlined" />
-                              )}
-                              {account.restrictions.noCredit && (
-                                <Chip label="Pas de crédit" size="small" color="error" variant="outlined" />
-                              )}
-                              {account.restrictions.noTransfer && (
-                                <Chip label="Pas de virement" size="small" color="error" variant="outlined" />
-                              )}
-                            </Stack>
-                            {account.restrictions.reason && (
-                              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                                Raison: {account.restrictions.reason}
-                              </Typography>
-                            )}
-                          </CardContent>
-                        </Card>
-                      )}
-                    </Grid>
-                  </Grid>
-                </Grid>
-
-                {/* Sous-comptes MATA Boost */}
-                {account.subAccounts && (
-                  <Grid item xs={12}>
-                    <Typography variant="h6" gutterBottom>
-                      Sous-comptes MATA Boost
-                    </Typography>
-                    <Grid container spacing={2}>
-                      {Object.entries(account.subAccounts).map(([key, value]) => (
-                        <Grid item xs={6} md={4} key={key}>
-                          <Card variant="outlined">
-                            <CardContent>
-                              <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
-                                {key.charAt(0).toUpperCase() + key.slice(1)}
-                              </Typography>
-                              <Typography variant="h6" fontWeight="bold">
-                                {value.toLocaleString()} {account.currency}
-                              </Typography>
-                            </CardContent>
-                          </Card>
-                        </Grid>
-                      ))}
-                    </Grid>
-                  </Grid>
-                )}
-              </Grid>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* Colonne droite - Informations secondaires */}
-        <Grid item xs={12} md={4}>
-          <Stack spacing={3}>
-            {/* Informations client */}
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  <PersonIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-                  Informations Client
-                </Typography>
-                <Stack spacing={1}>
-                  <Stack direction="row" justifyContent="space-between">
-                    <Typography variant="body2" color="text.secondary">
-                      ID Client:
-                    </Typography>
-                    <Typography variant="body2" fontWeight="medium">
-                      {account.clientId}
-                    </Typography>
-                  </Stack>
-                  <Stack direction="row" justifyContent="space-between">
-                    <Typography variant="body2" color="text.secondary">
-                      Nom:
-                    </Typography>
-                    <Typography variant="body2" fontWeight="medium">
-                      {account.clientName}
-                    </Typography>
-                  </Stack>
-                </Stack>
-              </CardContent>
-            </Card>
-
-            {/* Informations agence */}
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  <BranchIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-                  Informations Agence
-                </Typography>
-                <Stack spacing={1}>
-                  <Stack direction="row" justifyContent="space-between">
-                    <Typography variant="body2" color="text.secondary">
-                      Agence:
-                    </Typography>
-                    <Typography variant="body2" fontWeight="medium">
-                      {account.branchName}
-                    </Typography>
-                  </Stack>
-                  <Stack direction="row" justifyContent="space-between">
-                    <Typography variant="body2" color="text.secondary">
-                      Code Agence:
-                    </Typography>
-                    <Typography variant="body2" fontWeight="medium">
-                      {account.branchId}
-                    </Typography>
-                  </Stack>
-                  <Stack direction="row" justifyContent="space-between">
-                    <Typography variant="body2" color="text.secondary">
-                      Gestionnaire:
-                    </Typography>
-                    <Typography variant="body2" fontWeight="medium">
-                      {account.managerName || 'Non assigné'}
-                    </Typography>
-                  </Stack>
-                </Stack>
-              </CardContent>
-            </Card>
-
-            {/* Informations temporelles */}
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  <DateIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-                  Dates Importantes
-                </Typography>
-                <Stack spacing={1}>
-                  <Stack direction="row" justifyContent="space-between">
-                    <Typography variant="body2" color="text.secondary">
-                      Date d'ouverture:
-                    </Typography>
-                    <Typography variant="body2" fontWeight="medium">
-                      {new Date(account.openingDate).toLocaleDateString('fr-FR')}
-                    </Typography>
-                  </Stack>
-                  <Stack direction="row" justifyContent="space-between">
-                    <Typography variant="body2" color="text.secondary">
-                      Dernière activité:
-                    </Typography>
-                    <Typography variant="body2" fontWeight="medium">
-                      {account.lastActivityDate 
-                        ? new Date(account.lastActivityDate).toLocaleDateString('fr-FR')
-                        : 'Aucune'
-                      }
-                    </Typography>
-                  </Stack>
-                  {account.maturityDate && (
-                    <Stack direction="row" justifyContent="space-between">
-                      <Typography variant="body2" color="text.secondary">
-                        Date d'échéance:
-                      </Typography>
-                      <Typography variant="body2" fontWeight="medium">
-                        {new Date(account.maturityDate).toLocaleDateString('fr-FR')}
-                      </Typography>
-                    </Stack>
+                <div>
+                  {account.restrictions && (
+                    <div className="border rounded p-3">
+                      <div className="text-sm font-medium mb-2">Restrictions</div>
+                      <div className="flex flex-col gap-1">
+                        {account.restrictions.noDebit && (<span className="text-sm text-red-700">• Pas de débit</span>)}
+                        {account.restrictions.noCredit && (<span className="text-sm text-red-700">• Pas de crédit</span>)}
+                        {account.restrictions.noTransfer && (<span className="text-sm text-red-700">• Pas de virement</span>)}
+                      </div>
+                      {account.restrictions.reason && (<div className="text-xs text-gray-500 mt-2">Raison: {account.restrictions.reason}</div>)}
+                    </div>
                   )}
-                </Stack>
-              </CardContent>
-            </Card>
+                </div>
+              </div>
+            </div>
 
-            {/* Actions rapides */}
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  <WalletIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-                  Actions Rapides
-                </Typography>
-                <Stack spacing={1}>
-                  <Button
-                    fullWidth
-                    variant="outlined"
-                    startIcon={<HistoryIcon />}
-                  >
-                    Voir l'historique
-                  </Button>
-                  <Button
-                    fullWidth
-                    variant="outlined"
-                  >
-                    Générer un relevé
-                  </Button>
-                  <Button
-                    fullWidth
-                    variant="contained"
-                    color="error"
-                  >
-                    Clôturer le compte
-                  </Button>
-                </Stack>
-              </CardContent>
-            </Card>
-          </Stack>
-        </Grid>
-      </Grid>
-    </Box>
+            {account.subAccounts && (
+              <div className="mt-4">
+                <h3 className="text-lg font-semibold mb-3">Sous-comptes MATA Boost</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  {Object.entries(account.subAccounts).map(([key, value]) => (
+                    <div key={key} className="border rounded p-3 bg-white">
+                      <div className="text-xs text-gray-500">{key.charAt(0).toUpperCase() + key.slice(1)}</div>
+                      <div className="text-lg font-bold">{value.toLocaleString()} {account.currency}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="bg-white border rounded p-4">
+            <div className="flex items-center gap-2 mb-3"><div className="text-lg">👤</div><div className="text-lg font-semibold">Informations Client</div></div>
+            <div className="space-y-2">
+              <div className="flex justify-between"><div className="text-sm text-gray-500">ID Client:</div><div className="font-medium">{account.clientId}</div></div>
+              <div className="flex justify-between"><div className="text-sm text-gray-500">Nom:</div><div className="font-medium">{account.clientName}</div></div>
+            </div>
+          </div>
+
+          <div className="bg-white border rounded p-4">
+            <div className="flex items-center gap-2 mb-3"><div className="text-lg">📍</div><div className="text-lg font-semibold">Informations Agence</div></div>
+            <div className="space-y-2">
+              <div className="flex justify-between"><div className="text-sm text-gray-500">Agence:</div><div className="font-medium">{account.branchName}</div></div>
+              <div className="flex justify-between"><div className="text-sm text-gray-500">Code Agence:</div><div className="font-medium">{account.branchId}</div></div>
+              <div className="flex justify-between"><div className="text-sm text-gray-500">Gestionnaire:</div><div className="font-medium">{account.managerName || 'Non assigné'}</div></div>
+            </div>
+          </div>
+
+          <div className="bg-white border rounded p-4">
+            <div className="flex items-center gap-2 mb-3"><div className="text-lg">📅</div><div className="text-lg font-semibold">Dates Importantes</div></div>
+            <div className="space-y-2">
+              <div className="flex justify-between"><div className="text-sm text-gray-500">Date d'ouverture:</div><div className="font-medium">{new Date(account.openingDate).toLocaleDateString('fr-FR')}</div></div>
+              <div className="flex justify-between"><div className="text-sm text-gray-500">Dernière activité:</div><div className="font-medium">{account.lastActivityDate ? new Date(account.lastActivityDate).toLocaleDateString('fr-FR') : 'Aucune'}</div></div>
+              {account.maturityDate && (<div className="flex justify-between"><div className="text-sm text-gray-500">Date d'échéance:</div><div className="font-medium">{new Date(account.maturityDate).toLocaleDateString('fr-FR')}</div></div>)}
+            </div>
+          </div>
+
+          <div className="bg-white border rounded p-4">
+            <div className="flex items-center gap-2 mb-3"><div className="text-lg">💼</div><div className="text-lg font-semibold">Actions Rapides</div></div>
+            <div className="flex flex-col gap-2">
+              <button className="w-full border rounded py-2">Voir l'historique</button>
+              <button className="w-full border rounded py-2">Générer un relevé</button>
+              <button className="w-full bg-red-600 text-white rounded py-2">Clôturer le compte</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 

@@ -1,13 +1,5 @@
 import React, { useState } from 'react';
 import Header from '../../components/layout/Header';
-import Sidebar from '../../components/layout/Sidebar';
-import {
-  Box,
-  Typography,
-  Button,
-  Paper,
-} from '@mui/material';
-import { Add as AddIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import AccountList from '../../components/compte/ListCompte';
 import AccountFilters from '../../components/compte/CompteFilters';
@@ -29,32 +21,20 @@ const AccountsPage = () => {
   };
 
   return (
-    <Box>
-      <Header/>
-    
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4">
-        
-        </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleCreateAccount}
-        >
-          Nouveau compte
-        </Button>
-      </Box>
+    <div>
+      <Header />
 
-      <AccountFilters
-        filters={filters}
-        onFilterChange={handleFilterChange}
-        onReset={handleResetFilters}
-      />
+      <div className="flex justify-between items-center mb-3">
+        <h2 className="text-2xl font-semibold">Comptes</h2>
+        <button onClick={handleCreateAccount} className="px-3 py-2 bg-blue-600 text-white rounded">Nouveau compte</button>
+      </div>
 
-      <Paper sx={{ p: 2 }}>
+      <AccountFilters filters={filters} onFilterChange={handleFilterChange} onReset={handleResetFilters} />
+
+      <div className="p-2 bg-white border rounded">
         <AccountList filters={filters} />
-      </Paper>
-    </Box>
+      </div>
+    </div>
   );
 };
 

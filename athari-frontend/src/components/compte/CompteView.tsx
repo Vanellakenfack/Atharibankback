@@ -1,29 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Paper,
-  Typography,
-  Grid,
-  Box,
-  Chip,
-  Divider,
-  Button,
-  Card,
-  CardContent,
-  List,
-  ListItem,
-  ListItemText,
-  IconButton,
-  Tooltip,
-} from '@mui/material';
-import {
-  Edit as EditIcon,
-  Print as PrintIcon,
-  History as HistoryIcon,
-  AccountBalance as AccountIcon,
-  Person as PersonIcon,
-  LocationOn as LocationIcon,
-  AttachMoney as MoneyIcon,
-} from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import accountService from '../../services/api/compteService';
 import LoadingSpinner from '../common/LoadingSpinner';
@@ -52,13 +27,13 @@ const AccountView = ({ accountId }) => {
     navigate(`/accounts/${accountId}/edit`);
   };
 
-  const getStatusColor = (status) => {
+  const getStatusStyle = (status) => {
     switch (status) {
-      case 'active': return 'success';
-      case 'blocked': return 'error';
-      case 'pending': return 'warning';
-      case 'closed': return 'default';
-      default: return 'default';
+      case 'active': return 'bg-green-100 text-green-800';
+      case 'blocked': return 'bg-red-100 text-red-800';
+      case 'pending': return 'bg-yellow-100 text-yellow-800';
+      case 'closed': return 'bg-gray-100 text-gray-800';
+      default: return 'bg-gray-100 text-gray-800';
     }
   };
 
@@ -68,208 +43,81 @@ const AccountView = ({ accountId }) => {
     return type ? type.label : typeCode;
   };
 
-  if (loading) {
-    return <LoadingSpinner />;
-  }
+  if (loading) return <LoadingSpinner />;
 
   if (!account) {
     return (
-      <Paper sx={{ p: 3, textAlign: 'center' }}>
-        <Typography variant="h6" color="error">
-          Compte non trouvé
-        </Typography>
-      </Paper>
+      <div className="p-3 text-center">
+        <div className="text-red-600 font-medium">Compte non trouvé</div>
+      </div>
     );
   }
 
   return (
-    <Grid container spacing={3}>
-      <Grid item xs={12}>
-        <Paper sx={{ p: 3 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <AccountIcon sx={{ mr: 2, fontSize: 40, color: 'primary.main' }} />
-              <Box>
-                <Typography variant="h4">
-                  {account.accountNumber}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {getAccountTypeLabel(account.accountType)}
-                </Typography>
-              </Box>
-            </Box>
-            <Box>
-              <Chip
-                label={account.status.toUpperCase()}
-                color={getStatusColor(account.status)}
-                sx={{ mr: 2 }}
-              />
-              <Tooltip title="Modifier">
-                <IconButton onClick={handleEdit} color="primary">
-                  <EditIcon />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title="Imprimer">
-                <IconButton color="secondary">
-                  <PrintIcon />
-                </IconButton>
-              </Tooltip>
-            </Box>
-          </Box>
+    <div className="grid grid-cols-1 gap-3">
+      <div className="bg-white border p-3 rounded">
+        <div className="flex justify-between items-start mb-3">
+          <div className="flex items-center gap-3">
+            <div className="text-3xl">🏦</div>
+            <div>
+              <div className="text-xl font-semibold">{account.accountNumber}</div>
+              <div className="text-sm text-gray-600">{getAccountTypeLabel(account.accountType)}</div>
+            </div>
+          </div>
 
-          <Divider sx={{ mb: 3 }} />
+          <div className="flex items-center gap-2">
+            <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusStyle(account.status)}`}>{account.status.toUpperCase()}</span>
+            <button onClick={handleEdit} className="p-1 rounded hover:bg-gray-100">✏️</button>
+            <button className="p-1 rounded hover:bg-gray-100">🖨️</button>
+          </div>
+        </div>
 
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
-                    <PersonIcon sx={{ mr: 1 }} />
-                    Informations client
-                  </Typography>
-                  <List dense>
-                    <ListItem>
-                      <ListItemText
-                        primary="Nom du client"
-                        secondary={account.clientName}
-                      />
-                    </ListItem>
-                    <ListItem>
-                      <ListItemText
-                        primary="Numéro client"
-                        secondary={account.clientNumber}
-                      />
-                    </ListItem>
-                    <ListItem>
-                      <ListItemText
-                        primary="Agence"
-                        secondary={account.agency}
-                      />
-                    </ListItem>
-                    <ListItem>
-                      <ListItemText
-                        primary="Date de création"
-                        secondary={new Date(account.createdAt).toLocaleDateString('fr-FR')}
-                      />
-                    </ListItem>
-                  </List>
-                </CardContent>
-              </Card>
-            </Grid>
+        <div className="border-t pt-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <h3 className="text-lg font-medium flex items-center gap-2">👤 Informations client</h3>
+              <div className="text-sm text-gray-600">Nom du client: <span className="font-medium text-gray-800">{account.clientName}</span></div>
+              <div className="text-sm text-gray-600">Numéro client: <span className="font-medium text-gray-800">{account.clientNumber}</span></div>
+              <div className="text-sm text-gray-600">Agence: <span className="font-medium text-gray-800">{account.agency}</span></div>
+              <div className="text-sm text-gray-600">Date de création: <span className="font-medium text-gray-800">{new Date(account.createdAt).toLocaleDateString('fr-FR')}</span></div>
+            </div>
 
-            <Grid item xs={12} md={6}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
-                    <MoneyIcon sx={{ mr: 1 }} />
-                    Informations financières
-                  </Typography>
-                  <List dense>
-                    <ListItem>
-                      <ListItemText
-                        primary="Solde actuel"
-                        secondary={
-                          <Typography variant="h6" color="primary">
-                            {new Intl.NumberFormat('fr-FR', {
-                              style: 'currency',
-                              currency: account.currency,
-                            }).format(account.balance)}
-                          </Typography>
-                        }
-                      />
-                    </ListItem>
-                    <ListItem>
-                      <ListItemText
-                        primary="Solde minimum"
-                        secondary={new Intl.NumberFormat('fr-FR', {
-                          style: 'currency',
-                          currency: account.currency,
-                        }).format(account.minimumBalance)}
-                      />
-                    </ListItem>
-                    <ListItem>
-                      <ListItemText
-                        primary="Taux de commission"
-                        secondary={`${(account.commissionRate * 100).toFixed(2)}%`}
-                      />
-                    </ListItem>
-                    <ListItem>
-                      <ListItemText
-                        primary="Devise"
-                        secondary={account.currency}
-                      />
-                    </ListItem>
-                  </List>
-                </CardContent>
-              </Card>
-            </Grid>
+            <div className="space-y-2">
+              <h3 className="text-lg font-medium flex items-center gap-2">💰 Informations financières</h3>
+              <div className="text-sm">Solde actuel: <span className="font-medium text-blue-600">{new Intl.NumberFormat('fr-FR', { style: 'currency', currency: account.currency }).format(account.balance)}</span></div>
+              <div className="text-sm">Solde minimum: <span className="font-medium">{new Intl.NumberFormat('fr-FR', { style: 'currency', currency: account.currency }).format(account.minimumBalance)}</span></div>
+              <div className="text-sm">Taux de commission: <span className="font-medium">{(account.commissionRate * 100).toFixed(2)}%</span></div>
+              <div className="text-sm">Devise: <span className="font-medium">{account.currency}</span></div>
+            </div>
+          </div>
 
-            <Grid item xs={12}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
-                    <HistoryIcon sx={{ mr: 1 }} />
-                    Paramètres du compte
-                  </Typography>
-                  <Grid container spacing={2}>
-                    <Grid item xs={6} md={3}>
-                      <Typography variant="body2" color="text.secondary">
-                        Notifications SMS
-                      </Typography>
-                      <Chip
-                        label={account.sendSmsNotifications ? 'Activé' : 'Désactivé'}
-                        color={account.sendSmsNotifications ? 'success' : 'default'}
-                        size="small"
-                      />
-                    </Grid>
-                    <Grid item xs={6} md={3}>
-                      <Typography variant="body2" color="text.secondary">
-                        Découvert autorisé
-                      </Typography>
-                      <Chip
-                        label={account.allowOverdraft ? 'Oui' : 'Non'}
-                        color={account.allowOverdraft ? 'success' : 'default'}
-                        size="small"
-                      />
-                    </Grid>
-                    {account.allowOverdraft && (
-                      <Grid item xs={6} md={3}>
-                        <Typography variant="body2" color="text.secondary">
-                          Limite de découvert
-                        </Typography>
-                        <Typography variant="body1">
-                          {new Intl.NumberFormat('fr-FR', {
-                            style: 'currency',
-                            currency: account.currency,
-                          }).format(account.overdraftLimit)}
-                        </Typography>
-                      </Grid>
-                    )}
-                  </Grid>
-                </CardContent>
-              </Card>
-            </Grid>
-          </Grid>
+          <div className="mt-4">
+            <h3 className="text-lg font-medium">Paramètres du compte</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
+              <div>
+                <div className="text-sm text-gray-500">Notifications SMS</div>
+                <div className="inline-block mt-1 px-2 py-1 rounded text-sm font-medium {account.sendSmsNotifications ? 'text-green-700' : 'text-gray-700'}">{account.sendSmsNotifications ? 'Activé' : 'Désactivé'}</div>
+              </div>
+              <div>
+                <div className="text-sm text-gray-500">Découvert autorisé</div>
+                <div className="inline-block mt-1 px-2 py-1 rounded text-sm font-medium">{account.allowOverdraft ? 'Oui' : 'Non'}</div>
+              </div>
+              {account.allowOverdraft && (
+                <div>
+                  <div className="text-sm text-gray-500">Limite de découvert</div>
+                  <div className="font-medium mt-1">{new Intl.NumberFormat('fr-FR', { style: 'currency', currency: account.currency }).format(account.overdraftLimit)}</div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
 
-          <Box sx={{ mt: 3, display: 'flex', gap: 2, justifyContent: 'center' }}>
-            <Button
-              variant="outlined"
-              startIcon={<HistoryIcon />}
-              onClick={() => navigate(`/accounts/${accountId}/transactions`)}
-            >
-              Voir l'historique
-            </Button>
-            <Button
-              variant="contained"
-              startIcon={<EditIcon />}
-              onClick={handleEdit}
-            >
-              Modifier le compte
-            </Button>
-          </Box>
-        </Paper>
-      </Grid>
-    </Grid>
+        <div className="mt-3 flex justify-center gap-2">
+          <button onClick={() => navigate(`/accounts/${accountId}/transactions`)} className="px-4 py-2 border rounded">Voir l'historique</button>
+          <button onClick={handleEdit} className="px-4 py-2 bg-blue-600 text-white rounded">Modifier le compte</button>
+        </div>
+      </div>
+    </div>
   );
 };
 

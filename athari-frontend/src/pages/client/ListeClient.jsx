@@ -1,16 +1,5 @@
 import React, { useState } from 'react';
-import {
-    Paper, Table, TableBody, TableCell, TableContainer,
-    TableHead, TableRow, TableSortLabel, TablePagination, Box,
-    IconButton, Typography, TextField, InputAdornment, useTheme
-} from '@mui/material';
-import { visuallyHidden } from '@mui/utils';
-import {
-    Edit as EditIcon,
-    Visibility as VisibilityIcon,
-    Delete as DeleteIcon,
-    Search as SearchIcon
-} from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
 
 // --- Données du Tableau ---
 
@@ -62,10 +51,7 @@ const handleDelete = (id) => { console.log(`Supprimer le client ID: ${id}`); };
 // ------------------------------------------------------------------
 
 export default function ListeClient() {
-    // Hooks Material-UI et états
-    const theme = useTheme(); 
-    const [order, setOrder] = useState('asc');
-    const [orderBy, setOrderBy] = useState('nom');
+    const navigate = useNavigate();
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(5);
     const [searchTerm, setSearchTerm] = useState('');
@@ -79,9 +65,9 @@ export default function ListeClient() {
         setOrderBy(property);
     };
 
-    const handleChangePage = (event, newPage) => { setPage(newPage); };
-    const handleChangeRowsPerPage = (event) => {
-        setRowsPerPage(parseInt(event.target.value, 10));
+    const handleChangePage = (newPage) => { setPage(newPage); };
+    const handleChangeRowsPerPage = (newPerPage) => {
+        setRowsPerPage(newPerPage);
         setPage(0);
     };
 
@@ -95,152 +81,82 @@ export default function ListeClient() {
         .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
     return (
-        <Box sx={{ p: 3, pt: 0 }}>
-            <Typography variant="h4" gutterBottom sx={{ mb: 3, color: 'primary.main', fontWeight: 600 }}>
-                Liste des Clients du Système Bancaire 
-            </Typography>
+        <div className="p-6">
+            <h2 className="text-2xl font-bold mb-4">Liste des Clients</h2>
 
-            {/* Zone de recherche/filtre */}
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
-                <TextField
-                    variant="outlined"
-                    size="small"
-                    placeholder="Rechercher un client..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    InputProps={{
-                        startAdornment: (
-                            <InputAdornment position="start">
-                                <SearchIcon />
-                            </InputAdornment>
-                        ),
-                    }}
-                    sx={{ width: 300 }}
-                />
-            </Box>
+            <div className="flex justify-between items-center mb-4">
+                <div />
+                <div className="flex items-center gap-2">
+                    <input
+                        type="search"
+                        className="border rounded px-3 py-2 w-72"
+                        placeholder="Rechercher un client..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                    <button
+                        onClick={() => navigate('/client/creer')}
+                        className="bg-blue-600 text-white px-3 py-2 rounded"
+                    >
+                        + Nouveau
+                    </button>
+                </div>
+            </div>
 
-
-            <Paper sx={{ width: '100%', mb: 2, borderRadius: 2, boxShadow: 3 }}>
-                <TableContainer sx={{ maxHeight: 600 }}>
-                    <Table stickyHeader aria-label="tableau des clients">
-                        
-                        {/* EN-TÊTE DU TABLEAU AVEC STYLES FORCÉS POUR LA LISIBILITÉ */}
-                        <TableHead>
-                            <TableRow>
-                                {headCells.map((headCell) => (
-                                    <TableCell
-                                        key={headCell.id}
-                                        align={headCell.id === 'actions' ? 'center' : 'left'}
-                                        sortDirection={orderBy === headCell.id ? order : false}
-                                        // STYLES CRITIQUES : Fond gris foncé et Texte blanc
-                                        sx={{
-                                            backgroundColor: '#1e69f5ff', // Fond gris très foncé (couleur solide)
-                                            color: 'white',         // Texte blanc
-                                            fontWeight: 'bold',
-                                            
-                                            // Assurer la couleur blanche pour les éléments triables (TableSortLabel)
-                                            '& .MuiTableSortLabel-root': {
-                                                color: 'white',
-                                                '&:hover': {
-                                                    color: 'white', 
-                                                },
-                                            },
-                                            // Assurer la couleur blanche pour l'icône de tri
-                                            '& .MuiTableSortLabel-icon': {
-                                                color: 'white !important', // Utilisation de !important
-                                            },
-                                        }}
-                                    >
-                                        {headCell.disableSorting ? (
-                                            <Box>{headCell.label}</Box>
-                                        ) : (
-                                            <TableSortLabel
-                                                active={orderBy === headCell.id}
-                                                direction={orderBy === headCell.id ? order : 'asc'}
-                                                onClick={() => handleRequestSort(headCell.id)}
-                                            >
-                                                {headCell.label}
-                                                {orderBy === headCell.id ? (
-                                                    <Box component="span" sx={visuallyHidden}>
-                                                        {order === 'desc' ? 'trié par ordre décroissant' : 'trié par ordre croissant'}
-                                                    </Box>
-                                                ) : null}
-                                            </TableSortLabel>
-                                        )}
-                                    </TableCell>
-                                ))}
-                            </TableRow>
-                        </TableHead>
-                        {/* FIN EN-TÊTE CORRIGÉ */}
-
-                        <TableBody>
-                            {visibleRows.map((row) => (
-                                <TableRow
-                                    hover
-                                    tabIndex={-1}
-                                    key={row.id}
-                                    sx={{ 
-                                        // Alternance de couleur de ligne
-                                        '&:nth-of-type(odd)': {
-                                            backgroundColor: theme.palette.action.hover,
-                                        },
-                                    }}
-                                >
-                                    {/* Colonnes de données */}
-                                    <TableCell>{row.nom}</TableCell>
-                                    <TableCell>{row.typepersone}</TableCell>
-                                    <TableCell>{row.date_naissance}</TableCell>
-                                    <TableCell>{row.numerocni}</TableCell>
-                                    <TableCell>{row.telephone}</TableCell>
-                                    <TableCell>
-                                        {/* Formatage du solde en FCFA */}
-                                        **{row.solde.toLocaleString('fr-FR', { style: 'currency', currency: 'XAF', minimumFractionDigits: 0 })}**
-                                    </TableCell>
-
-                                    {/* Colonne Actions */}
-                                    <TableCell align="center">
-                                        <IconButton
-                                            size="small"
-                                            onClick={() => handleView(row.id)}
-                                            aria-label="Afficher"
-                                            color="primary"
-                                        >
-                                            <VisibilityIcon fontSize="small" />
-                                        </IconButton>
-                                        <IconButton
-                                            size="small"
-                                            onClick={() => handleEdit(row.id)}
-                                            aria-label="Éditer"
-                                            color="default"
-                                        >
-                                            <EditIcon fontSize="small" />
-                                        </IconButton>
-                                        <IconButton
-                                            size="small"
-                                            onClick={() => handleDelete(row.id)}
-                                            aria-label="Supprimer"
-                                            color="error"
-                                        >
-                                            <DeleteIcon fontSize="small" />
-                                        </IconButton>
-                                    </TableCell>
-                                </TableRow>
+            <div className="bg-white rounded shadow overflow-hidden">
+                <table className="min-w-full divide-y">
+                    <thead className="bg-blue-600 text-white">
+                        <tr>
+                            {headCells.map((h) => (
+                                <th key={h.id} className="px-4 py-3 text-left text-sm font-medium">{h.label}</th>
                             ))}
-                        </TableBody>
-                    </Table>
-                </TableContainer>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                        {visibleRows.map((row) => (
+                            <tr key={row.id} className="hover:bg-gray-50">
+                                <td className="px-4 py-3">{row.nom}</td>
+                                <td className="px-4 py-3">{row.typepersone}</td>
+                                <td className="px-4 py-3">{row.date_naissance}</td>
+                                <td className="px-4 py-3">{row.numerocni}</td>
+                                <td className="px-4 py-3">{row.telephone}</td>
+                                <td className="px-4 py-3">{row.solde.toLocaleString('fr-FR', { style: 'currency', currency: 'XAF', minimumFractionDigits: 0 })}</td>
+                                <td className="px-4 py-3 text-center">
+                                    <button onClick={() => handleView(row.id)} className="text-sky-600 mr-2">Voir</button>
+                                    <button onClick={() => handleEdit(row.id)} className="text-green-600 mr-2">Éditer</button>
+                                    <button onClick={() => handleDelete(row.id)} className="text-red-600">Supprimer</button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
 
-                <TablePagination
-                    rowsPerPageOptions={[5, 10, 25]}
-                    component="div"
-                    count={initialData.length}
-                    rowsPerPage={rowsPerPage}
-                    page={page}
-                    onPageChange={handleChangePage}
-                    onRowsPerPageChange={handleChangeRowsPerPage}
-                    labelRowsPerPage="Lignes par page :"
-                />
-            </Paper>
-        </Box>
+            <div className="flex items-center justify-between mt-4">
+                <div className="text-sm text-gray-600">Total: {initialData.length} clients</div>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => handleChangePage(Math.max(0, page - 1))}
+                        className="px-3 py-1 border rounded"
+                        disabled={page === 0}
+                    >Préc</button>
+                    <div className="text-sm">Page {page + 1}</div>
+                    <button
+                        onClick={() => handleChangePage(page + 1)}
+                        className="px-3 py-1 border rounded"
+                        disabled={(page + 1) * rowsPerPage >= filteredData.length}
+                    >Suiv</button>
+                    <select
+                        value={rowsPerPage}
+                        onChange={(e) => handleChangeRowsPerPage(Number(e.target.value))}
+                        className="border rounded px-2 py-1"
+                    >
+                        <option value={5}>5</option>
+                        <option value={10}>10</option>
+                        <option value={25}>25</option>
+                    </select>
+                </div>
+            </div>
+        </div>
     );
 }

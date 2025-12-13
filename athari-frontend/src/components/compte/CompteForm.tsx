@@ -1,37 +1,4 @@
 import React, { useEffect } from 'react';
-import {
-  Box,
-  Card,
-  CardContent,
-  Grid,
-  TextField,
-  MenuItem,
-  FormControl,
-  InputLabel,
-  Select,
-  FormHelperText,
-  Typography,
-  Button,
-  Stepper,
-  Step,
-  StepLabel,
-  IconButton,
-  InputAdornment,
-  Divider,
-  Alert,
-  Paper,
-  Chip,
-  Stack,
-} from '@mui/material';
-import {
-  Save as SaveIcon,
-  Cancel as CancelIcon,
-  Add as AddIcon,
-  Remove as RemoveIcon,
-  AccountBalance as AccountIcon,
-  Person as PersonIcon,
-  AttachMoney as MoneyIcon,
-} from '@mui/icons-material';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import { useDispatch, useSelector } from 'react-redux';
@@ -267,295 +234,276 @@ const AccountForm: React.FC<AccountFormProps> = ({ isEdit = false }) => {
                       name="category"
                       value={formik.values.category}
                       onChange={formik.handleChange}
-                      onBlur={formik.handleBlur}
-                      label="Catégorie de Client"
-                    >
-                      {categories.map((category) => (
-                        <MenuItem key={category.value} value={category.value}>
-                          {category.label}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                    {formik.touched.category && formik.errors.category && (
-                      <FormHelperText>{formik.errors.category}</FormHelperText>
-                    )}
-                  </FormControl>
-                </Grid>
-              </Grid>
-            )}
+                      return (
+                        <div>
+                          <h2 className="text-2xl font-bold mb-4">{isEdit ? 'Modifier le Compte' : 'Créer un Nouveau Compte'}</h2>
 
-            {activeStep === 1 && (
-              <Grid container spacing={3}>
-                <Grid item xs={12}>
-                  <FormControl fullWidth error={formik.touched.type && Boolean(formik.errors.type)}>
-                    <InputLabel>Type de Compte</InputLabel>
-                    <Select
-                      id="type"
-                      name="type"
-                      value={formik.values.type}
-                      onChange={formik.handleChange}
-                      onBlur={formik.handleBlur}
-                      label="Type de Compte"
-                    >
-                      {accountTypes.map((type) => (
-                        <MenuItem key={type.value} value={type.value}>
-                          <Box>
-                            <Typography>{type.label}</Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {type.description}
-                            </Typography>
-                          </Box>
-                        </MenuItem>
-                      ))}
-                    </Select>
-                    {formik.touched.type && formik.errors.type && (
-                      <FormHelperText>{formik.errors.type}</FormHelperText>
-                    )}
-                  </FormControl>
-                </Grid>
+                          {error && (
+                            <div className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-red-800">{error}</div>
+                          )}
 
-                <Grid item xs={12} md={6}>
-                  <FormControl fullWidth error={formik.touched.currency && Boolean(formik.errors.currency)}>
-                    <InputLabel>Devise</InputLabel>
-                    <Select
-                      id="currency"
-                      name="currency"
-                      value={formik.values.currency}
-                      onChange={formik.handleChange}
-                      onBlur={formik.handleBlur}
-                      label="Devise"
-                    >
-                      {currencies.map((currency) => (
-                        <MenuItem key={currency.value} value={currency.value}>
-                          {currency.label} ({currency.symbol})
-                        </MenuItem>
-                      ))}
-                    </Select>
-                    {formik.touched.currency && formik.errors.currency && (
-                      <FormHelperText>{formik.errors.currency}</FormHelperText>
-                    )}
-                  </FormControl>
-                </Grid>
+                          <div className="bg-white shadow rounded p-6">
+                            {/* Simple stepper */}
+                            <div className="mb-6">
+                              <ol className="flex items-center gap-4">
+                                {steps.map((label, idx) => (
+                                  <li key={label} className="flex items-center gap-3">
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${idx === activeStep ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}>{idx + 1}</div>
+                                    <span className={`text-sm ${idx === activeStep ? 'text-gray-900 font-medium' : 'text-gray-500'}`}>{label}</span>
+                                  </li>
+                                ))}
+                              </ol>
+                            </div>
 
-                {/* Aperçu du type de compte sélectionné */}
-                <Grid item xs={12}>
-                  <Paper variant="outlined" sx={{ p: 2, bgcolor: 'background.default' }}>
-                    <Typography variant="subtitle2" gutterBottom>
-                      Description du type de compte sélectionné:
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {accountTypes.find(t => t.value === formik.values.type)?.description}
-                    </Typography>
-                  </Paper>
-                </Grid>
-              </Grid>
-            )}
+                            <form onSubmit={formik.handleSubmit}>
+                              {activeStep === 0 && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700">ID Client</label>
+                                    <div className="mt-1 relative rounded-md shadow-sm">
+                                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <svg className="h-5 w-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path d="M10 10a4 4 0 100-8 4 4 0 000 8zm-6 8a6 6 0 1112 0H4z"/></svg>
+                                      </div>
+                                      <input
+                                        id="clientId"
+                                        name="clientId"
+                                        value={formik.values.clientId}
+                                        onChange={formik.handleChange}
+                                        onBlur={formik.handleBlur}
+                                        className="block w-full pl-10 pr-3 py-2 border rounded-md"
+                                      />
+                                    </div>
+                                    {formik.touched.clientId && formik.errors.clientId && (<p className="mt-1 text-sm text-red-600">{formik.errors.clientId}</p>)}
+                                  </div>
 
-            {activeStep === 2 && (
-              <Grid container spacing={3}>
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    id="initialBalance"
-                    name="initialBalance"
-                    label="Solde Initial"
-                    type="number"
-                    value={formik.values.initialBalance}
-                    onChange={formik.handleChange}
-                    onBlur={formik.handleBlur}
-                    error={formik.touched.initialBalance && Boolean(formik.errors.initialBalance)}
-                    helperText={formik.touched.initialBalance && formik.errors.initialBalance}
-                    InputProps={{
-                      endAdornment: (
-                        <InputAdornment position="end">
-                          {currencies.find(c => c.value === formik.values.currency)?.symbol || 'FCFA'}
-                        </InputAdornment>
-                      ),
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <MoneyIcon color="action" />
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
-                </Grid>
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700">Nom Complet du Client</label>
+                                    <input
+                                      id="clientName"
+                                      name="clientName"
+                                      value={formik.values.clientName}
+                                      onChange={formik.handleChange}
+                                      onBlur={formik.handleBlur}
+                                      className="mt-1 block w-full border rounded-md px-3 py-2"
+                                    />
+                                    {formik.touched.clientName && formik.errors.clientName && (<p className="mt-1 text-sm text-red-600">{formik.errors.clientName}</p>)}
+                                  </div>
 
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    id="interestRate"
-                    name="interestRate"
-                    label="Taux d'Intérêt (%)"
-                    type="number"
-                    value={formik.values.interestRate}
-                    onChange={formik.handleChange}
-                    onBlur={formik.handleBlur}
-                    error={formik.touched.interestRate && Boolean(formik.errors.interestRate)}
-                    helperText={formik.touched.interestRate && formik.errors.interestRate}
-                    InputProps={{
-                      endAdornment: <InputAdornment position="end">%</InputAdornment>,
-                    }}
-                  />
-                </Grid>
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700">Catégorie de Client</label>
+                                    <select
+                                      id="category"
+                                      name="category"
+                                      value={formik.values.category}
+                                      onChange={formik.handleChange}
+                                      onBlur={formik.handleBlur}
+                                      className="mt-1 block w-full border rounded-md px-3 py-2"
+                                    >
+                                      {categories.map(c => (<option key={c.value} value={c.value}>{c.label}</option>))}
+                                    </select>
+                                    {formik.touched.category && formik.errors.category && (<p className="mt-1 text-sm text-red-600">{formik.errors.category}</p>)}
+                                  </div>
+                                </div>
+                              )}
 
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    id="monthlyFees"
-                    name="monthlyFees"
-                    label="Frais Mensuels"
-                    type="number"
-                    value={formik.values.monthlyFees}
-                    onChange={formik.handleChange}
-                    onBlur={formik.handleBlur}
-                    error={formik.touched.monthlyFees && Boolean(formik.errors.monthlyFees)}
-                    helperText={formik.touched.monthlyFees && formik.errors.monthlyFees}
-                    InputProps={{
-                      endAdornment: (
-                        <InputAdornment position="end">
-                          {currencies.find(c => c.value === formik.values.currency)?.symbol || 'FCFA'}
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
-                </Grid>
+                              {activeStep === 1 && (
+                                <div className="grid grid-cols-1 gap-4">
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700">Type de Compte</label>
+                                    <select
+                                      id="type"
+                                      name="type"
+                                      value={formik.values.type}
+                                      onChange={formik.handleChange}
+                                      onBlur={formik.handleBlur}
+                                      className="mt-1 block w-full border rounded-md px-3 py-2"
+                                    >
+                                      {accountTypes.map((t) => (
+                                        <option key={t.value} value={t.value}>{t.label}</option>
+                                      ))}
+                                    </select>
+                                    {formik.touched.type && formik.errors.type && (<p className="mt-1 text-sm text-red-600">{formik.errors.type}</p>)}
+                                  </div>
 
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    id="minimumBalance"
-                    name="minimumBalance"
-                    label="Solde Minimum"
-                    type="number"
-                    value={formik.values.minimumBalance}
-                    onChange={formik.handleChange}
-                    onBlur={formik.handleBlur}
-                    error={formik.touched.minimumBalance && Boolean(formik.errors.minimumBalance)}
-                    helperText={formik.touched.minimumBalance && formik.errors.minimumBalance}
-                    InputProps={{
-                      endAdornment: (
-                        <InputAdornment position="end">
-                          {currencies.find(c => c.value === formik.values.currency)?.symbol || 'FCFA'}
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
-                </Grid>
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700">Devise</label>
+                                    <select
+                                      id="currency"
+                                      name="currency"
+                                      value={formik.values.currency}
+                                      onChange={formik.handleChange}
+                                      onBlur={formik.handleBlur}
+                                      className="mt-1 block w-full border rounded-md px-3 py-2"
+                                    >
+                                      {currencies.map(c => (<option key={c.value} value={c.value}>{c.label} ({c.symbol})</option>))}
+                                    </select>
+                                    {formik.touched.currency && formik.errors.currency && (<p className="mt-1 text-sm text-red-600">{formik.errors.currency}</p>)}
+                                  </div>
 
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    id="withdrawalLimit"
-                    name="withdrawalLimit"
-                    label="Limite de Retrait"
-                    type="number"
-                    value={formik.values.withdrawalLimit}
-                    onChange={formik.handleChange}
-                    onBlur={formik.handleBlur}
-                    error={formik.touched.withdrawalLimit && Boolean(formik.errors.withdrawalLimit)}
-                    helperText={formik.touched.withdrawalLimit && formik.errors.withdrawalLimit}
-                    InputProps={{
-                      endAdornment: (
-                        <InputAdornment position="end">
-                          {currencies.find(c => c.value === formik.values.currency)?.symbol || 'FCFA'}
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
-                </Grid>
+                                  <div className="bg-gray-50 border rounded p-3">
+                                    <div className="text-sm font-medium text-gray-700">Description du type de compte sélectionné:</div>
+                                    <div className="text-sm text-gray-600 mt-1">{accountTypes.find(t => t.value === formik.values.type)?.description}</div>
+                                  </div>
+                                </div>
+                              )}
 
-                {/* Sous-comptes MATA Boost */}
-                {showSubAccounts && (
-                  <Grid item xs={12}>
-                    <Divider sx={{ my: 2 }} />
-                    <Typography variant="h6" gutterBottom>
-                      Sous-comptes MATA Boost
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" paragraph>
-                      Répartissez le solde initial entre les différents sous-comptes (optionnel)
-                    </Typography>
+                              {activeStep === 2 && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700">Solde Initial</label>
+                                    <div className="mt-1 relative rounded-md shadow-sm">
+                                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <svg className="h-5 w-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1v2a7 7 0 017 7h2a9 9 0 00-9-9z"/></svg>
+                                      </div>
+                                      <input
+                                        id="initialBalance"
+                                        name="initialBalance"
+                                        type="number"
+                                        value={formik.values.initialBalance}
+                                        onChange={formik.handleChange}
+                                        onBlur={formik.handleBlur}
+                                        className="block w-full pl-10 pr-12 py-2 border rounded-md"
+                                      />
+                                      <div className="absolute inset-y-0 right-0 pr-3 flex items-center text-sm text-gray-500">{currencies.find(c => c.value === formik.values.currency)?.symbol || 'FCFA'}</div>
+                                    </div>
+                                    {formik.touched.initialBalance && formik.errors.initialBalance && (<p className="mt-1 text-sm text-red-600">{formik.errors.initialBalance}</p>)}
+                                  </div>
 
-                    <Grid container spacing={2}>
-                      {mataSubAccounts.map((subAccount) => (
-                        <Grid item xs={12} sm={6} md={4} key={subAccount.id}>
-                          <Paper variant="outlined" sx={{ p: 2 }}>
-                            <Typography variant="subtitle2" gutterBottom>
-                              {subAccount.label}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
-                              {subAccount.description}
-                            </Typography>
-                            <TextField
-                              fullWidth
-                              size="small"
-                              label="Montant"
-                              type="number"
-                              InputProps={{
-                                endAdornment: (
-                                  <InputAdornment position="end">
-                                    {currencies.find(c => c.value === formik.values.currency)?.symbol || 'FCFA'}
-                                  </InputAdornment>
-                                ),
-                              }}
-                              sx={{ mt: 1 }}
-                            />
-                          </Paper>
-                        </Grid>
-                      ))}
-                    </Grid>
-                  </Grid>
-                )}
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700">Taux d'Intérêt (%)</label>
+                                    <div className="mt-1 relative">
+                                      <input
+                                        id="interestRate"
+                                        name="interestRate"
+                                        type="number"
+                                        value={formik.values.interestRate}
+                                        onChange={formik.handleChange}
+                                        onBlur={formik.handleBlur}
+                                        className="block w-full pr-10 py-2 border rounded-md"
+                                      />
+                                      <div className="absolute inset-y-0 right-0 pr-3 flex items-center text-sm text-gray-500">%</div>
+                                    </div>
+                                    {formik.touched.interestRate && formik.errors.interestRate && (<p className="mt-1 text-sm text-red-600">{formik.errors.interestRate}</p>)}
+                                  </div>
 
-                {/* Récapitulatif */}
-                <Grid item xs={12}>
-                  <Paper variant="outlined" sx={{ p: 3, bgcolor: 'background.default' }}>
-                    <Typography variant="h6" gutterBottom>
-                      Récapitulatif
-                    </Typography>
-                    <Grid container spacing={2}>
-                      <Grid item xs={6} md={3}>
-                        <Typography variant="caption" color="text.secondary">
-                          Client
-                        </Typography>
-                        <Typography variant="body2" fontWeight="medium">
-                          {formik.values.clientName}
-                        </Typography>
-                      </Grid>
-                      <Grid item xs={6} md={3}>
-                        <Typography variant="caption" color="text.secondary">
-                          Type de Compte
-                        </Typography>
-                        <Typography variant="body2" fontWeight="medium">
-                          {accountTypes.find(t => t.value === formik.values.type)?.label}
-                        </Typography>
-                      </Grid>
-                      <Grid item xs={6} md={3}>
-                        <Typography variant="caption" color="text.secondary">
-                          Solde Initial
-                        </Typography>
-                        <Typography variant="body2" fontWeight="medium" color="primary.main">
-                          {formik.values.initialBalance.toLocaleString()} {currencies.find(c => c.value === formik.values.currency)?.symbol}
-                        </Typography>
-                      </Grid>
-                      <Grid item xs={6} md={3}>
-                        <Typography variant="caption" color="text.secondary">
-                          Taux d'Intérêt
-                        </Typography>
-                        <Typography variant="body2" fontWeight="medium">
-                          {formik.values.interestRate}%
-                        </Typography>
-                      </Grid>
-                    </Grid>
-                  </Paper>
-                </Grid>
-              </Grid>
-            )}
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700">Frais Mensuels</label>
+                                    <div className="mt-1 relative">
+                                      <input
+                                        id="monthlyFees"
+                                        name="monthlyFees"
+                                        type="number"
+                                        value={formik.values.monthlyFees}
+                                        onChange={formik.handleChange}
+                                        onBlur={formik.handleBlur}
+                                        className="block w-full pr-10 py-2 border rounded-md"
+                                      />
+                                      <div className="absolute inset-y-0 right-0 pr-3 flex items-center text-sm text-gray-500">{currencies.find(c => c.value === formik.values.currency)?.symbol || 'FCFA'}</div>
+                                    </div>
+                                    {formik.touched.monthlyFees && formik.errors.monthlyFees && (<p className="mt-1 text-sm text-red-600">{formik.errors.monthlyFees}</p>)}
+                                  </div>
 
-            {/* Boutons de navigation */}
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
-              <Button
-                startIcon={<CancelIcon />}
-                onClick={handleCancel}
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700">Solde Minimum</label>
+                                    <div className="mt-1 relative">
+                                      <input
+                                        id="minimumBalance"
+                                        name="minimumBalance"
+                                        type="number"
+                                        value={formik.values.minimumBalance}
+                                        onChange={formik.handleChange}
+                                        onBlur={formik.handleBlur}
+                                        className="block w-full pr-10 py-2 border rounded-md"
+                                      />
+                                      <div className="absolute inset-y-0 right-0 pr-3 flex items-center text-sm text-gray-500">{currencies.find(c => c.value === formik.values.currency)?.symbol || 'FCFA'}</div>
+                                    </div>
+                                    {formik.touched.minimumBalance && formik.errors.minimumBalance && (<p className="mt-1 text-sm text-red-600">{formik.errors.minimumBalance}</p>)}
+                                  </div>
+
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700">Limite de Retrait</label>
+                                    <div className="mt-1 relative">
+                                      <input
+                                        id="withdrawalLimit"
+                                        name="withdrawalLimit"
+                                        type="number"
+                                        value={formik.values.withdrawalLimit}
+                                        onChange={formik.handleChange}
+                                        onBlur={formik.handleBlur}
+                                        className="block w-full pr-10 py-2 border rounded-md"
+                                      />
+                                      <div className="absolute inset-y-0 right-0 pr-3 flex items-center text-sm text-gray-500">{currencies.find(c => c.value === formik.values.currency)?.symbol || 'FCFA'}</div>
+                                    </div>
+                                    {formik.touched.withdrawalLimit && formik.errors.withdrawalLimit && (<p className="mt-1 text-sm text-red-600">{formik.errors.withdrawalLimit}</p>)}
+                                  </div>
+
+                                  {/* Sous-comptes MATA Boost */}
+                                  {showSubAccounts && (
+                                    <div className="md:col-span-2">
+                                      <div className="border-t my-4"></div>
+                                      <h3 className="text-lg font-medium">Sous-comptes MATA Boost</h3>
+                                      <p className="text-sm text-gray-600">Répartissez le solde initial entre les différents sous-comptes (optionnel)</p>
+
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mt-3">
+                                        {mataSubAccounts.map(sa => (
+                                          <div key={sa.id} className="border rounded p-3 bg-white">
+                                            <div className="font-medium">{sa.label}</div>
+                                            <div className="text-xs text-gray-500">{sa.description}</div>
+                                            <input className="mt-2 block w-full border rounded-md px-2 py-1" placeholder="Montant" type="number" />
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  <div className="md:col-span-2">
+                                    <div className="border rounded p-4 bg-gray-50">
+                                      <div className="text-sm text-gray-600">Récapitulatif</div>
+                                      <div className="grid grid-cols-2 gap-4 mt-3">
+                                        <div>
+                                          <div className="text-xs text-gray-500">Client</div>
+                                          <div className="font-medium">{formik.values.clientName}</div>
+                                        </div>
+                                        <div>
+                                          <div className="text-xs text-gray-500">Type de Compte</div>
+                                          <div className="font-medium">{accountTypes.find(t => t.value === formik.values.type)?.label}</div>
+                                        </div>
+                                        <div>
+                                          <div className="text-xs text-gray-500">Solde Initial</div>
+                                          <div className="font-medium text-blue-600">{Number(formik.values.initialBalance).toLocaleString()} {currencies.find(c => c.value === formik.values.currency)?.symbol}</div>
+                                        </div>
+                                        <div>
+                                          <div className="text-xs text-gray-500">Taux d'Intérêt</div>
+                                          <div className="font-medium">{formik.values.interestRate}%</div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                              {/* Navigation buttons */}
+                              <div className="flex items-center justify-between mt-6">
+                                <button type="button" onClick={handleCancel} disabled={isSubmitting} className="px-4 py-2 border rounded-md text-sm">Annuler</button>
+
+                                <div className="flex items-center gap-2">
+                                  {activeStep > 0 && (
+                                    <button type="button" onClick={handleBack} disabled={isSubmitting} className="px-4 py-2 border rounded-md text-sm">Retour</button>
+                                  )}
+
+                                  {activeStep < steps.length - 1 ? (
+                                    <button type="button" onClick={handleNext} disabled={!formik.isValid || isSubmitting} className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm">Suivant</button>
+                                  ) : (
+                                    <button type="submit" disabled={!formik.isValid || isSubmitting} className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm">{isSubmitting ? 'Enregistrement...' : (isEdit ? 'Modifier' : 'Créer')}</button>
+                                  )}
+                                </div>
+                              </div>
+                            </form>
+                          </div>
+                        </div>
+                      );
+                    };
+
+                    export default AccountForm;
                 disabled={isSubmitting}
               >
                 Annuler

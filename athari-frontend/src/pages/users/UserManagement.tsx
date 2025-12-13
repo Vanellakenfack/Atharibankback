@@ -1,277 +1,625 @@
-import React, { useState, useMemo } from 'react';
-import Swal from 'sweetalert2';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  Box,
+  Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TablePagination,
+  IconButton,
+  Button,
+  TextField,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Chip,
+  Typography,
+  Alert,
+  Snackbar,
+  InputAdornment,
+  CircularProgress,
+  Tooltip,
+  Card,
+  CardContent,
+  Grid,
+  Divider,
+  FormHelperText,
+} from '@mui/material';
+import {
+  Add as AddIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon,
+  Search as SearchIcon,
+  Refresh as RefreshIcon,
+  PersonAdd as PersonAddIcon,
+  Visibility as VisibilityIcon,
+  VisibilityOff as VisibilityOffIcon,
+} from '@mui/icons-material';
+import ApiClient from '../../ApiClient';
 
-import { mockUsers, mockRoles } from './data/mockData';
-import UserForm from '../../components/users/UserForm';
 
-import { FiUserPlus, FiSearch, FiFilter } from 'react-icons/fi';
 
-const roles = mockRoles;
+// Couleurs des rôles
+const roleColors = {
+  'DG': 'error',
+  'Admin': 'error',
+  'Chef Comptable': 'warning',
+  "Chef d'Agence (CA)": 'info',
+  'Assistant Juridique (AJ)': 'secondary',
+  'Assistant Comptable (AC)': 'success',
+  'Caissière': 'primary',
+  'Agent de Crédit (AC)': 'default',
+  'Collecteur': 'default',
+  'Audit/Contrôle (IV)': 'secondary',
+};
 
+// Composant principal
 const UserManagement = () => {
-    const [users, setUsers] = useState(mockUsers);
-    const [showForm, setShowForm] = useState(false);
-    const [editingUser, setEditingUser] = useState(null);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [statusFilter, setStatusFilter] = useState('all');
-    const [roleFilter, setRoleFilter] = useState('all');
+  // États
+  const [users, setUsers] = useState([]);
+  const [roles, setRoles] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [search, setSearch] = useState('');
+  const [filterRole, setFilterRole] = useState('');
+  
+  // États du dialogue
+  const [openDialog, setOpenDialog] = useState(false);
+  const [dialogMode, setDialogMode] = useState('add'); // 'add' | 'edit'
+  const [selectedUser, setSelectedUser] = useState(null);
+  
+  // États du formulaire
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    password: '',
+    password_confirmation: '',
+    role: '',
+  });
+  const [formErrors, setFormErrors] = useState({});
+  const [showPassword, setShowPassword] = useState(false);
+  
+  // État de suppression
+  const [deleteDialog, setDeleteDialog] = useState(false);
+  const [userToDelete, setUserToDelete] = useState(null);
+  
+  // État des notifications
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: '',
+    severity: 'success',
+  });
 
-    const handleAddUser = () => {
-        setEditingUser(null);
-        setShowForm(true);
-    };
-
-    const handleEditUser = (user) => {
-        setEditingUser(user);
-        setShowForm(true);
-    };
-
-    const handleSaveUser = (userData) => {
-        if (editingUser) {
-            setUsers(users.map(u => u.id === editingUser.id ? { ...u, ...userData } : u));
-            Swal.fire('Succès', 'Utilisateur modifié avec succès', 'success');
-        } else {
-            const newUser = {
-                id: Math.max(...users.map(u => u.id), 0) + 1,
-                ...userData,
-                createdAt: new Date().toISOString().split('T')[0],
-                lastLogin: null,
-                status: 'active'
-            };
-            setUsers([...users, newUser]);
-            Swal.fire('Succès', 'Utilisateur ajouté avec succès', 'success');
-        }
-
-        setShowForm(false);
-        setEditingUser(null);
-    };
-
-    const handleDeleteUser = (id) => {
-        Swal.fire({
-            title: 'Êtes-vous sûr?',
-            text: "Vous ne pourrez pas annuler cette action!",
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#d33',
-            cancelButtonColor: '#3085d6',
-            confirmButtonText: 'Oui, supprimer!',
-            cancelButtonText: 'Annuler'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                setUsers(users.filter(user => user.id !== id));
-                Swal.fire('Supprimé!', 'Utilisateur supprimé avec succès.', 'success');
-            }
-        });
-    };
-
-    const handleToggleStatus = (id) => {
-        setUsers(users.map(user =>
-            user.id === id ? { ...user, status: user.status === 'active' ? 'inactive' : 'active' } : user
-        ));
-    };
-
-    const filteredUsers = useMemo(() => {
-        return users.filter(user => {
-            const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                user.email.toLowerCase().includes(searchTerm.toLowerCase());
-
-            const matchesStatus = statusFilter === 'all' || user.status === statusFilter;
-            const matchesRole = roleFilter === 'all' || user.roles.includes(roleFilter);
-
-            return matchesSearch && matchesStatus && matchesRole;
-        });
-    }, [users, searchTerm, statusFilter, roleFilter]);
-
-    if (showForm) {
-        return (
-            <div className="container-fluid py-4">
-                <UserForm
-                    user={editingUser}
-                    roles={roles}
-                    onSave={handleSaveUser}
-                    onCancel={() => { setShowForm(false); setEditingUser(null); }}
-                />
-            </div>
-        );
+  // Récupérer les utilisateurs
+  const fetchUsers = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = {
+        page: page + 1,
+        per_page: rowsPerPage,
+        search: search || undefined,
+        role: filterRole || undefined,
+      };
+      
+      const response = await ApiClient.get('/users', { params });
+      setUsers(response.data.data);
+      setTotalUsers(response.data.total);
+    } catch (error) {
+      showSnackbar(
+        error.response?.data?.message || 'Erreur lors du chargement des utilisateurs',
+        'error'
+      );
+    } finally {
+      setLoading(false);
     }
+  }, [page, rowsPerPage, search, filterRole]);
 
-    return (
-        <div className="p-4">
-            <div className="w-full flex justify-between items-center mb-6 mt-1 pl-3">
-                <div>
-                    <h3 className="text-lg font-bold text-slate-800">Gestion des Utilisateurs</h3>
-                    <p className="text-slate-500">Aperçu de tous les utilisateurs du système.</p>
-                </div>
-                <div className="flex items-center space-x-4">
-                    <div className="flex items-center space-x-2">
-                        <FiFilter className="text-slate-500" />
-                        <select 
-                            className="bg-white px-3 py-1 text-sm border border-slate-200 rounded focus:outline-none focus:border-slate-400"
-                            value={statusFilter}
-                            onChange={(e) => setStatusFilter(e.target.value)}
-                        >
-                            <option value="all">Tous les statuts</option>
-                            <option value="active">Actif</option>
-                            <option value="inactive">Inactif</option>
-                        </select>
+  // Récupérer les rôles
+  const fetchRoles = async () => {
+    try {
+      const response = await ApiClient.get('/roles');
+      setRoles(response.data);
+    } catch (error) {
+      console.error('Erreur lors du chargement des rôles:', error);
+    }
+  };
 
-                        <select 
-                            className="bg-white px-3 py-1 text-sm border border-slate-200 rounded focus:outline-none focus:border-slate-400"
-                            value={roleFilter}
-                            onChange={(e) => setRoleFilter(e.target.value)}
-                        >
-                            <option value="all">Tous les rôles</option>
-                            {roles.map(role => (
-                                <option key={role.id} value={role.name}>
-                                    {role.name}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                    
-                    <button 
-                        className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded flex items-center"
-                        onClick={handleAddUser}
-                    >
-                        <FiUserPlus className="mr-2" />
-                        Ajouter un Utilisateur
-                    </button>
-                </div>
-            </div>
+  // Effets
+  useEffect(() => {
+    fetchRoles();
+  }, []);
 
-            <div className="w-full flex justify-between items-center mb-3 mt-1 pl-3">
-                <div className="ml-3 w-full max-w-sm min-w-[200px] relative">
-                    <div className="relative">
-                        <input
-                            className="bg-white w-full pr-11 h-10 pl-3 py-2 bg-transparent placeholder:text-slate-400 text-slate-700 text-sm border border-slate-200 rounded transition duration-300 ease focus:outline-none focus:border-slate-400 hover:border-slate-400 shadow-sm focus:shadow-md"
-                            placeholder="Rechercher un utilisateur..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                        <button
-                            className="absolute h-8 w-8 right-1 top-1 my-auto px-2 flex items-center bg-white rounded"
-                            type="button"
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
+
+  // Afficher une notification
+  const showSnackbar = (message, severity = 'success') => {
+    setSnackbar({ open: true, message, severity });
+  };
+
+  // Fermer la notification
+  const handleCloseSnackbar = () => {
+    setSnackbar({ ...snackbar, open: false });
+  };
+
+  // Ouvrir le dialogue d'ajout
+  const handleOpenAddDialog = () => {
+    setDialogMode('add');
+    setFormData({
+      name: '',
+      email: '',
+      password: '',
+      password_confirmation: '',
+      role: '',
+    });
+    setFormErrors({});
+    setOpenDialog(true);
+  };
+
+  // Ouvrir le dialogue de modification
+  const handleOpenEditDialog = (user) => {
+    setDialogMode('edit');
+    setSelectedUser(user);
+    setFormData({
+      name: user.name,
+      email: user.email,
+      password: '',
+      password_confirmation: '',
+      role: user.role || '',
+    });
+    setFormErrors({});
+    setOpenDialog(true);
+  };
+
+  // Fermer le dialogue
+  const handleCloseDialog = () => {
+    setOpenDialog(false);
+    setSelectedUser(null);
+    setFormErrors({});
+  };
+
+  // Gérer les changements du formulaire
+  const handleFormChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    // Effacer l'erreur du champ modifié
+    if (formErrors[name]) {
+      setFormErrors((prev) => ({ ...prev, [name]: '' }));
+    }
+  };
+
+  // Valider le formulaire
+  const validateForm = () => {
+    const errors = {};
+    
+    if (!formData.name.trim()) {
+      errors.name = 'Le nom est obligatoire';
+    }
+    
+    if (!formData.email.trim()) {
+      errors.email = "L'email est obligatoire";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      errors.email = "L'email n'est pas valide";
+    }
+    
+    if (dialogMode === 'add') {
+      if (!formData.password) {
+        errors.password = 'Le mot de passe est obligatoire';
+      } else if (formData.password.length < 8) {
+        errors.password = 'Le mot de passe doit contenir au moins 8 caractères';
+      }
+      
+      if (formData.password !== formData.password_confirmation) {
+        errors.password_confirmation = 'Les mots de passe ne correspondent pas';
+      }
+    } else if (formData.password && formData.password !== formData.password_confirmation) {
+      errors.password_confirmation = 'Les mots de passe ne correspondent pas';
+    }
+    
+    if (!formData.role) {
+      errors.role = 'Le rôle est obligatoire';
+    }
+    
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  // Soumettre le formulaire
+  const handleSubmit = async () => {
+    if (!validateForm()) return;
+
+    try {
+      const payload = {
+        name: formData.name,
+        email: formData.email,
+        role: formData.role,
+      };
+
+      if (formData.password) {
+        payload.password = formData.password;
+        payload.password_confirmation = formData.password_confirmation;
+      }
+
+      if (dialogMode === 'add') {
+        await ApiClient.post('/users', payload);
+        showSnackbar('Utilisateur créé avec succès');
+      } else {
+        await ApiClient.put(`/users/${selectedUser.id}`, payload);
+        showSnackbar('Utilisateur modifié avec succès');
+      }
+
+      handleCloseDialog();
+      fetchUsers();
+    } catch (error) {
+      if (error.response?.status === 422) {
+        // Erreurs de validation du serveur
+        const serverErrors = error.response.data.errors || {};
+        const formattedErrors = {};
+        Object.keys(serverErrors).forEach((key) => {
+          formattedErrors[key] = serverErrors[key][0];
+        });
+        setFormErrors(formattedErrors);
+      } else {
+        showSnackbar(
+          error.response?.data?.message || 'Une erreur est survenue',
+          'error'
+        );
+      }
+    }
+  };
+
+  // Ouvrir le dialogue de suppression
+  const handleOpenDeleteDialog = (user) => {
+    setUserToDelete(user);
+    setDeleteDialog(true);
+  };
+
+  // Confirmer la suppression
+  const handleConfirmDelete = async () => {
+    try {
+      await ApiClient.delete(`/users/${userToDelete.id}`);
+      showSnackbar('Utilisateur supprimé avec succès');
+      setDeleteDialog(false);
+      setUserToDelete(null);
+      fetchUsers();
+    } catch (error) {
+      showSnackbar(
+        error.response?.data?.message || 'Erreur lors de la suppression',
+        'error'
+      );
+    }
+  };
+
+  // Gérer le changement de page
+  const handleChangePage = (event, newPage) => {
+    setPage(newPage);
+  };
+
+  // Gérer le changement du nombre de lignes par page
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+
+  // Gérer la recherche avec délai
+  const handleSearchChange = (e) => {
+    setSearch(e.target.value);
+    setPage(0);
+  };
+
+  return (
+    <Box sx={{ p: 3 }}>
+      {/* En-tête */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h5" component="h1" sx={{ fontWeight: 'bold' }}>
+              Gestion des Utilisateurs
+            </Typography>
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<PersonAddIcon />}
+              onClick={handleOpenAddDialog}
+            >
+              Nouvel Utilisateur
+            </Button>
+          </Box>
+          
+          <Divider sx={{ my: 2 }} />
+          
+          {/* Filtres */}
+          <Grid container spacing={2} alignItems="center">
+            <Grid item xs={12} md={5}>
+              <TextField
+                fullWidth
+                size="small"
+                placeholder="Rechercher par nom ou email..."
+                value={search}
+                onChange={handleSearchChange}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon color="action" />
+                    </InputAdornment>
+                  ),
+                }}
+              />
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Filtrer par rôle</InputLabel>
+                <Select
+                  value={filterRole}
+                  label="Filtrer par rôle"
+                  onChange={(e) => {
+                    setFilterRole(e.target.value);
+                    setPage(0);
+                  }}
+                >
+                  <MenuItem value="">Tous les rôles</MenuItem>
+                  {roles.map((role) => (
+                    <MenuItem key={role.id} value={role.name}>
+                      {role.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} md={3}>
+              <Button
+                fullWidth
+                variant="outlined"
+                startIcon={<RefreshIcon />}
+                onClick={fetchUsers}
+              >
+                Actualiser
+              </Button>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
+
+      {/* Tableau des utilisateurs */}
+      <Paper elevation={2}>
+        <TableContainer>
+          <Table>
+            <TableHead>
+              <TableRow sx={{ backgroundColor: 'primary.main' }}>
+                <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>ID</TableCell>
+                <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Nom</TableCell>
+                <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Email</TableCell>
+                <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Rôle</TableCell>
+                <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Date de création</TableCell>
+                <TableCell sx={{ color: 'white', fontWeight: 'bold' }} align="center">Actions</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={6} align="center" sx={{ py: 5 }}>
+                    <CircularProgress />
+                    <Typography variant="body2" sx={{ mt: 2 }}>
+                      Chargement des utilisateurs...
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              ) : users.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} align="center" sx={{ py: 5 }}>
+                    <Typography variant="body1" color="textSecondary">
+                      Aucun utilisateur trouvé
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                users.map((user) => (
+                  <TableRow key={user.id} hover>
+                    <TableCell>{user.id}</TableCell>
+                    <TableCell>{user.name}</TableCell>
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell>
+                      <Chip
+                        label={user.role || 'Aucun rôle'}
+                        color={roleColors[user.role] || 'default'}
+                        size="small"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      {new Date(user.created_at).toLocaleDateString('fr-FR', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </TableCell>
+                    <TableCell align="center">
+                      <Tooltip title="Modifier">
+                        <IconButton
+                          color="primary"
+                          onClick={() => handleOpenEditDialog(user)}
                         >
-                            <FiSearch className="w-5 h-5 text-slate-600" />
-                        </button>
-                    </div>
-                </div>
-            </div>
+                          <EditIcon />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Supprimer">
+                        <IconButton
+                          color="error"
+                          onClick={() => handleOpenDeleteDialog(user)}
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                      </Tooltip>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+        
+        {/* Pagination */}
+        <TablePagination
+          component="div"
+          count={totalUsers}
+          page={page}
+          onPageChange={handleChangePage}
+          rowsPerPage={rowsPerPage}
+          onRowsPerPageChange={handleChangeRowsPerPage}
+          rowsPerPageOptions={[5, 10, 25, 50]}
+          labelRowsPerPage="Lignes par page:"
+          labelDisplayedRows={({ from, to, count }) =>
+            `${from}-${to} sur ${count !== -1 ? count : `plus de ${to}`}`
+          }
+        />
+      </Paper>
+
+      {/* Dialogue Ajout/Modification */}
+      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          {dialogMode === 'add' ? 'Ajouter un utilisateur' : 'Modifier l\'utilisateur'}
+        </DialogTitle>
+        <DialogContent dividers>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+            <TextField
+              label="Nom complet"
+              name="name"
+              value={formData.name}
+              onChange={handleFormChange}
+              error={Boolean(formErrors.name)}
+              helperText={formErrors.name}
+              fullWidth
+              required
+            />
             
-            <div className="relative flex flex-col w-full h-full overflow-scroll text-gray-700 bg-white shadow-md rounded-lg bg-clip-border">
-                <table className="w-full text-left table-auto min-w-max">
-                    <thead>
-                        <tr>
-                            <th className="p-4 border-b border-slate-300 bg-slate-50">
-                                <p className="block text-sm font-normal leading-none text-slate-500">
-                                    Nom
-                                </p>
-                            </th>
-                            <th className="p-4 border-b border-slate-300 bg-slate-50">
-                                <p className="block text-sm font-normal leading-none text-slate-500">
-                                    Email
-                                </p>
-                            </th>
-                            <th className="p-4 border-b border-slate-300 bg-slate-50">
-                                <p className="block text-sm font-normal leading-none text-slate-500">
-                                    Rôle(s)
-                                </p>
-                            </th>
-                            <th className="p-4 border-b border-slate-300 bg-slate-50">
-                                <p className="block text-sm font-normal leading-none text-slate-500">
-                                    Statut
-                                </p>
-                            </th>
-                            <th className="p-4 border-b border-slate-300 bg-slate-50">
-                                <p className="block text-sm font-normal leading-none text-slate-500">
-                                    Date de création
-                                </p>
-                            </th>
-                            <th className="p-4 border-b border-slate-300 bg-slate-50">
-                                <p className="block text-sm font-normal leading-none text-slate-500">
-                                    Actions
-                                </p>
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {filteredUsers.map(user => (
-                            <tr key={user.id} className="hover:bg-slate-50 border-b border-slate-200">
-                                <td className="p-4 py-5">
-                                    <p className="block font-semibold text-sm text-slate-800">{user.name}</p>
-                                </td>
-                                <td className="p-4 py-5">
-                                    <p className="block text-sm text-slate-800">{user.email}</p>
-                                </td>
-                                <td className="p-4 py-5">
-                                    <div className="flex flex-wrap gap-1">
-                                        {user.roles.map((role, index) => (
-                                            <span 
-                                                key={index}
-                                                className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded"
-                                            >
-                                                {role}
-                                            </span>
-                                        ))}
-                                    </div>
-                                </td>
-                                <td className="p-4 py-5">
-                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                        user.status === 'active' 
-                                            ? 'bg-green-100 text-green-800' 
-                                            : 'bg-red-100 text-red-800'
-                                    }`}>
-                                        {user.status === 'active' ? 'Actif' : 'Inactif'}
-                                    </span>
-                                </td>
-                                <td className="p-4 py-5">
-                                    <p className="block text-sm text-slate-800">{user.createdAt}</p>
-                                </td>
-                                <td className="p-4 py-5">
-                                    <div className="block text-center flex space-x-2 justify-center">
-                                        <button 
-                                            className="text-blue-600 hover:text-blue-800"
-                                            onClick={() => handleEditUser(user)}
-                                            title="Modifier"
-                                        >
-                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
-                                                <path d="M21.731 2.269a2.625 2.625 0 00-3.712 0l-1.157 1.157 3.712 3.712 1.157-1.157a2.625 2.625 0 000-3.712zM19.513 8.199l-3.712-3.712-8.4 8.4a5.25 5.25 0 00-1.32 2.214l-.8 2.685a.75.75 0 00.933.933l2.685-.8a5.25 5.25 0 002.214-1.32l8.4-8.4z" />
-                                                <path d="M5.25 5.25a3 3 0 00-3 3v10.5a3 3 0 003 3h10.5a3 3 0 003-3V13.5a.75.75 0 00-1.5 0v5.25a1.5 1.5 0 01-1.5 1.5H5.25a1.5 1.5 0 01-1.5-1.5V8.25a1.5 1.5 0 011.5-1.5h5.25a.75.75 0 000-1.5H5.25z" />
-                                            </svg>
-                                        </button>
-                                        <button 
-                                            className="text-red-600 hover:text-red-800"
-                                            onClick={() => handleDeleteUser(user.id)}
-                                            title="Supprimer"
-                                        >
-                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
-                                                <path fillRule="evenodd" d="M16.5 4.478v.227a48.816 48.816 0 013.878.512.75.75 0 11-.256 1.478l-.209-.035-1.005 13.07a3 3 0 01-2.991 2.77H8.084a3 3 0 01-2.991-2.77L4.087 6.66l-.209.035a.75.75 0 01-.256-1.478A48.567 48.567 0 017.5 4.705v-.227c0-1.564 1.213-2.9 2.816-2.951a52.662 52.662 0 013.369 0c1.603.051 2.815 1.387 2.815 2.951zm-6.136-1.452a51.196 51.196 0 013.273 0C14.39 3.05 15 3.684 15 4.478v.113a49.488 49.488 0 00-6 0v-.113c0-.794.609-1.428 1.364-1.452zm-.355 5.945a.75.75 0 10-1.5.058l.347 9a.75.75 0 101.499-.058l-.346-9zm5.48.058a.75.75 0 10-1.498-.058l-.347 9a.75.75 0 001.5.058l.345-9z" clipRule="evenodd" />
-                                            </svg>
-                                        </button>
-                                        <button 
-                                            className="text-green-600 hover:text-green-800"
-                                            onClick={() => handleToggleStatus(user.id)}
-                                            title={user.status === 'active' ? 'Désactiver' : 'Activer'}
-                                        >
-                                            {user.status === 'active' ? (
-                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
-                                                    <path fillRule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zm3 10.5a.75.75 0 000-1.5H9a.75.75 0 000 1.5h6z" clipRule="evenodd" />
-                                                </svg>
-                                            ) : (
-                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
-                                                    <path fillRule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zM12.75 9a.75.75 0 00-1.5 0v2.25H9a.75.75 0 000 1.5h2.25V15a.75.75 0 001.5 0v-2.25H15a.75.75 0 000-1.5h-2.25V9z" clipRule="evenodd" />
-                                                </svg>
-                                            )}
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    );
+            <TextField
+              label="Adresse email"
+              name="email"
+              type="email"
+              value={formData.email}
+              onChange={handleFormChange}
+              error={Boolean(formErrors.email)}
+              helperText={formErrors.email}
+              fullWidth
+              required
+            />
+            
+            <TextField
+              label={dialogMode === 'add' ? 'Mot de passe' : 'Nouveau mot de passe (laisser vide pour ne pas changer)'}
+              name="password"
+              type={showPassword ? 'text' : 'password'}
+              value={formData.password}
+              onChange={handleFormChange}
+              error={Boolean(formErrors.password)}
+              helperText={formErrors.password}
+              fullWidth
+              required={dialogMode === 'add'}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={() => setShowPassword(!showPassword)}
+                      edge="end"
+                    >
+                      {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+            />
+            
+            <TextField
+              label="Confirmer le mot de passe"
+              name="password_confirmation"
+              type={showPassword ? 'text' : 'password'}
+              value={formData.password_confirmation}
+              onChange={handleFormChange}
+              error={Boolean(formErrors.password_confirmation)}
+              helperText={formErrors.password_confirmation}
+              fullWidth
+              required={dialogMode === 'add' || formData.password}
+            />
+            
+            <FormControl fullWidth error={Boolean(formErrors.role)} required>
+              <InputLabel>Rôle</InputLabel>
+              <Select
+                name="role"
+                value={formData.role}
+                label="Rôle"
+                onChange={handleFormChange}
+              >
+                {roles.map((role) => (
+                  <MenuItem key={role.id} value={role.name}>
+                    {role.name}
+                  </MenuItem>
+                ))}
+              </Select>
+              {formErrors.role && <FormHelperText>{formErrors.role}</FormHelperText>}
+            </FormControl>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button onClick={handleCloseDialog} color="inherit">
+            Annuler
+          </Button>
+          <Button onClick={handleSubmit} variant="contained" color="primary">
+            {dialogMode === 'add' ? 'Créer' : 'Enregistrer'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialogue de suppression */}
+      <Dialog open={deleteDialog} onClose={() => setDeleteDialog(false)}>
+        <DialogTitle>Confirmer la suppression</DialogTitle>
+        <DialogContent>
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            Cette action est irréversible !
+          </Alert>
+          <Typography>
+            Êtes-vous sûr de vouloir supprimer l'utilisateur{' '}
+            <strong>{userToDelete?.name}</strong> ({userToDelete?.email}) ?
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button onClick={() => setDeleteDialog(false)} color="inherit">
+            Annuler
+          </Button>
+          <Button onClick={handleConfirmDelete} variant="contained" color="error">
+            Supprimer
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar pour les notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={5000}
+        onClose={handleCloseSnackbar}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          onClose={handleCloseSnackbar}
+          severity={snackbar.severity}
+          variant="filled"
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+    </Box>
+  );
 };
 
 export default UserManagement;

@@ -5,7 +5,7 @@ import {
     IconButton, Typography, TextField, InputAdornment, useTheme,
     Button,
 } from '@mui/material';
-import Header from '../../layouts/Header';
+import Header from '../../components/layout/Header';
 import { visuallyHidden } from '@mui/utils';
 import {
     Edit as EditIcon,

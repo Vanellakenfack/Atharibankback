@@ -14,17 +14,21 @@ Route::post('/login', [AuthController::class, 'login']);
 // Route protégée par Sanctum pour la déconnexion
 Route::middleware('auth:sanctum')->post('/logout', [AuthController::class, 'logout']);
 
-// CRUD Users (gestion utilisateurs)
-Route::middleware(['auth:sanctum', 'permission:gerer utilisateurs'])->group(function () {
-    Route::get('/users', [UserController::class, 'index']);
-    Route::post('/users', [UserController::class, 'store']);
-    Route::get('/users/{user}', [UserController::class, 'show']);
-    Route::put('/users/{user}', [UserController::class, 'update']);
-    Route::delete('/users/{user}', [UserController::class, 'destroy']);
-});
-
-// Optionnel : gestion rôles/permissions
-Route::middleware(['auth:sanctum', 'permission:gerer roles et permissions'])->group(function () {
-    Route::put('/users/{user}/roles', [UserController::class, 'syncRoles']);
-    Route::put('/users/{user}/permissions', [UserController::class, 'syncPermissions']);
+// Routes protégées par Sanctum
+Route::middleware('auth:sanctum')->group(function () {
+    
+    // Routes CRUD Utilisateurs
+    Route::apiResource('users', UserController::class);
+    
+    // Route pour récupérer tous les rôles (pour les selects)
+    Route::get('roles', [UserController::class, 'getRoles']);
+    
+    // Route pour récupérer les permissions
+    Route::get('permissions', [UserController::class, 'getPermissions']);
+    
+    // Route pour assigner/retirer des rôles
+    Route::post('users/{user}/roles', [UserController::class, 'syncRoles']);
+    
+    // Route pour l'utilisateur connecté
+    Route::get('me', [UserController::class, 'me']);
 });

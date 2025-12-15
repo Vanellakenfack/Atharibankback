@@ -1,6 +1,4 @@
 import React, { useState } from 'react';
-import Header from '../../components/layout/Header';
-import Sidebar from '../../components/layout/Sidebar.tsx';
 import {
   Box,
   Typography,
@@ -30,7 +28,6 @@ const AccountsPage = () => {
 
   return (
     <Box>
-      <Header/>
     
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h4">

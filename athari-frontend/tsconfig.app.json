@@ -7,6 +7,12 @@
     "module": "ESNext",
     "types": ["vite/client"],
     "skipLibCheck": true,
+        "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ]
+    },
 
     /* Bundler mode */
     "moduleResolution": "bundler",
@@ -14,8 +20,6 @@
     "verbatimModuleSyntax": true,
     "moduleDetection": "force",
     "noEmit": true,
-    "allowJs": true,
-    "checkJs": false,
     "jsx": "react-jsx",
 
     /* Linting */
@@ -24,15 +28,7 @@
     "noUnusedParameters": true,
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true,
-
-    /* Module Resolution */
-    "baseUrl": "./src",
-    "paths": {
-      "@/*": ["./src/*"]
-    }
-
-    
+    "noUncheckedSideEffectImports": true
   },
   "include": ["src"]
 }

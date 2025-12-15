@@ -7,7 +7,7 @@ use Illuminate\Http\Request;
 use App\Http\Controllers\Auth\AuthController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\UserController;
-use App\Http\Controllers\logs\ActivityLogController;
+use App\Http\Controllers\logs\AuditLogController;
 
 // Route publique (non protégée par Sanctum) pour l'authentification
 Route::post('/login', [AuthController::class, 'login']);
@@ -34,6 +34,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('me', [UserController::class, 'me']);
 });
 
-Route::middleware(['auth:sanctum', 'permission:audit:logs'])->group(function () {
-    Route::get('/audit/logs', [ActivityLogController::class, 'index']);
+Route::middleware(['auth:sanctum', 'permission:consulter logs'])->group(function () {
+    Route::get('/audit/logs', [AuditLogController::class, 'index']);
 });

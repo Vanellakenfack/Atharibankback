@@ -6,7 +6,8 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
-use Spatie\Activitylog\ActivityLogger; // ✅ La classe concrète
+// REMPLACÉ : use Spatie\Activitylog\ActivityLogger; // ✅ La classe concrète
+
 class AuthController extends Controller
 {
     /**
@@ -25,10 +26,9 @@ class AuthController extends Controller
         if (! Auth::attempt($request->only('email', 'password'))) {
             
             // --- LOG EN CAS D'ÉCHEC ---
-            // Enregistre la tentative échouée (sans user car non authentifié)
-
-            ActivityLogger::info('Tentative de connexion échouée')
-                ->log('auth.failed');
+            // CORRECTION : Utilisez activity() et mettez la description dans la méthode log()
+            activity()
+                ->log('Tentative de connexion échouée', 'auth.failed'); // Le 2e argument est l'événement
 
             throw ValidationException::withMessages([
                 'email' => ['Identifiants invalides.'],
@@ -38,11 +38,12 @@ class AuthController extends Controller
         $user = Auth::user();
 
         // --- LOG EN CAS DE SUCCÈS ---
-        ActivityLogger::info("Connexion réussie depuis l'appareil : " . $request->device_name)
+        // CORRECTION : Supprimez ActivityLogger::info() et commencez par activity()
+        activity()
             ->performedOn($user) // Associe le log à l'utilisateur qui se connecte
             ->withProperty('ip_address', $request->ip()) // Ajoute l'adresse IP du client
             ->withProperty('user_agent', $request->header('User-Agent')) // Ajoute l'agent utilisateur
-            ->log('auth.login'); 
+            ->log("Connexion réussie depuis l'appareil : " . $request->device_name, 'auth.login'); 
         // -----------------------------
 
         // Récupération du rôle principal de l'utilisateur (assumant l'utilisation de spatie/laravel-permission)
@@ -104,10 +105,11 @@ class AuthController extends Controller
         $user = $request->user();
         
         // --- LOG DE DÉCONNEXION ---
-        ActivityLogger::info('Déconnexion réussie')
+        // CORRECTION : Supprimez ActivityLogger::info() et commencez par activity()
+        activity()
             ->performedOn($user)
             ->withProperty('ip_address', $request->ip())
-            ->log('auth.logout');
+            ->log('Déconnexion réussie', 'auth.logout');
         // --------------------------
 
         // Supprime le token spécifique utilisé pour la requête, assurant la révocation immédiate

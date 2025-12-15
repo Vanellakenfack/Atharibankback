@@ -7,7 +7,7 @@ use Illuminate\Http\Request;
 use Spatie\Activitylog\Models\Activity; 
 use Illuminate\Pagination\LengthAwarePaginator; // Pour les annotations
 
-class ActivityLogController extends Controller
+class AuditLogController extends Controller
 {
     /**
      * Affiche une liste paginée des logs d'activité.

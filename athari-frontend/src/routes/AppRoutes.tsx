@@ -1,5 +1,5 @@
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Link } from "react-router-dom";
 import AccountsPage from '../pages/compte/ComptePage';
 import AccountCreatePage from '../pages/compte/CreationCompte';
 import AccountEditPage from '../pages/compte/EditionPage';
@@ -9,12 +9,30 @@ import Formclient from '../pages/client/FormClient';
 import Login from '../pages/Login'; 
 import Home from '../pages/Home';
 import ListeClient from '../pages/client/ListeClient';
+<<<<<<< HEAD
 import Dashboard from  '../layouts/Dashboard'
+=======
+import RoleManagement from "../pages/users/RoleManagement";
+import UserManagement from "../pages/users/UserManagement";
+import ProtectedRoute from "../components/users/ProtectedRoute";
+
+>>>>>>> 09f7f520819d17b8f5bd2c7cfcce97e473c264b0
 const AppRoutes = () => {
   return (
-      <Routes>
+    <Routes>
       {/* Route de connexion (URL: /login) */}
-      <Route path="/login" element={<Login />} />
+      <Route 
+          path="/login" 
+          element={<Login />} 
+        />
+        <Route
+          path="/users/roles"
+          element={<RoleManagement />}
+        />
+        <Route
+          path="/users/management"
+          element={<UserManagement />}
+        />
 
       {/* Page d'Accueil (URL: /) */}
       <Route path="/" element={<Home />} />

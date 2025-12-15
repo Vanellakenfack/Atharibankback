@@ -34,7 +34,13 @@ export default function Login() {
 
       localStorage.setItem('authToken', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
+<<<<<<< HEAD:athari-frontend/src/pages/Login.jsx
       navigate('/dashboard');
+=======
+      
+      // Redirection après succès
+      navigate('/users/management');
+>>>>>>> 09f7f520819d17b8f5bd2c7cfcce97e473c264b0:athari-frontend/src/pages/Login.tsx
 
     } catch (err) {
       const errorData = err.response?.data;

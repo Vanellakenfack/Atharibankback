@@ -1,5 +1,38 @@
 import React, { useEffect, useMemo, useState } from "react";
+<<<<<<< HEAD:athari-frontend/src/pages/client/FormClient.jsx
 import Header from "../../layouts/Header";
+=======
+import Header from "../../components/layout/Header";
+import {
+  ThemeProvider,
+  createTheme,
+  CssBaseline,
+  Container,
+  Box,
+  Grid,
+  TextField,
+  Button,
+  Stepper,
+  Step,
+  StepLabel,
+  RadioGroup,
+  FormControlLabel,
+  Radio,
+  Select,
+  MenuItem,
+  InputLabel,
+  FormControl,
+  Avatar,
+  Typography,
+  Checkbox,
+  FormGroup,
+  FormLabel,
+  Divider,
+  Paper,
+} from "@mui/material";
+// Import des couleurs pour le nouveau thème
+import { indigo, blueGrey, cyan } from "@mui/material/colors"; 
+>>>>>>> 09f7f520819d17b8f5bd2c7cfcce97e473c264b0:athari-frontend/src/pages/client/FormClient.tsx
 import axios from "axios";
 import { useForm, Controller } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";

@@ -1,5 +1,26 @@
+<<<<<<< HEAD:athari-frontend/src/pages/client/ListeClient.jsx
 import React, { useState, useEffect } from 'react';
 import { Eye, Edit2, Trash2, Plus, Search, ChevronDown, ChevronUp, Filter } from 'lucide-react';
+=======
+import React, { useState } from 'react';
+import {
+    Paper, Table, TableBody, TableCell, TableContainer,
+    TableHead, TableRow, TableSortLabel, TablePagination, Box,
+    IconButton, Typography, TextField, InputAdornment, useTheme,
+    Button,
+} from '@mui/material';
+import Header from '../../components/layout/Header';
+import { visuallyHidden } from '@mui/utils';
+import {
+    Edit as EditIcon,
+    Visibility as VisibilityIcon,
+    Delete as DeleteIcon,
+    Search as SearchIcon,
+    Add as AddIcon,
+} from '@mui/icons-material';
+// 1. IMPORT DU HOOK DE NAVIGATION
+import { useNavigate } from 'react-router-dom'; 
+>>>>>>> 09f7f520819d17b8f5bd2c7cfcce97e473c264b0:athari-frontend/src/pages/client/ListeClient.tsx
 
 const ListeClient = () => {
   const [clients, setClients] = useState([]);

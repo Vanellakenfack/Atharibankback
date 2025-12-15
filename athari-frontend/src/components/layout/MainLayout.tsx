@@ -1,142 +1,121 @@
 import React, { useState } from 'react';
-import { Outlet } from 'react-router-dom';
-import {
-  Box,
-  Drawer,
-  AppBar,
-  Toolbar,
-  Typography,
-  IconButton,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
-  Divider,
-} from '@mui/material';
-import {
-  Menu as MenuIcon,
-  AccountBalance as AccountIcon,
-  Person as PersonIcon,
-  CreditCard as CreditIcon,
-  Assessment as ReportIcon,
-} from '@mui/icons-material';
+import { Menu, ChevronDown, Home, CreditCard, Users, Settings, BarChart3 } from 'lucide-react';
+import Header from './Header';
 
-const drawerWidth = 240;
+interface MainLayoutProps {
+  children: React.ReactNode;
+}
 
-const MainLayout = () => {
-  const [mobileOpen, setMobileOpen] = useState(false);
-
-  const handleDrawerToggle = () => {
-    setMobileOpen(!mobileOpen);
-  };
+const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [expandedMenu, setExpandedMenu] = useState<string | null>(null);
 
   const menuItems = [
-    { text: 'Comptes', icon: <AccountIcon />, path: '/accounts' },
-    { text: 'Clients', icon: <PersonIcon />, path: '/clients' },
-    { text: 'Crédits', icon: <CreditIcon />, path: '/credits' },
-    { text: 'Rapports', icon: <ReportIcon />, path: '/reports' },
+    { id: 'dashboard', label: 'Tableau de bord', icon: Home, href: '/' },
+    { 
+      id: 'comptes', 
+      label: 'Comptes',
+      icon: CreditCard,
+      submenu: [
+        { label: 'Mes comptes', href: '/comptes' },
+        { label: 'Nouveau compte', href: '/comptes/nouveau' }
+      ]
+    },
+    { id: 'clients', label: 'Clients', icon: Users, href: '/clients' },
+    { 
+      id: 'rapports', 
+      label: 'Rapports',
+      icon: BarChart3,
+      submenu: [
+        { label: 'Transactions', href: '/rapports/transactions' },
+        { label: 'Statistiques', href: '/rapports/stats' }
+      ]
+    },
+    { id: 'settings', label: 'Paramètres', icon: Settings, href: '/settings' }
   ];
 
-  const drawer = (
-    <div>
-      <Toolbar>
-        <Typography variant="h6" noWrap component="div">
-          ATHARI Banking
-        </Typography>
-      </Toolbar>
-      <Divider />
-      <List>
-        {menuItems.map((item) => (
-          <ListItem
-            button
-            key={item.text}
-            component="a"
-            href={item.path}
-            onClick={(e) => {
-              e.preventDefault();
-              // Navigation sera gérée par React Router
-              console.log(`Navigate to: ${item.path}`);
-            }}
-          >
-            <ListItemIcon>{item.icon}</ListItemIcon>
-            <ListItemText primary={item.text} />
-          </ListItem>
-        ))}
-      </List>
-    </div>
-  );
+  const toggleSubmenu = (id: string) => {
+    setExpandedMenu(expandedMenu === id ? null : id);
+  };
 
   return (
-    <Box sx={{ display: 'flex' }}>
-      <AppBar
-        position="fixed"
-        sx={{
-          width: { sm: `calc(100% - ${drawerWidth}px)` },
-          ml: { sm: `${drawerWidth}px` },
-        }}
+    <div className="flex h-screen bg-gray-100">
+      {/* Sidebar */}
+      <div
+        className={`${
+          sidebarOpen ? 'w-64' : 'w-20'
+        } bg-gray-900 text-white transition-all duration-300 ease-in-out flex flex-col shadow-lg`}
       >
-        <Toolbar>
-          <IconButton
-            color="inherit"
-            aria-label="open drawer"
-            edge="start"
-            onClick={handleDrawerToggle}
-            sx={{ mr: 2, display: { sm: 'none' } }}
+        {/* Sidebar Header */}
+        <div className="p-6 border-b border-gray-800 flex items-center justify-between">
+          {sidebarOpen && <h1 className="text-xl font-bold">Menu</h1>}
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="p-1 hover:bg-gray-800 rounded transition"
           >
-            <MenuIcon />
-          </IconButton>
-          <Typography variant="h6" noWrap component="div">
-            Core Banking System
-          </Typography>
-        </Toolbar>
-      </AppBar>
-      <Box
-        component="nav"
-        sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}
-      >
-        <Drawer
-          variant="temporary"
-          open={mobileOpen}
-          onClose={handleDrawerToggle}
-          ModalProps={{
-            keepMounted: true,
-          }}
-          sx={{
-            display: { xs: 'block', sm: 'none' },
-            '& .MuiDrawer-paper': {
-              boxSizing: 'border-box',
-              width: drawerWidth,
-            },
-          }}
-        >
-          {drawer}
-        </Drawer>
-        <Drawer
-          variant="permanent"
-          sx={{
-            display: { xs: 'none', sm: 'block' },
-            '& .MuiDrawer-paper': {
-              boxSizing: 'border-box',
-              width: drawerWidth,
-            },
-          }}
-          open
-        >
-          {drawer}
-        </Drawer>
-      </Box>
-      <Box
-        component="main"
-        sx={{
-          flexGrow: 1,
-          p: 3,
-          width: { sm: `calc(100% - ${drawerWidth}px)` },
-          mt: 8,
-        }}
-      >
-        <Outlet />
-      </Box>
-    </Box>
+            <Menu size={20} />
+          </button>
+        </div>
+
+        {/* Sidebar Menu */}
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+          {menuItems.map((item) => (
+            <div key={item.id}>
+              {item.submenu ? (
+                <>
+                  <button
+                    onClick={() => toggleSubmenu(item.id)}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-800 rounded-lg transition group"
+                  >
+                    <item.icon size={20} className="flex-shrink-0" />
+                    {sidebarOpen && (
+                      <>
+                        <span className="flex-1 text-left">{item.label}</span>
+                        <ChevronDown
+                          size={16}
+                          className={`transition-transform ${
+                            expandedMenu === item.id ? 'rotate-180' : ''
+                          }`}
+                        />
+                      </>
+                    )}
+                  </button>
+                  {sidebarOpen && expandedMenu === item.id && (
+                    <div className="pl-4 space-y-1">
+                      {item.submenu.map((sub, idx) => (
+                        <a
+                          key={idx}
+                          href={sub.href}
+                          className="block px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-gray-800 rounded transition"
+                        >
+                          {sub.label}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <a
+                  href={item.href}
+                  className="flex items-center gap-3 px-4 py-3 hover:bg-gray-800 rounded-lg transition"
+                >
+                  <item.icon size={20} className="flex-shrink-0" />
+                  {sidebarOpen && <span>{item.label}</span>}
+                </a>
+              )}
+            </div>
+          ))}
+        </nav>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <Header onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
+        <main className="flex-1 overflow-auto p-6">
+          {children}
+        </main>
+      </div>
+    </div>
   );
 };
 

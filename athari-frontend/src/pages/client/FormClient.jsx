@@ -1,97 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Header from "../../layouts/Header";
-import {
-  ThemeProvider,
-  createTheme,
-  CssBaseline,
-  Container,
-  Box,
-  Grid,
-  TextField,
-  Button,
-  Stepper,
-  Step,
-  StepLabel,
-  RadioGroup,
-  FormControlLabel,
-  Radio,
-  Select,
-  MenuItem,
-  InputLabel,
-  FormControl,
-  Avatar,
-  Typography,
-  Checkbox,
-  FormGroup,
-  FormLabel,
-  Divider,
-  Paper,
-} from "@mui/material";
-// Import des couleurs pour le nouveau thème
-import { indigo, blueGrey, cyan } from "@mui/material/colors"; 
 import axios from "axios";
 import { useForm, Controller } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as Yup from "yup";
-
-/**
- * THÈME DÉFINITIF - Bleu Foncé (Indigo)
- */
-const muiTheme = createTheme({
-  palette: {
-    mode: "light",
-    primary: {
-      // Couleur principale : Indigo 700 (Bleu Foncé)
-      main: indigo[700], 
-      light: indigo[500],
-      dark: indigo[900],
-      contrastText: "#fff",
-    },
-    secondary: {
-      // Couleur secondaire (Cyan pour un contraste vif)
-      main: cyan.A700, 
-    },
-    background: {
-      // Fond de page : Gris très clair (pour un meilleur contraste avec le blanc du formulaire)
-      default: blueGrey[50], 
-      paper: "#ffffff",
-    },
-  },
-  typography: {
-    fontFamily: "Inter, Roboto, Arial",
-  },
-  shape: {
-    borderRadius: 12,
-  },
-  components: {
-    MuiButton: {
-      defaultProps: {
-        disableElevation: true,
-      },
-      styleOverrides: {
-        root: {
-          borderRadius: 8,
-          textTransform: 'none',
-        },
-      },
-    },
-    MuiPaper: {
-        styleOverrides: {
-            root: {
-                // Style pour le StepLabel actif (couleur principale)
-                "& .MuiStepLabel-label.Mui-active": {
-                    fontWeight: 700,
-                    color: indigo[700], // Bleu foncé
-                },
-                // Style pour le StepLabel complété
-                "& .MuiStepLabel-label.Mui-completed": {
-                    color: blueGrey[700],
-                },
-            }
-        }
-    }
-  },
-});
 
 /** Étapes */
 const STEPS = [
@@ -150,6 +62,65 @@ const CITY_DATA = {
   Bafoussam: ["Tamdja", "Banengo", "Djeleng", "Nkong-Zem"],
   Bamenda: ["Mankon", "Nkwen", "Bali", "Bafut"],
 };
+
+// Reusable Tailwind Input Components
+const FormInput = ({ label, error, helperText, ...props }) => (
+  <div className="w-full">
+    {label && <label className="block text-sm font-semibold text-gray-800 mb-2">{label}</label>}
+    <input
+      {...props}
+      className={`w-full px-4 py-3 border-2 rounded-xl text-base focus:outline-none focus:ring-2 transition-all ${
+        error 
+          ? "border-red-400 bg-red-50 focus:ring-red-500" 
+          : "border-gray-300 bg-gray-50 focus:ring-indigo-500 focus:border-indigo-500"
+      }`}
+    />
+    {helperText && <p className={`text-xs mt-2 font-medium ${error ? "text-red-600" : "text-gray-600"}`}>{helperText}</p>}
+  </div>
+);
+
+const FormSelect = ({ label, error, helperText, options, ...props }) => (
+  <div className="w-full">
+    {label && <label className="block text-sm font-semibold text-gray-800 mb-2">{label}</label>}
+    <select
+      {...props}
+      className={`w-full px-4 py-3 border-2 rounded-xl text-base focus:outline-none focus:ring-2 transition-all appearance-none bg-white ${
+        error 
+          ? "border-red-400 bg-red-50 focus:ring-red-500" 
+          : "border-gray-300 focus:ring-indigo-500 focus:border-indigo-500"
+      }`}
+    >
+      {options && options.map((opt) => (
+        <option key={opt.value} value={opt.value}>
+          {opt.label}
+        </option>
+      ))}
+    </select>
+    {helperText && <p className={`text-xs mt-2 font-medium ${error ? "text-red-600" : "text-gray-600"}`}>{helperText}</p>}
+  </div>
+);
+
+const FormCheckbox = ({ label, ...props }) => (
+  <label className="flex items-center gap-3 text-base text-gray-800 cursor-pointer">
+    <input 
+      type="checkbox" 
+      {...props} 
+      className="w-5 h-5 rounded-lg border-2 border-gray-300 text-indigo-600 focus:ring-2 focus:ring-indigo-500 cursor-pointer" 
+    />
+    <span className="font-medium">{label}</span>
+  </label>
+);
+
+const FormRadio = ({ label, ...props }) => (
+  <label className="flex items-center gap-3 text-base text-gray-800 cursor-pointer">
+    <input 
+      type="radio" 
+      {...props} 
+      className="w-5 h-5 border-2 border-gray-300 text-indigo-600 focus:ring-2 focus:ring-indigo-500 cursor-pointer" 
+    />
+    <span className="font-medium">{label}</span>
+  </label>
+);
 
 export default function FormClient() {
   const [activeStep, setActiveStep] = useState(0);
@@ -230,7 +201,7 @@ export default function FormClient() {
   const selectedAgence = watch("num_agence");
   const selectedVille = watch("adresse_ville");
 
-  // Génération automatique d'ID client (lors du changement d'agence)
+  // Génération automatique d'ID client
   useEffect(() => {
     if (selectedAgence) {
       const formatted = String(clientCounter).padStart(6, "0");
@@ -242,7 +213,7 @@ export default function FormClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedAgence]);
 
-  // Mise à jour des quartiers lorsque la ville change
+  // Mise à jour des quartiers
   const [quartiersOptions, setQuartiersOptions] = useState([]);
   useEffect(() => {
     if (selectedVille && CITY_DATA[selectedVille]) {
@@ -265,25 +236,25 @@ export default function FormClient() {
     setPhotoPreview(URL.createObjectURL(file));
   };
 
-  // Navigation étapes
+  // Navigation
   const handleNext = async () => {
-    const valid = await trigger(); 
+    const valid = await trigger();
     if (valid) setActiveStep((s) => Math.min(s + 1, STEPS.length - 1));
   };
   const handleBack = () => setActiveStep((s) => Math.max(s - 1, 0));
 
-  // Soumission finale
+  // Soumission
   const onSubmit = async (formDataRaw) => {
-    const valid = await trigger(); 
+    const valid = await trigger();
     if (!valid) return;
-    
+
     const fd = new FormData();
     Object.entries(formDataRaw).forEach(([k, v]) => {
       if (v !== undefined && v !== null && v !== false) {
-        if (typeof v === 'boolean' && v === true) {
-            fd.append(k, 'true');
+        if (typeof v === "boolean" && v === true) {
+          fd.append(k, "true");
         } else {
-            fd.append(k, v);
+          fd.append(k, v);
         }
       }
     });
@@ -300,7 +271,7 @@ export default function FormClient() {
     }
   };
 
-  // Keyboard nav (Left/Right)
+  // Keyboard nav
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === "ArrowRight" && activeStep < STEPS.length - 1) handleNext();
@@ -309,398 +280,353 @@ export default function FormClient() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeStep, trigger]); 
+  }, [activeStep, trigger]);
 
-  // Rendu des champs du formulaire
+  // Render form fields
   const renderFormFields = () => {
     switch (activeStep) {
       case 0:
         return (
-          <Box>
-            <Typography variant="h6" color="primary" sx={{ mb: 3 }}>Informations Administratives</Typography>
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={3}>
-                <Controller
-                  name="type_client"
-                  control={control}
-                  render={({ field }) => (
-                    <FormControl fullWidth size="small">
-                      <InputLabel id="type-client-label">Type client</InputLabel>
-                      <Select labelId="type-client-label" label="Type client" {...field}>
-                        <MenuItem value="physique">Personne Physique</MenuItem>
-                        <MenuItem value="entreprise">Personne Morale</MenuItem>
-                      </Select>
-                    </FormControl>
-                  )}
-                />
-              </Grid>
-
-              <Grid item xs={12} md={3}>
-                <Controller
-                  name="num_agence"
-                  control={control}
-                  render={({ field }) => (
-                    <FormControl fullWidth size="small" error={!!errors.num_agence}>
-                      <InputLabel id="agence-label">Agence</InputLabel>
-                      <Select labelId="agence-label" label="Agence" {...field}>
-                        <MenuItem value="">-- Sélectionner --</MenuItem>
-                        <MenuItem value="001">001 - Ekounou (Réussite)</MenuItem>
-                        <MenuItem value="002">002 - Essos (Audace)</MenuItem>
-                        <MenuItem value="003">003 - Etoudi (Speed)</MenuItem>
-                        <MenuItem value="004">004 - Mendong (Power)</MenuItem>
-                        <MenuItem value="005">005 - Mokolo (Imani)</MenuItem>
-                      </Select>
-                      {errors.num_agence && <Typography color="error" variant="caption">{errors.num_agence.message}</Typography>}
-                    </FormControl>
-                  )}
-                />
-              </Grid>
-
-              <Grid item xs={12} md={3}>
-                <Controller
-                  name="idclient"
-                  control={control}
-                  render={({ field }) => (
-                    <TextField 
-                        fullWidth 
-                        size="small"
-                        label="Identifiant client" 
-                        {...field} 
-                        error={!!errors.idclient}
-                        helperText={errors.idclient ? errors.idclient.message : 'Généré automatiquement (Agence + N° Client)'}
-                        disabled
-                    />
-                  )}
-                />
-              </Grid>
-
-              <Grid item xs={12} md={3}>
-                <Controller
-                  name="code_intitule"
-                  control={control}
-                  render={({ field }) => (
-                    <TextField 
-                        fullWidth 
-                        size="small"
-                        label="Code intitulé (M./Mme...)" 
-                        {...field} 
-                    />
-                  )}
-                />
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <Controller
-                  name="nom_prenoms"
-                  control={control}
-                  render={({ field }) => (
-                    <TextField 
-                        fullWidth 
-                        size="small"
-                        label="Nom et prénoms" 
-                        required 
-                        {...field} 
-                        error={!!errors.nom_prenoms}
-                        helperText={errors.nom_prenoms ? errors.nom_prenoms.message : null}
-                    />
-                  )}
-                />
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <FormControl component="fieldset" error={!!errors.sexe}>
-                  <FormLabel component="legend" sx={{mb: 1}}>Sexe *</FormLabel>
-                  <Controller
-                    name="sexe"
-                    control={control}
-                    render={({ field }) => (
-                      <RadioGroup row {...field}>
-                        <FormControlLabel value="masculin" control={<Radio size="small" />} label="Masculin" />
-                        <FormControlLabel value="feminin" control={<Radio size="small" />} label="Féminin" />
-                      </RadioGroup>
-                    )}
+          <div>
+            <h3 className="text-2xl font-bold text-gray-900 mb-8 pb-4 border-b-2 border-indigo-600">📋 Informations Administratives</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+              <Controller
+                name="type_client"
+                control={control}
+                render={({ field }) => (
+                  <FormSelect
+                    label="Type client"
+                    error={!!errors.type_client}
+                    options={[
+                      { value: "physique", label: "Personne Physique" },
+                      { value: "entreprise", label: "Personne Morale" },
+                    ]}
+                    {...field}
                   />
-                  {errors.sexe && <Typography color="error" variant="caption">{errors.sexe.message}</Typography>}
-                </FormControl>
-              </Grid>
-              
-              <Grid item xs={12} md={4}>
-                <Box
-                  // Notez le changement de classe Tailwind pour le style bleu/indigo
-                  className="flex flex-col items-center justify-center border-2 border-dashed border-indigo-300 rounded-xl p-4 h-full bg-indigo-50/50" 
-                  onClick={() => document.getElementById("photo-input")?.click()}
-                  sx={{ cursor: "pointer", minHeight: 180 }}
-                >
-                  <input
-                    id="photo-input"
-                    type="file"
-                    accept="image/*"
-                    style={{ display: "none" }}
-                    onChange={handlePhotoChange}
+                )}
+              />
+              <Controller
+                name="num_agence"
+                control={control}
+                render={({ field }) => (
+                  <FormSelect
+                    label="Agence"
+                    error={!!errors.num_agence}
+                    helperText={errors.num_agence?.message}
+                    options={[
+                      { value: "", label: "-- Sélectionner --" },
+                      { value: "001", label: "001 - Ekounou (Réussite)" },
+                      { value: "002", label: "002 - Essos (Audace)" },
+                      { value: "003", label: "003 - Etoudi (Speed)" },
+                      { value: "004", label: "004 - Mendong (Power)" },
+                      { value: "005", label: "005 - Mokolo (Imani)" },
+                    ]}
+                    {...field}
                   />
-                  <Typography className="text-sm font-medium text-gray-700 mb-2">Photo client</Typography>
-                  {photoPreview ? (
-                    <Avatar src={photoPreview} sx={{ width: 100, height: 100, border: `3px solid ${indigo[500]}` }} />
-                  ) : (
-                    <Avatar sx={{ width: 100, height: 100, bgcolor: indigo[300], color: "#fff" }}>
-                      <Typography className="text-xl">PHOTO</Typography>
-                    </Avatar>
+                )}
+              />
+              <Controller
+                name="idclient"
+                control={control}
+                render={({ field }) => (
+                  <FormInput
+                    label="Identifiant client"
+                    type="text"
+                    disabled
+                    error={!!errors.idclient}
+                    helperText="Généré automatiquement (Agence + N° Client)"
+                    {...field}
+                  />
+                )}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+              <Controller
+                name="code_intitule"
+                control={control}
+                render={({ field }) => (
+                  <FormInput label="Code intitulé (M./Mme...)" type="text" {...field} />
+                )}
+              />
+              <Controller
+                name="nom_prenoms"
+                control={control}
+                render={({ field }) => (
+                  <FormInput
+                    label="Nom et prénoms *"
+                    type="text"
+                    error={!!errors.nom_prenoms}
+                    helperText={errors.nom_prenoms?.message}
+                    {...field}
+                  />
+                )}
+              />
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-base font-bold text-gray-900 mb-4">Sexe *</label>
+              <div className="flex gap-8">
+                <Controller
+                  name="sexe"
+                  control={control}
+                  render={({ field }) => (
+                    <>
+                      <FormRadio
+                        label="Masculin"
+                        value="masculin"
+                        checked={field.value === "masculin"}
+                        onChange={(e) => field.onChange(e.target.value)}
+                      />
+                      <FormRadio
+                        label="Féminin"
+                        value="feminin"
+                        checked={field.value === "feminin"}
+                        onChange={(e) => field.onChange(e.target.value)}
+                      />
+                    </>
                   )}
-                  <Typography variant="caption" sx={{ mt: 1, color: blueGrey[600] }}>
-                    Cliquez pour télécharger
-                  </Typography>
-                </Box>
-              </Grid>
-            </Grid>
-          </Box>
+                />
+              </div>
+              {errors.sexe && <p className="text-sm text-red-600 mt-3 font-medium">{errors.sexe.message}</p>}
+            </div>
+
+            <div className="mb-6">
+              <div
+                className="flex flex-col items-center justify-center border-3 border-dashed border-indigo-400 rounded-2xl p-8 bg-indigo-50/50 cursor-pointer min-h-[220px] hover:border-indigo-600 hover:bg-indigo-100/50 transition-all"
+                onClick={() => document.getElementById("photo-input")?.click()}
+              >
+                <input
+                  id="photo-input"
+                  type="file"
+                  accept="image/*"
+                  style={{ display: "none" }}
+                  onChange={handlePhotoChange}
+                />
+                <p className="text-lg font-bold text-gray-800 mb-4">📸 Photo client</p>
+                {photoPreview ? (
+                  <img src={photoPreview} alt="Preview" className="w-28 h-28 object-cover rounded-full border-4 border-indigo-600 shadow-lg" />
+                ) : (
+                  <div className="w-28 h-28 flex items-center justify-center rounded-full bg-gradient-to-br from-indigo-400 to-blue-500 text-white text-sm font-bold shadow-lg">PHOTO</div>
+                )}
+                <p className="text-sm text-gray-700 mt-4 font-medium">Cliquez pour télécharger une photo</p>
+              </div>
+            </div>
+          </div>
         );
 
       case 1:
         return (
-          <Box>
-            <Typography variant="h6" color="primary" sx={{ mb: 3 }}>Adresse et Coordonnées</Typography>
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
-                <Controller
-                  name="adresse_ville"
-                  control={control}
-                  render={({ field }) => (
-                    <FormControl fullWidth size="small" error={!!errors.adresse_ville}>
-                      <InputLabel id="ville-label">Ville</InputLabel>
-                      <Select labelId="ville-label" label="Ville" {...field}>
-                        <MenuItem value="">-- Sélectionner --</MenuItem>
-                        {Object.keys(CITY_DATA).map((v) => (
-                          <MenuItem key={v} value={v}>{v}</MenuItem>
-                        ))}
-                      </Select>
-                      {errors.adresse_ville && <Typography color="error" variant="caption">{errors.adresse_ville.message}</Typography>}
-                    </FormControl>
-                  )}
-                />
-              </Grid>
+          <div>
+            <h3 className="text-2xl font-bold text-gray-900 mb-8 pb-4 border-b-2 border-indigo-600">📍 Adresse et Coordonnées</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+              <Controller
+                name="adresse_ville"
+                control={control}
+                render={({ field }) => (
+                  <FormSelect
+                    label="Ville *"
+                    error={!!errors.adresse_ville}
+                    helperText={errors.adresse_ville?.message}
+                    options={[
+                      { value: "", label: "-- Sélectionner --" },
+                      ...Object.keys(CITY_DATA).map((v) => ({ value: v, label: v })),
+                    ]}
+                    {...field}
+                  />
+                )}
+              />
+              <Controller
+                name="adresse_quartier"
+                control={control}
+                render={({ field }) => (
+                  <FormSelect
+                    label="Quartier *"
+                    error={!!errors.adresse_quartier}
+                    helperText={errors.adresse_quartier?.message}
+                    disabled={quartiersOptions.length === 0}
+                    options={[
+                      { value: "", label: "-- Sélectionner un quartier --" },
+                      ...quartiersOptions.map((q) => ({ value: q, label: q })),
+                    ]}
+                    {...field}
+                  />
+                )}
+              />
+            </div>
 
-              <Grid item xs={12} md={6}>
-                <Controller
-                  name="adresse_quartier"
-                  control={control}
-                  render={({ field }) => (
-                    <FormControl fullWidth size="small" error={!!errors.adresse_quartier} disabled={quartiersOptions.length === 0}>
-                      <InputLabel id="quartier-label">Quartier</InputLabel>
-                      <Select labelId="quartier-label" label="Quartier" {...field}>
-                        <MenuItem value="">-- Sélectionner un quartier --</MenuItem>
-                        {quartiersOptions.map((q) => (
-                          <MenuItem key={q} value={q}>{q}</MenuItem>
-                        ))}
-                      </Select>
-                      {errors.adresse_quartier && <Typography color="error" variant="caption">{errors.adresse_quartier.message}</Typography>}
-                    </FormControl>
-                  )}
-                />
-              </Grid>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+              <Controller name="bp" control={control} render={({ field }) => <FormInput label="Boîte Postale (BP)" type="text" {...field} />} />
+              <Controller name="tel_domicile" control={control} render={({ field }) => <FormInput label="Téléphone domicile / Mobile" type="text" {...field} />} />
+              <Controller name="tel_bureau" control={control} render={({ field }) => <FormInput label="Fax / Tél. bureau" type="text" {...field} />} />
+            </div>
 
-              <Grid item xs={12} md={4}>
-                <Controller
-                  name="bp"
-                  control={control}
-                  render={({ field }) => <TextField fullWidth size="small" label="Boîte Postale (BP)" {...field} />}
-                />
-              </Grid>
-
-              <Grid item xs={12} md={4}>
-                <Controller
-                  name="tel_domicile"
-                  control={control}
-                  render={({ field }) => <TextField fullWidth size="small" label="Téléphone domicile / Mobile" {...field} />}
-                />
-              </Grid>
-
-              <Grid item xs={12} md={4}>
-                <Controller
-                  name="tel_bureau"
-                  control={control}
-                  render={({ field }) => <TextField fullWidth size="small" label="Fax / Tél. bureau" {...field} />}
-                />
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <Controller
-                  name="email"
-                  control={control}
-                  render={({ field }) => (
-                    <TextField 
-                        fullWidth 
-                        size="small"
-                        label="Email" 
-                        {...field} 
-                        error={!!errors.email}
-                        helperText={errors.email ? errors.email.message : null}
-                    />
-                  )}
-                />
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <Controller
-                  name="profession_mere" 
-                  control={control}
-                  render={({ field }) => <TextField fullWidth size="small" label="Profession / Localisation" {...field} />}
-                />
-              </Grid>
-            </Grid>
-          </Box>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+              <Controller
+                name="email"
+                control={control}
+                render={({ field }) => (
+                  <FormInput
+                    label="Email"
+                    type="email"
+                    error={!!errors.email}
+                    helperText={errors.email?.message}
+                    {...field}
+                  />
+                )}
+              />
+              <Controller name="profession_mere" control={control} render={({ field }) => <FormInput label="Profession / Localisation" type="text" {...field} />} />
+            </div>
+          </div>
         );
 
       case 2:
         return (
-          <Box>
-            <Typography variant="h6" color="primary" sx={{ mb: 3 }}>Documents d'Identité</Typography>
-            <Typography variant="subtitle2" sx={{ mb: 2, color: blueGrey[700] }}>Document Principal (CNI, Passeport, etc.)</Typography>
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={3}>
-                <Controller name="cni1" control={control} render={({ field }) => <TextField fullWidth size="small" label="N° Document 1" {...field} />} />
-              </Grid>
-              <Grid item xs={12} md={3}>
-                <Controller name="du1" control={control} render={({ field }) => <TextField fullWidth size="small" type="date" label="Délivré le" InputLabelProps={{ shrink: true }} {...field} />} />
-              </Grid>
-              <Grid item xs={12} md={3}>
-                <Controller name="au1" control={control} render={({ field }) => <TextField fullWidth size="small" type="date" label="Expire le" InputLabelProps={{ shrink: true }} {...field} />} />
-              </Grid>
-              <Grid item xs={12} md={3}>
-                <Controller name="autre_preciser" control={control} render={({ field }) => <TextField fullWidth size="small" label="Autre (préciser)" {...field} />} />
-              </Grid>
-            </Grid>
+          <div>
+            <h3 className="text-2xl font-bold text-gray-900 mb-8 pb-4 border-b-2 border-indigo-600">🆔 Documents d'Identité</h3>
+            
+            <div className="mb-8">
+              <h4 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2">
+                <span className="w-8 h-8 flex items-center justify-center bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-full text-sm font-bold">1</span>
+                Document Principal (CNI, Passeport, etc.)
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <Controller name="cni1" control={control} render={({ field }) => <FormInput label="N° Document" type="text" {...field} />} />
+                <Controller name="du1" control={control} render={({ field }) => <FormInput label="Délivré le" type="date" {...field} />} />
+                <Controller name="au1" control={control} render={({ field }) => <FormInput label="Expire le" type="date" {...field} />} />
+                <Controller name="autre_preciser" control={control} render={({ field }) => <FormInput label="Autre (préciser)" type="text" {...field} />} />
+              </div>
+            </div>
 
-            <Divider sx={{ my: 3 }} />
-
-            <Typography variant="subtitle2" sx={{ mb: 2, color: blueGrey[700] }}>Document Secondaire</Typography>
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={3}>
-                <Controller name="cni2" control={control} render={({ field }) => <TextField fullWidth size="small" label="N° Document 2" {...field} />} />
-              </Grid>
-              <Grid item xs={12} md={3}>
-                <Controller name="du2" control={control} render={({ field }) => <TextField fullWidth size="small" type="date" label="Délivré le (2)" InputLabelProps={{ shrink: true }} {...field} />} />
-              </Grid>
-              <Grid item xs={12} md={3}>
-                <Controller name="au2" control={control} render={({ field }) => <TextField fullWidth size="small" type="date" label="Expire le (2)" InputLabelProps={{ shrink: true }} {...field} />} />
-              </Grid>
-            </Grid>
-          </Box>
+            <div className="border-t-2 border-gray-300 pt-8">
+              <h4 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2">
+                <span className="w-8 h-8 flex items-center justify-center bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-full text-sm font-bold">2</span>
+                Document Secondaire (Optionnel)
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <Controller name="cni2" control={control} render={({ field }) => <FormInput label="N° Document" type="text" {...field} />} />
+                <Controller name="du2" control={control} render={({ field }) => <FormInput label="Délivré le" type="date" {...field} />} />
+                <Controller name="au2" control={control} render={({ field }) => <FormInput label="Expire le" type="date" {...field} />} />
+              </div>
+            </div>
+          </div>
         );
 
       case 3:
         return (
-          <Box>
-            <Typography variant="h6" color="primary" sx={{ mb: 3 }}>Informations Personnelles, Familiales et Professionnelles</Typography>
-            
-            <Typography variant="subtitle2" sx={{ mb: 2, color: blueGrey[700] }}>Infos État Civil</Typography>
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
-                <Controller name="date_naissance" control={control} render={({ field }) => <TextField fullWidth size="small" type="date" label="Date de naissance" InputLabelProps={{ shrink: true }} {...field} />} />
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <Controller name="lieu_naissance" control={control} render={({ field }) => <TextField fullWidth size="small" label="Lieu de naissance" {...field} />} />
-              </Grid>
+          <div>
+            <h3 className="text-2xl font-bold text-gray-900 mb-8 pb-4 border-b-2 border-indigo-600">👤 Informations Personnelles</h3>
 
-              <Grid item xs={12} md={6}>
-                <Controller name="nom_mere" control={control} render={({ field }) => <TextField fullWidth size="small" label="Nom de la mère" {...field} />} />
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <Controller name="nom_pere" control={control} render={({ field }) => <TextField fullWidth size="small" label="Nom du père" {...field} />} />
-              </Grid>
-            </Grid>
-            
-            <Divider sx={{ my: 3 }} />
-            
-            <Typography variant="subtitle2" sx={{ mb: 2, color: blueGrey[700] }}>Situation Professionnelle et Familiale</Typography>
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
-                <Controller name="profession" control={control} render={({ field }) => <TextField fullWidth size="small" label="Profession" {...field} />} />
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <Controller name="employeur" control={control} render={({ field }) => <TextField fullWidth size="small" label="Employeur" {...field} />} />
-              </Grid>
+            {/* État Civil */}
+            <div className="mb-8">
+              <h4 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-3">
+                <span className="inline-flex items-center justify-center w-8 h-8 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-full text-sm font-bold">1</span>
+                Infos État Civil
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Controller name="date_naissance" control={control} render={({ field }) => <FormInput label="Date de naissance" type="date" {...field} />} />
+                <Controller name="lieu_naissance" control={control} render={({ field }) => <FormInput label="Lieu de naissance" type="text" {...field} />} />
+                <Controller name="nom_mere" control={control} render={({ field }) => <FormInput label="Nom de la mère" type="text" {...field} />} />
+                <Controller name="nom_pere" control={control} render={({ field }) => <FormInput label="Nom du père" type="text" {...field} />} />
+              </div>
+            </div>
 
-              <Grid item xs={12} md={6}>
-                <FormControl fullWidth size="small">
-                  <InputLabel id="situation-label">Situation familiale</InputLabel>
-                  <Controller
-                    name="situation_familiale"
-                    control={control}
-                    render={({ field }) => (
-                      <Select labelId="situation-label" label="Situation familiale" {...field}>
-                        <MenuItem value="">-- Sélectionner --</MenuItem>
-                        <MenuItem value="marie">Marié(e)</MenuItem>
-                        <MenuItem value="celibataire">Célibataire</MenuItem>
-                        <MenuItem value="autres">Autres</MenuItem>
-                      </Select>
-                    )}
-                  />
-                </FormControl>
-              </Grid>
+            {/* Situation Professionnelle */}
+            <div className="mb-8 pt-8 border-t-2 border-gray-300">
+              <h4 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-3">
+                <span className="inline-flex items-center justify-center w-8 h-8 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-full text-sm font-bold">2</span>
+                Situation Professionnelle
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Controller name="profession" control={control} render={({ field }) => <FormInput label="Profession" type="text" {...field} />} />
+                <Controller name="employeur" control={control} render={({ field }) => <FormInput label="Employeur" type="text" {...field} />} />
+                <Controller
+                  name="situation_familiale"
+                  control={control}
+                  render={({ field }) => (
+                    <FormSelect
+                      label="Situation familiale"
+                      options={[
+                        { value: "", label: "-- Sélectionner --" },
+                        { value: "marie", label: "Marié(e)" },
+                        { value: "celibataire", label: "Célibataire" },
+                        { value: "autres", label: "Autres" },
+                      ]}
+                      {...field}
+                    />
+                  )}
+                />
+                <Controller name="regime_matrimonial" control={control} render={({ field }) => <FormInput label="Régime matrimonial" type="text" {...field} />} />
+              </div>
+            </div>
 
-              <Grid item xs={12} md={6}>
-                <Controller name="regime_matrimonial" control={control} render={({ field }) => <TextField fullWidth size="small" label="Régime matrimonial" {...field} />} />
-              </Grid>
-            </Grid>
-            
-            <Divider sx={{ my: 3 }} />
+            {/* Informations Conjoint */}
+            <div className="mb-8 pt-8 border-t-2 border-gray-300">
+              <h4 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-3">
+                <span className="inline-flex items-center justify-center w-8 h-8 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-full text-sm font-bold">3</span>
+                Informations Conjoint (si Marié(e))
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+                <Controller name="nom_epoux" control={control} render={({ field }) => <FormInput label="Nom & Prénom (époux)" type="text" {...field} />} />
+                <Controller name="date_naissance_epoux" control={control} render={({ field }) => <FormInput label="Date de naissance (époux)" type="date" {...field} />} />
+                <Controller name="lieu_naissance_epoux" control={control} render={({ field }) => <FormInput label="Lieu de naissance (époux)" type="text" {...field} />} />
+                <Controller name="fonction_epoux" control={control} render={({ field }) => <FormInput label="Profession (époux)" type="text" {...field} />} />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Controller name="adresse_epoux" control={control} render={({ field }) => <FormInput label="Employeur (époux)" type="text" {...field} />} />
+                <Controller name="numero_epoux" control={control} render={({ field }) => <FormInput label="Téléphone (époux)" type="text" {...field} />} />
+              </div>
+            </div>
 
-            <Typography variant="subtitle2" sx={{ mb: 2, color: blueGrey[700] }}>Infos Conjoint (si Marié(e))</Typography>
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={4}>
-                <Controller name="nom_epoux" control={control} render={({ field }) => <TextField fullWidth size="small" label="Nom & Prénom (époux)" {...field} />} />
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <Controller name="date_naissance_epoux" control={control} render={({ field }) => <TextField fullWidth size="small" type="date" label="Date de naissance (époux)" InputLabelProps={{ shrink: true }} {...field} />} />
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <Controller name="lieu_naissance_epoux" control={control} render={({ field }) => <TextField fullWidth size="small" label="Lieu de naissance (époux)" {...field} />} />
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <Controller name="fonction_epoux" control={control} render={({ field }) => <TextField fullWidth size="small" label="Profession (époux)" {...field} />} />
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <Controller name="adresse_epoux" control={control} render={({ field }) => <TextField fullWidth size="small" label="Employeur (époux)" {...field} />} />
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <Controller name="numero_epoux" control={control} render={({ field }) => <TextField fullWidth size="small" label="Téléphone (époux)" {...field} />} />
-              </Grid>
-            </Grid>
+            {/* Paramètres et Catégories */}
+            <div className="mb-8 pt-8 border-t-2 border-gray-300">
+              <h4 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-3">
+                <span className="inline-flex items-center justify-center w-8 h-8 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-full text-sm font-bold">4</span>
+                Paramètres et Catégories Client
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <Controller name="nationalite" control={control} render={({ field }) => <FormInput label="Nationalité" type="text" {...field} />} />
+                <Controller name="pays_residence" control={control} render={({ field }) => <FormInput label="Pays de résidence" type="text" {...field} />} />
+                <Controller name="Qualite" control={control} render={({ field }) => <FormInput label="Qualité" type="text" {...field} />} />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Controller name="gestionnaire" control={control} render={({ field }) => <FormInput label="Gestionnaire (id)" type="text" {...field} />} />
+                <Controller name="profil" control={control} render={({ field }) => <FormInput label="Profil" type="text" {...field} />} />
+              </div>
+            </div>
 
-            <Divider sx={{ my: 3 }} />
-
-            <Typography variant="subtitle2" sx={{ mb: 2, color: blueGrey[700] }}>Paramètres et Catégories Client</Typography>
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={4}>
-                <Controller name="nationalite" control={control} render={({ field }) => <TextField fullWidth size="small" label="Nationalité" {...field} />} />
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <Controller name="pays_residence" control={control} render={({ field }) => <TextField fullWidth size="small" label="Pays de résidence" {...field} />} />
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <Controller name="Qualite" control={control} render={({ field }) => <TextField fullWidth size="small" label="Qualité" {...field} />} />
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <Controller name="gestionnaire" control={control} render={({ field }) => <TextField fullWidth size="small" label="Gestionnaire (id)" {...field} />} />
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <Controller name="profil" control={control} render={({ field }) => <TextField fullWidth size="small" label="Profil" {...field} />} />
-              </Grid>
-
-              <Grid item xs={12}>
-                <FormLabel component="legend" sx={{ mb: 1, fontWeight: 'medium' }}>Rôles / Options</FormLabel>
-                <FormGroup row>
-                  <FormControlLabel control={<Controller name="client_checkbox" control={control} render={({ field }) => <Checkbox size="small" {...field} checked={!!field.value} />} />} label="Client" />
-                  <FormControlLabel control={<Controller name="signataire" control={control} render={({ field }) => <Checkbox size="small" {...field} checked={!!field.value} />} />} label="Signataire" />
-                  <FormControlLabel control={<Controller name="mantaire" control={control} render={({ field }) => <Checkbox size="small" {...field} checked={!!field.value} />} />} label="Mantaire" />
-                  <FormControlLabel control={<Controller name="interdit_chequier" control={control} render={({ field }) => <Checkbox size="small" {...field} checked={!!field.value} />} />} label="Interdit chéquier" />
-                  <FormControlLabel control={<Controller name="taxable" control={control} render={({ field }) => <Checkbox size="small" {...field} checked={!!field.value} />} />} label="Taxable" />
-                </FormGroup>
-              </Grid>
-            </Grid>
-          </Box>
+            {/* Rôles et Options */}
+            <div className="pt-8 border-t-2 border-gray-300">
+              <h4 className="text-lg font-bold text-gray-800 mb-6">Rôles & Options</h4>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                <Controller
+                  name="client_checkbox"
+                  control={control}
+                  render={({ field }) => <FormCheckbox label="Client" checked={!!field.value} {...field} />}
+                />
+                <Controller
+                  name="signataire"
+                  control={control}
+                  render={({ field }) => <FormCheckbox label="Signataire" checked={!!field.value} {...field} />}
+                />
+                <Controller
+                  name="mantaire"
+                  control={control}
+                  render={({ field }) => <FormCheckbox label="Mantaire" checked={!!field.value} {...field} />}
+                />
+                <Controller
+                  name="interdit_chequier"
+                  control={control}
+                  render={({ field }) => <FormCheckbox label="Interdit chéquier" checked={!!field.value} {...field} />}
+                />
+                <Controller
+                  name="taxable"
+                  control={control}
+                  render={({ field }) => <FormCheckbox label="Taxable" checked={!!field.value} {...field} />}
+                />
+              </div>
+            </div>
+          </div>
         );
 
       default:
@@ -708,90 +634,109 @@ export default function FormClient() {
     }
   };
 
-
   return (
-    
-    <ThemeProvider theme={muiTheme}>
-    <Header />
+    <>
+      <Header />
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 pb-12">
+        <div className="w-full px-6 md:px-8 lg:px-10 py-8">
+          {/* Header Section */}
+          <div className="flex flex-col md:flex-row justify-between md:items-center gap-6 mb-8">
+            <div>
+              <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent mb-2">
+                Nouveau Client
+              </h1>
+              <p className="text-gray-600 text-lg">Formulaire d'enregistrement en 4 étapes</p>
+            </div>
+            <button className="px-6 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl flex items-center gap-2 transition-all shadow-lg hover:shadow-2xl transform hover:scale-105 font-semibold w-fit hidden md:flex">
+              ✓ Aperçu
+            </button>
+          </div>
 
-      <CssBaseline />
-      <Container maxWidth="lg" sx={{ py: 6, bgcolor: "white", minHeight: '100vh' }}>
-       
-        <Paper elevation={3} sx={{ p: { xs: 3, md: 5 }, borderRadius: 3 }}>
-          <Typography variant="h4" sx={{ color: blueGrey[800], fontWeight: 'bold', mb: 1 }}>
-            Nouveau Client
-          </Typography>
-          <Typography variant="subtitle1" color="text.secondary" sx={{ mb: 4 }}>
-            Formulaire d'enregistrement en 4 étapes.
-          </Typography>
+          {/* Main Card */}
+          <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
+            <div className="p-8 md:p-12">
+              {/* Stepper */}
+              <div className="mb-10">
+                <div className="flex gap-2 md:gap-6 overflow-x-auto pb-4">
+                  {STEPS.map((label, index) => (
+                    <div key={label} className="flex items-center flex-shrink-0">
+                      <button
+                        onClick={async () => {
+                          if (index < activeStep) {
+                            setActiveStep(index);
+                          } else {
+                            const valid = await trigger();
+                            if (valid) setActiveStep(index);
+                          }
+                        }}
+                        className={`flex items-center justify-center w-14 h-14 rounded-full font-bold text-lg transition-all shadow-lg ${
+                          activeStep >= index
+                            ? "bg-gradient-to-r from-indigo-600 to-blue-600 text-white scale-110"
+                            : "bg-gray-200 text-gray-600 hover:bg-gray-300"
+                        }`}
+                      >
+                        {index + 1}
+                      </button>
+                      <div className="hidden lg:block ml-4 text-sm font-bold text-gray-700 whitespace-nowrap max-w-[120px] truncate">{label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
 
-          {/* Stepper MUI */}
-          <Box sx={{ mb: 4 }}>
-            <Stepper activeStep={activeStep} alternativeLabel>
-              {STEPS.map((label, index) => (
-                <Step key={label}>
-                  <StepLabel 
-                    sx={{ cursor: 'pointer' }}
-                    onClick={async () => {
-                      if (index < activeStep) {
-                          setActiveStep(index);
-                      } else {
-                          const valid = await trigger();
-                          if (valid) setActiveStep(index);
-                      }
-                    }}
+              {/* Progress Bar */}
+              <div className="mb-10">
+                <div className="w-full bg-gray-300 rounded-full h-2.5 overflow-hidden shadow-sm">
+                  <div
+                    className="bg-gradient-to-r from-indigo-600 to-blue-600 h-full rounded-full transition-all duration-500"
+                    style={{ width: `${((activeStep + 1) / STEPS.length) * 100}%` }}
+                  />
+                </div>
+                <p className="text-sm text-gray-600 mt-4 text-center font-semibold">
+                  Étape {activeStep + 1} de {STEPS.length} - {STEPS[activeStep]}
+                </p>
+              </div>
+
+              {/* Form Content */}
+              <form onSubmit={handleSubmit(onSubmit)}>
+                <div className="mb-12 min-h-[450px]">{renderFormFields()}</div>
+
+                {/* Navigation Buttons */}
+                <div className="flex gap-4 pt-8 border-t-2 border-gray-200">
+                  <button
+                    type="button"
+                    onClick={handleBack}
+                    disabled={activeStep === 0}
+                    className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-bold hover:border-gray-400 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all text-center text-lg"
                   >
-                    <Typography variant="body2" sx={{ fontWeight: index === activeStep ? 'bold' : 'normal' }}>
-                        {label}
-                    </Typography>
-                  </StepLabel>
-                </Step>
-              ))}
-            </Stepper>
-          </Box>
+                    ← Précédent
+                  </button>
+                  {activeStep === STEPS.length - 1 ? (
+                    <button
+                      type="submit"
+                      className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-bold hover:from-green-700 hover:to-emerald-700 transition-all shadow-lg hover:shadow-xl transform hover:scale-105 text-lg"
+                    >
+                      ✓ Enregistrer
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleNext}
+                      className="flex-1 px-6 py-3 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-xl font-bold hover:from-indigo-700 hover:to-blue-700 transition-all shadow-lg hover:shadow-xl transform hover:scale-105 text-lg"
+                    >
+                      Suivant →
+                    </button>
+                  )}
+                </div>
+              </form>
+            </div>
+          </div>
 
-          {/* Progress Bar Tailwind (couleur changée) */}
-          <Box sx={{ width: '100%', bgcolor: blueGrey[200], borderRadius: 1, height: 10, mb: 4, overflow: 'hidden' }}>
-            <Box
-              sx={{
-                height: 10,
-                bgcolor: indigo[500], // Bleu foncé
-                transition: 'width 300ms ease-in-out',
-                width: `${((activeStep + 1) / STEPS.length) * 100}%`
-              }}
-            />
-          </Box>
-
-          <form onSubmit={handleSubmit(onSubmit)}>
-            
-            {/* RENDER FORM FIELDS */}
-            {renderFormFields()}
-
-            {/* NAVIGATION */}
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', pt: 4, borderTop: `1px solid ${blueGrey[200]}` }}>
-              <Button
-                variant="outlined"
-                onClick={handleBack}
-                disabled={activeStep === 0}
-                sx={{ minWidth: 120 }}
-              >
-                ← Précédent
-              </Button>
-
-              {activeStep < STEPS.length - 1 ? (
-                <Button variant="contained" color="primary" onClick={handleNext} sx={{ minWidth: 120 }}>
-                  Suivant →
-                </Button>
-              ) : (
-                // Bouton final en couleur secondaire (Cyan) pour le contraste
-                <Button type="submit" variant="contained" color="secondary" sx={{ minWidth: 180 }}>
-                  ✅ Enregistrer le client
-                </Button>
-              )}
-            </Box>
-          </form>
-        </Paper>
-      </Container>
-    </ThemeProvider>
+          {/* Footer Info */}
+          <div className="mt-8 text-center text-gray-600 text-base">
+            <p className="font-medium">Les champs marqués avec * sont obligatoires</p>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }

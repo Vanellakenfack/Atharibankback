@@ -9,7 +9,7 @@ import Formclient from '../pages/client/FormClient';
 import Login from '../pages/Login'; 
 import Home from '../pages/Home';
 import ListeClient from '../pages/client/ListeClient';
-
+import Dashboard from  '../layouts/Dashboard'
 const AppRoutes = () => {
   return (
       <Routes>
@@ -30,7 +30,8 @@ const AppRoutes = () => {
            
         <Route path='/client/creer' element= {<Formclient/>} /> 
         <Route path='/client/:id/edit' element= {<Formclient/>} />
-   
+                <Route path='dashboard' element= {<Dashboard/>} />
+
 
       
 

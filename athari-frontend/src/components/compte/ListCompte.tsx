@@ -1,197 +1,84 @@
-import React, { useState, useEffect } from 'react';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  IconButton,
-  Chip,
-  Tooltip,
-  Typography,
-  Box,
-} from '@mui/material';
-import {
-  Visibility as ViewIcon,
-  Edit as EditIcon,
-  Delete as DeleteIcon,
-  AccountBalance as AccountIcon,
-} from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
-import accountService from '../../services/api/compteService';
-import ConfirmDialog from '../common/ConfirnDialog';
-import LoadingSpinner from '../common/LoadingSpinner';
+import React from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import type { RootState, AppDispatch } from '../../store';
+import { selectAccounts, selectIsLoading, selectError } from '../../store/compte/compteSelectors';
+import { fetchAccounts } from '../../store/compte/compteThunks';
+import { Eye, Edit2, Trash2, TrendingUp } from 'lucide-react';
 
-const AccountList = ({ filters = {} }) => {
-  const [accounts, setAccounts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [accountToDelete, setAccountToDelete] = useState(null);
-  const navigate = useNavigate();
+const ListCompte: React.FC = () => {
+  const dispatch = useDispatch<AppDispatch>();
+  const comptes = useSelector((state: RootState) => selectAccounts(state));
+  const loading = useSelector((state: RootState) => selectIsLoading(state));
+  const error = useSelector((state: RootState) => selectError(state));
 
-  useEffect(() => {
-    loadAccounts();
-  }, [filters]);
-
-  const loadAccounts = async () => {
-    setLoading(true);
-    try {
-      const data = await accountService.filterAccounts(filters);
-      setAccounts(data);
-    } catch (error) {
-      console.error('Error loading accounts:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleView = (id) => {
-    navigate(`/accounts/${id}`);
-  };
-
-  const handleEdit = (id) => {
-    navigate(`/accounts/${id}/edit`);
-  };
-
-  const handleDeleteClick = (account) => {
-    setAccountToDelete(account);
-    setDeleteDialogOpen(true);
-  };
-
-  const handleDeleteConfirm = async () => {
-    if (accountToDelete) {
-      try {
-        await accountService.deleteAccount(accountToDelete.id);
-        await loadAccounts();
-      } catch (error) {
-        console.error('Error deleting account:', error);
-      }
-    }
-    setDeleteDialogOpen(false);
-    setAccountToDelete(null);
-  };
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'active': return 'success';
-      case 'blocked': return 'error';
-      case 'pending': return 'warning';
-      case 'closed': return 'default';
-      default: return 'default';
-    }
-  };
-
-  const getAccountTypeLabel = (typeCode) => {
-    const accountTypes = accountService.getAccountTypes();
-    const type = accountTypes.find(t => t.code === typeCode);
-    return type ? type.label : typeCode;
-  };
+  React.useEffect(() => {
+    dispatch(fetchAccounts());
+  }, [dispatch]);
 
   if (loading) {
-    return <LoadingSpinner />;
+    return <div className="p-8 text-center text-gray-500">Chargement...</div>;
   }
 
-  if (accounts.length === 0) {
-    return (
-      <Box sx={{ textAlign: 'center', py: 4 }}>
-        <AccountIcon sx={{ fontSize: 60, color: 'text.secondary', mb: 2 }} />
-        <Typography variant="h6" color="text.secondary">
-          Aucun compte trouvé
-        </Typography>
-      </Box>
-    );
+  if (error) {
+    return <div className="p-8 text-red-600 bg-red-50 rounded-lg">Erreur: {error}</div>;
   }
 
   return (
-    <>
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Numéro de compte</TableCell>
-              <TableCell>Client</TableCell>
-              <TableCell>Type de compte</TableCell>
-              <TableCell>Agence</TableCell>
-              <TableCell align="right">Solde</TableCell>
-              <TableCell>Statut</TableCell>
-              <TableCell align="center">Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {accounts.map((account) => (
-              <TableRow key={account.id}>
-                <TableCell>
-                  <Typography variant="body2" fontWeight="medium">
-                    {account.accountNumber}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {account.clientNumber}
-                  </Typography>
-                </TableCell>
-                <TableCell>{account.clientName}</TableCell>
-                <TableCell>{getAccountTypeLabel(account.accountType)}</TableCell>
-                <TableCell>{account.agency}</TableCell>
-                <TableCell align="right">
-                  <Typography fontWeight="medium">
-                    {new Intl.NumberFormat('fr-FR', {
-                      style: 'currency',
-                      currency: account.currency,
-                    }).format(account.balance)}
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  <Chip
-                    label={account.status}
-                    color={getStatusColor(account.status)}
-                    size="small"
-                  />
-                </TableCell>
-                <TableCell align="center">
-                  <Tooltip title="Voir les détails">
-                    <IconButton
-                      size="small"
-                      onClick={() => handleView(account.id)}
-                      color="primary"
-                    >
-                      <ViewIcon />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Modifier">
-                    <IconButton
-                      size="small"
-                      onClick={() => handleEdit(account.id)}
-                      color="secondary"
-                    >
-                      <EditIcon />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Supprimer">
-                    <IconButton
-                      size="small"
-                      onClick={() => handleDeleteClick(account)}
-                      color="error"
-                    >
-                      <DeleteIcon />
-                    </IconButton>
-                  </Tooltip>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
-
-      <ConfirmDialog
-        open={deleteDialogOpen}
-        onClose={() => setDeleteDialogOpen(false)}
-        onConfirm={handleDeleteConfirm}
-        title="Confirmer la suppression"
-        message={`Êtes-vous sûr de vouloir supprimer le compte ${accountToDelete?.accountNumber} ?`}
-      />
-    </>
+    <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="bg-gradient-to-r from-indigo-600 to-blue-600 border-b-4 border-indigo-700">
+              <th className="px-8 py-5 text-left font-bold text-white">Numéro</th>
+              <th className="px-8 py-5 text-left font-bold text-white">Type</th>
+              <th className="px-8 py-5 text-left font-bold text-white">Solde</th>
+              <th className="px-8 py-5 text-center font-bold text-white">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {comptes && comptes.length > 0 ? comptes.map((compte, idx) => (
+              <tr 
+                key={compte.id} 
+                className={`transition-all duration-200 hover:shadow-md hover:bg-indigo-50/50 border-l-4 border-l-indigo-500 ${idx % 2 === 0 ? 'bg-gray-50/50' : 'bg-white'}`}
+              >
+                <td className="px-8 py-5 font-bold text-gray-900">{compte.numero}</td>
+                <td className="px-8 py-5 text-gray-700 font-medium">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp size={18} className="text-indigo-600" />
+                    {compte.type}
+                  </div>
+                </td>
+                <td className="px-8 py-5 font-bold text-lg">
+                  <span className="bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">
+                    {compte.solde}
+                  </span>
+                </td>
+                <td className="px-8 py-5">
+                  <div className="flex justify-center items-center gap-2">
+                    <button className="p-3 rounded-lg bg-indigo-100 text-indigo-600 hover:bg-indigo-200 transition-all hover:scale-110 shadow-sm" title="Voir">
+                      <Eye size={20} />
+                    </button>
+                    <button className="p-3 rounded-lg bg-blue-100 text-blue-600 hover:bg-blue-200 transition-all hover:scale-110 shadow-sm" title="Modifier">
+                      <Edit2 size={20} />
+                    </button>
+                    <button className="p-3 rounded-lg bg-red-100 text-red-600 hover:bg-red-200 transition-all hover:scale-110 shadow-sm" title="Supprimer">
+                      <Trash2 size={20} />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            )) : (
+              <tr>
+                <td colSpan="4" className="px-8 py-16 text-center text-gray-500">
+                  <p className="text-lg">Aucun compte trouvé</p>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 };
 
-export default AccountList;
+export default ListCompte;

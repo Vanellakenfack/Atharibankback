@@ -1,22 +1,13 @@
 import React from 'react';
-import { Box, CircularProgress, Typography } from '@mui/material';
 
 const LoadingSpinner = ({ message = 'Chargement...' }) => {
   return (
-    <Box
-      sx={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: 200,
-      }}
-    >
-      <CircularProgress sx={{ mb: 2 }} />
-      <Typography variant="body2" color="text.secondary">
-        {message}
-      </Typography>
-    </Box>
+    <div className="flex flex-col items-center justify-center min-h-[200px]">
+      {/* Spinner */}
+      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600 mb-4"></div>
+      {/* Texte */}
+      <p className="text-gray-600 text-sm">{message}</p>
+    </div>
   );
 };
 

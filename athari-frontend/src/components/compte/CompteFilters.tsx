@@ -1,128 +1,65 @@
-import React from 'react';
-import {
-  Paper,
-  TextField,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Box,
-  Button,
-  Grid,
-  IconButton,
-} from '@mui/material';
-import {
-  Search as SearchIcon,
-  FilterList as FilterIcon,
-  Clear as ClearIcon,
-} from '@mui/icons-material';
+import React, { useState } from 'react';
+import { Search, X, RotateCcw } from 'lucide-react';
 
-const AccountFilters = ({ filters, onFilterChange, onReset }) => {
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    onFilterChange({ ...filters, [name]: value });
+interface CompteFiltersProps {
+  onFilterChange?: (filters: any) => void;
+}
+
+const CompteFilters: React.FC<CompteFiltersProps> = ({ onFilterChange }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+
+  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(e.target.value);
+    onFilterChange?.({ searchTerm: e.target.value, typeFilter });
   };
 
-  const handleSearch = (e) => {
-    if (e.key === 'Enter') {
-      onFilterChange({ ...filters });
-    }
+  const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setTypeFilter(e.target.value);
+    onFilterChange?.({ searchTerm, typeFilter: e.target.value });
+  };
+
+  const handleReset = () => {
+    setSearchTerm('');
+    setTypeFilter('');
+    onFilterChange?.({ searchTerm: '', typeFilter: '' });
   };
 
   return (
-    <Paper sx={{ p: 2, mb: 3 }}>
-      <Grid container spacing={2} alignItems="center">
-        <Grid item xs={12} md={4}>
-          <TextField
-            fullWidth
-            label="Rechercher"
-            name="search"
-            value={filters.search || ''}
-            onChange={handleChange}
-            onKeyPress={handleSearch}
-            InputProps={{
-              startAdornment: <SearchIcon sx={{ mr: 1, color: 'action.active' }} />,
-            }}
-            placeholder="Numéro, client, compte..."
+    <div className="bg-white rounded-lg shadow p-4 mb-6">
+      <div className="flex gap-4 flex-wrap">
+        <div className="flex-1 min-w-[200px] relative">
+          <Search className="absolute left-3 top-3 text-gray-400" size={18} />
+          <input
+            type="text"
+            placeholder="Chercher par numéro..."
+            value={searchTerm}
+            onChange={handleSearch}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600"
           />
-        </Grid>
+        </div>
+        
+        <select
+          value={typeFilter}
+          onChange={handleTypeChange}
+          className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-white"
+        >
+          <option value="">Tous les types</option>
+          <option value="courant">Courant</option>
+          <option value="epargne">Épargne</option>
+          <option value="titre">Titre</option>
+        </select>
 
-        <Grid item xs={12} md={2}>
-          <FormControl fullWidth>
-            <InputLabel>Type de compte</InputLabel>
-            <Select
-              name="accountType"
-              value={filters.accountType || ''}
-              onChange={handleChange}
-              label="Type de compte"
-            >
-              <MenuItem value="">Tous</MenuItem>
-              <MenuItem value="10">Compte courant</MenuItem>
-              <MenuItem value="23">Mata journalier</MenuItem>
-              <MenuItem value="22">Mata boost bloqué</MenuItem>
-              <MenuItem value="07">Épargne bloquée</MenuItem>
-            </Select>
-          </FormControl>
-        </Grid>
-
-        <Grid item xs={12} md={2}>
-          <FormControl fullWidth>
-            <InputLabel>Agence</InputLabel>
-            <Select
-              name="agency"
-              value={filters.agency || ''}
-              onChange={handleChange}
-              label="Agence"
-            >
-              <MenuItem value="">Toutes</MenuItem>
-              <MenuItem value="001">001 - RÉUSSITE</MenuItem>
-              <MenuItem value="002">002 - AUDACE</MenuItem>
-              <MenuItem value="003">003 - SPEED</MenuItem>
-              <MenuItem value="004">004 - POWER</MenuItem>
-              <MenuItem value="005">005 - IMANI</MenuItem>
-            </Select>
-          </FormControl>
-        </Grid>
-
-        <Grid item xs={12} md={2}>
-          <FormControl fullWidth>
-            <InputLabel>Statut</InputLabel>
-            <Select
-              name="status"
-              value={filters.status || ''}
-              onChange={handleChange}
-              label="Statut"
-            >
-              <MenuItem value="">Tous</MenuItem>
-              <MenuItem value="active">Actif</MenuItem>
-              <MenuItem value="pending">En attente</MenuItem>
-              <MenuItem value="blocked">Bloqué</MenuItem>
-              <MenuItem value="closed">Fermé</MenuItem>
-            </Select>
-          </FormControl>
-        </Grid>
-
-        <Grid item xs={12} md={2}>
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <Button
-              variant="contained"
-              startIcon={<FilterIcon />}
-              onClick={() => onFilterChange(filters)}
-            >
-              Filtrer
-            </Button>
-            <IconButton
-              onClick={onReset}
-              color="secondary"
-              title="Réinitialiser les filtres"
-            >
-              <ClearIcon />
-            </IconButton>
-          </Box>
-        </Grid>
-      </Grid>
-    </Paper>
+        <button
+          onClick={handleReset}
+          className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg flex items-center gap-2 transition"
+        >
+          <RotateCcw size={18} />
+          Réinitialiser
+        </button>
+      </div>
+    </div>
   );
 };
 
-export default AccountFilters;
+export default CompteFilters;

@@ -1,25 +1,23 @@
 import React from 'react';
-import { Box, Typography, Breadcrumbs, Link } from '@mui/material';
-import { NavigateNext as NavigateNextIcon } from '@mui/icons-material';
 import { Link as RouterLink } from 'react-router-dom';
 import AccountForm from '../../components/compte/Formulaire';
 
 const AccountCreatePage = () => {
   return (
-    <Box>
-      <Breadcrumbs separator={<NavigateNextIcon fontSize="small" />} sx={{ mb: 3 }}>
-        <Link component={RouterLink} to="/accounts" color="inherit">
+    <div>
+      {/* Breadcrumbs */}
+      <nav className="flex items-center gap-2 mb-6 text-sm">
+        <RouterLink to="/accounts" className="text-indigo-600 hover:text-indigo-700">
           Comptes
-        </Link>
-        <Typography color="text.primary">Créer un compte</Typography>
-      </Breadcrumbs>
+        </RouterLink>
+        <span className="text-gray-400">›</span>
+        <span className="text-gray-700">Créer un compte</span>
+      </nav>
 
-      <Typography variant="h4" gutterBottom>
-        Création d'un nouveau compte
-      </Typography>
+      <h1 className="text-3xl font-bold text-gray-800 mb-6">Création d'un nouveau compte</h1>
 
       <AccountForm />
-    </Box>
+    </div>
   );
 };
 

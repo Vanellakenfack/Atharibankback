@@ -1,276 +1,87 @@
-import React, { useState, useEffect } from 'react';
-import {
-  Paper,
-  Typography,
-  Grid,
-  Box,
-  Chip,
-  Divider,
-  Button,
-  Card,
-  CardContent,
-  List,
-  ListItem,
-  ListItemText,
-  IconButton,
-  Tooltip,
-} from '@mui/material';
-import {
-  Edit as EditIcon,
-  Print as PrintIcon,
-  History as HistoryIcon,
-  AccountBalance as AccountIcon,
-  Person as PersonIcon,
-  LocationOn as LocationIcon,
-  AttachMoney as MoneyIcon,
-} from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
-import accountService from '../../services/api/compteService';
-import LoadingSpinner from '../common/LoadingSpinner';
+import React from 'react';
+import { Edit2, Trash2, Download, Printer } from 'lucide-react';
 
-const AccountView = ({ accountId }) => {
-  const navigate = useNavigate();
-  const [account, setAccount] = useState(null);
-  const [loading, setLoading] = useState(true);
+interface CompteViewProps {
+  compte?: any;
+  onEdit?: () => void;
+  onDelete?: () => void;
+  onDownload?: () => void;
+  onPrint?: () => void;
+}
 
-  useEffect(() => {
-    loadAccount();
-  }, [accountId]);
-
-  const loadAccount = async () => {
-    try {
-      const data = await accountService.getAccountById(accountId);
-      setAccount(data);
-    } catch (error) {
-      console.error('Error loading account:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleEdit = () => {
-    navigate(`/accounts/${accountId}/edit`);
-  };
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'active': return 'success';
-      case 'blocked': return 'error';
-      case 'pending': return 'warning';
-      case 'closed': return 'default';
-      default: return 'default';
-    }
-  };
-
-  const getAccountTypeLabel = (typeCode) => {
-    const accountTypes = accountService.getAccountTypes();
-    const type = accountTypes.find(t => t.code === typeCode);
-    return type ? type.label : typeCode;
-  };
-
-  if (loading) {
-    return <LoadingSpinner />;
-  }
-
-  if (!account) {
-    return (
-      <Paper sx={{ p: 3, textAlign: 'center' }}>
-        <Typography variant="h6" color="error">
-          Compte non trouvé
-        </Typography>
-      </Paper>
-    );
+const CompteView: React.FC<CompteViewProps> = ({ 
+  compte, 
+  onEdit, 
+  onDelete, 
+  onDownload, 
+  onPrint 
+}) => {
+  if (!compte) {
+    return <div className="p-4">Aucun compte sélectionné</div>;
   }
 
   return (
-    <Grid container spacing={3}>
-      <Grid item xs={12}>
-        <Paper sx={{ p: 3 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <AccountIcon sx={{ mr: 2, fontSize: 40, color: 'primary.main' }} />
-              <Box>
-                <Typography variant="h4">
-                  {account.accountNumber}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {getAccountTypeLabel(account.accountType)}
-                </Typography>
-              </Box>
-            </Box>
-            <Box>
-              <Chip
-                label={account.status.toUpperCase()}
-                color={getStatusColor(account.status)}
-                sx={{ mr: 2 }}
-              />
-              <Tooltip title="Modifier">
-                <IconButton onClick={handleEdit} color="primary">
-                  <EditIcon />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title="Imprimer">
-                <IconButton color="secondary">
-                  <PrintIcon />
-                </IconButton>
-              </Tooltip>
-            </Box>
-          </Box>
+    <div className="bg-white rounded-lg shadow p-6">
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">{compte.numero}</h2>
+        
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          <div>
+            <p className="text-sm text-gray-600">Type</p>
+            <p className="text-lg font-semibold text-gray-900">{compte.type}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-600">Solde</p>
+            <p className="text-lg font-semibold text-indigo-600">{compte.solde} €</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-600">Devise</p>
+            <p className="text-lg font-semibold text-gray-900">{compte.devise || 'EUR'}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-600">Status</p>
+            <p className="text-lg font-semibold text-green-600">Actif</p>
+          </div>
+        </div>
 
-          <Divider sx={{ mb: 3 }} />
+        <div className="border-t pt-4 mb-6">
+          <p className="text-sm text-gray-600 mb-2">Détails supplémentaires</p>
+          <p className="text-gray-700">{compte.description || 'Pas de description'}</p>
+        </div>
+      </div>
 
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
-                    <PersonIcon sx={{ mr: 1 }} />
-                    Informations client
-                  </Typography>
-                  <List dense>
-                    <ListItem>
-                      <ListItemText
-                        primary="Nom du client"
-                        secondary={account.clientName}
-                      />
-                    </ListItem>
-                    <ListItem>
-                      <ListItemText
-                        primary="Numéro client"
-                        secondary={account.clientNumber}
-                      />
-                    </ListItem>
-                    <ListItem>
-                      <ListItemText
-                        primary="Agence"
-                        secondary={account.agency}
-                      />
-                    </ListItem>
-                    <ListItem>
-                      <ListItemText
-                        primary="Date de création"
-                        secondary={new Date(account.createdAt).toLocaleDateString('fr-FR')}
-                      />
-                    </ListItem>
-                  </List>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
-                    <MoneyIcon sx={{ mr: 1 }} />
-                    Informations financières
-                  </Typography>
-                  <List dense>
-                    <ListItem>
-                      <ListItemText
-                        primary="Solde actuel"
-                        secondary={
-                          <Typography variant="h6" color="primary">
-                            {new Intl.NumberFormat('fr-FR', {
-                              style: 'currency',
-                              currency: account.currency,
-                            }).format(account.balance)}
-                          </Typography>
-                        }
-                      />
-                    </ListItem>
-                    <ListItem>
-                      <ListItemText
-                        primary="Solde minimum"
-                        secondary={new Intl.NumberFormat('fr-FR', {
-                          style: 'currency',
-                          currency: account.currency,
-                        }).format(account.minimumBalance)}
-                      />
-                    </ListItem>
-                    <ListItem>
-                      <ListItemText
-                        primary="Taux de commission"
-                        secondary={`${(account.commissionRate * 100).toFixed(2)}%`}
-                      />
-                    </ListItem>
-                    <ListItem>
-                      <ListItemText
-                        primary="Devise"
-                        secondary={account.currency}
-                      />
-                    </ListItem>
-                  </List>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            <Grid item xs={12}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
-                    <HistoryIcon sx={{ mr: 1 }} />
-                    Paramètres du compte
-                  </Typography>
-                  <Grid container spacing={2}>
-                    <Grid item xs={6} md={3}>
-                      <Typography variant="body2" color="text.secondary">
-                        Notifications SMS
-                      </Typography>
-                      <Chip
-                        label={account.sendSmsNotifications ? 'Activé' : 'Désactivé'}
-                        color={account.sendSmsNotifications ? 'success' : 'default'}
-                        size="small"
-                      />
-                    </Grid>
-                    <Grid item xs={6} md={3}>
-                      <Typography variant="body2" color="text.secondary">
-                        Découvert autorisé
-                      </Typography>
-                      <Chip
-                        label={account.allowOverdraft ? 'Oui' : 'Non'}
-                        color={account.allowOverdraft ? 'success' : 'default'}
-                        size="small"
-                      />
-                    </Grid>
-                    {account.allowOverdraft && (
-                      <Grid item xs={6} md={3}>
-                        <Typography variant="body2" color="text.secondary">
-                          Limite de découvert
-                        </Typography>
-                        <Typography variant="body1">
-                          {new Intl.NumberFormat('fr-FR', {
-                            style: 'currency',
-                            currency: account.currency,
-                          }).format(account.overdraftLimit)}
-                        </Typography>
-                      </Grid>
-                    )}
-                  </Grid>
-                </CardContent>
-              </Card>
-            </Grid>
-          </Grid>
-
-          <Box sx={{ mt: 3, display: 'flex', gap: 2, justifyContent: 'center' }}>
-            <Button
-              variant="outlined"
-              startIcon={<HistoryIcon />}
-              onClick={() => navigate(`/accounts/${accountId}/transactions`)}
-            >
-              Voir l'historique
-            </Button>
-            <Button
-              variant="contained"
-              startIcon={<EditIcon />}
-              onClick={handleEdit}
-            >
-              Modifier le compte
-            </Button>
-          </Box>
-        </Paper>
-      </Grid>
-    </Grid>
+      <div className="flex gap-2">
+        <button
+          onClick={onEdit}
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-2 transition"
+        >
+          <Edit2 size={18} />
+          Modifier
+        </button>
+        <button
+          onClick={onDownload}
+          className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg flex items-center gap-2 transition"
+        >
+          <Download size={18} />
+          Télécharger
+        </button>
+        <button
+          onClick={onPrint}
+          className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg flex items-center gap-2 transition"
+        >
+          <Printer size={18} />
+          Imprimer
+        </button>
+        <button
+          onClick={onDelete}
+          className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg flex items-center gap-2 transition"
+        >
+          <Trash2 size={18} />
+          Supprimer
+        </button>
+      </div>
+    </div>
   );
 };
 
-export default AccountView;
+export default CompteView;

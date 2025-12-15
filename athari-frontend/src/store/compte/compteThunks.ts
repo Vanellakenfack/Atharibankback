@@ -8,7 +8,7 @@ export const fetchAccounts = createAsyncThunk(
   'account/fetchAccounts',
   async (_, { dispatch, getState, rejectWithValue }) => {
     try {
-      const state = getState() as RootState;
+      const state = getState() as any;
       const { filters, pagination } = state.account;
       
       const response = await accountApi.getAccounts({

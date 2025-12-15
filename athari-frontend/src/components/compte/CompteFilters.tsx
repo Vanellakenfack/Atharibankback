@@ -1,18 +1,36 @@
+<<<<<<< HEAD
 import React from 'react';
+=======
+import React, { useState } from 'react';
+import { Search, X, RotateCcw } from 'lucide-react';
+>>>>>>> dev
 
-const AccountFilters = ({ filters, onFilterChange, onReset }) => {
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    onFilterChange({ ...filters, [name]: value });
+interface CompteFiltersProps {
+  onFilterChange?: (filters: any) => void;
+}
+
+const CompteFilters: React.FC<CompteFiltersProps> = ({ onFilterChange }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+
+  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(e.target.value);
+    onFilterChange?.({ searchTerm: e.target.value, typeFilter });
   };
 
-  const handleSearch = (e) => {
-    if (e.key === 'Enter') {
-      onFilterChange({ ...filters });
-    }
+  const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setTypeFilter(e.target.value);
+    onFilterChange?.({ searchTerm, typeFilter: e.target.value });
+  };
+
+  const handleReset = () => {
+    setSearchTerm('');
+    setTypeFilter('');
+    onFilterChange?.({ searchTerm: '', typeFilter: '' });
   };
 
   return (
+<<<<<<< HEAD
     <div className="mb-3 p-3 bg-white border rounded">
       <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
         <div className="md:col-span-4">
@@ -72,9 +90,42 @@ const AccountFilters = ({ filters, onFilterChange, onReset }) => {
             <svg className="h-5 w-5 text-gray-600" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6L18 18M6 18L18 6" /></svg>
           </button>
         </div>
+=======
+    <div className="bg-white rounded-lg shadow p-4 mb-6">
+      <div className="flex gap-4 flex-wrap">
+        <div className="flex-1 min-w-[200px] relative">
+          <Search className="absolute left-3 top-3 text-gray-400" size={18} />
+          <input
+            type="text"
+            placeholder="Chercher par numéro..."
+            value={searchTerm}
+            onChange={handleSearch}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600"
+          />
+        </div>
+        
+        <select
+          value={typeFilter}
+          onChange={handleTypeChange}
+          className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-white"
+        >
+          <option value="">Tous les types</option>
+          <option value="courant">Courant</option>
+          <option value="epargne">Épargne</option>
+          <option value="titre">Titre</option>
+        </select>
+
+        <button
+          onClick={handleReset}
+          className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg flex items-center gap-2 transition"
+        >
+          <RotateCcw size={18} />
+          Réinitialiser
+        </button>
+>>>>>>> dev
       </div>
     </div>
   );
 };
 
-export default AccountFilters;
+export default CompteFilters;

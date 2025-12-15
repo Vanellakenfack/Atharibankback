@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import React, { useEffect } from 'react';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
@@ -14,218 +15,107 @@ import {
   selectSelectedAccount,
 } from '@/store/account/accountSelectors';
 import { Account, AccountType, CreateAccountData, Currency } from '@/types/account';
+=======
+import React, { useState } from 'react';
+>>>>>>> dev
 
-// Schéma de validation Yup
-const validationSchema = Yup.object({
-  clientId: Yup.string().required('ID client requis'),
-  clientName: Yup.string().required('Nom du client requis'),
-  type: Yup.string().required('Type de compte requis'),
-  currency: Yup.string().required('Devise requise'),
-  initialBalance: Yup.number()
-    .required('Solde initial requis')
-    .min(0, 'Le solde ne peut pas être négatif'),
-  category: Yup.string().required('Catégorie requise'),
-  interestRate: Yup.number()
-    .min(0, 'Taux minimum 0%')
-    .max(100, 'Taux maximum 100%'),
-  monthlyFees: Yup.number().min(0, 'Frais minimum 0'),
-  minimumBalance: Yup.number().min(0, 'Solde minimum 0'),
-  withdrawalLimit: Yup.number().min(0, 'Limite minimum 0'),
-});
-
-// Types de compte disponibles
-const accountTypes: { value: AccountType; label: string; description: string }[] = [
-  { value: 'courant', label: 'Compte Courant', description: 'Compte de dépôt avec possibilité de chèques' },
-  { value: 'epargne', label: 'Compte Épargne', description: 'Compte rémunéré avec intérêts' },
-  { value: 'bloque', label: 'Compte Bloqué', description: 'Compte à terme avec blocage des fonds' },
-  { value: 'mata_boost', label: 'MATA Boost', description: 'Compte multi-objectifs avec sous-comptes' },
-  { value: 'collecte_journaliere', label: 'Collecte Journalière', description: 'Compte pour collecte quotidienne' },
-  { value: 'salaire', label: 'Compte Salaire', description: 'Compte dédié aux salaires' },
-  { value: 'islamique', label: 'Compte Islamique', description: 'Compte conforme à la finance islamique' },
-  { value: 'association', label: 'Compte Association', description: 'Compte pour associations' },
-  { value: 'entreprise', label: 'Compte Entreprise', description: 'Compte professionnel' },
-];
-
-// Devises disponibles
-const currencies: { value: Currency; label: string; symbol: string }[] = [
-  { value: 'XAF', label: 'Franc CFA', symbol: 'FCFA' },
-  { value: 'EUR', label: 'Euro', symbol: '€' },
-  { value: 'USD', label: 'Dollar US', symbol: '$' },
-];
-
-// Catégories de client
-const categories = [
-  { value: 'particulier', label: 'Particulier' },
-  { value: 'entreprise', label: 'Entreprise' },
-  { value: 'association', label: 'Association' },
-  { value: 'gouvernemental', label: 'Gouvernemental' },
-];
-
-// Sous-comptes MATA Boost
-const mataSubAccounts = [
-  { id: 'business', label: 'Business', description: 'Fonds pour les activités commerciales' },
-  { id: 'education', label: 'Éducation', description: 'Fonds pour les frais scolaires' },
-  { id: 'health', label: 'Santé', description: 'Fonds pour les dépenses médicales' },
-  { id: 'celebration', label: 'Célébration', description: 'Fonds pour les événements festifs' },
-  { id: 'supplies', label: 'Fournitures', description: 'Fonds pour les achats divers' },
-  { id: 'realEstate', label: 'Immobilier', description: 'Fonds pour l\'immobilier' },
-];
-
-interface AccountFormProps {
-  isEdit?: boolean;
+interface CompteFormProps {
+  onSubmit?: (formData: any) => void;
+  initialData?: any;
 }
 
-const AccountForm: React.FC<AccountFormProps> = ({ isEdit = false }) => {
-  const { id } = useParams();
-  const dispatch = useDispatch();
-  const navigate = useNavigate();
-  const isSubmitting = useSelector(selectIsSubmitting);
-  const error = useSelector(selectError);
-  const selectedAccount = useSelector(selectSelectedAccount);
-
-  const [activeStep, setActiveStep] = React.useState(0);
-  const [showSubAccounts, setShowSubAccounts] = React.useState(false);
-
-  // Étape pour les formulaires multi-étapes
-  const steps = ['Informations client', 'Type de compte', 'Paramètres financiers'];
-
-  // Initialisation des valeurs du formulaire
-  const initialValues: CreateAccountData = {
-    clientId: '',
-    clientName: '',
-    type: 'courant',
-    currency: 'XAF',
-    initialBalance: 0,
-    category: 'particulier',
-    interestRate: 0,
-    monthlyFees: 0,
-    minimumBalance: 0,
-    withdrawalLimit: 0,
-  };
-
-  const formik = useFormik({
-    initialValues,
-    validationSchema,
-    onSubmit: async (values) => {
-      try {
-        if (isEdit && id) {
-          await dispatch(updateAccount({
-            id,
-            ...values,
-          }) as any);
-        } else {
-          await dispatch(createAccount(values) as any);
-        }
-        navigate('/accounts');
-      } catch (error) {
-        console.error('Erreur lors de la soumission:', error);
-      }
-    },
+const CompteForm: React.FC<CompteFormProps> = ({ onSubmit, initialData }) => {
+  const [formData, setFormData] = useState(initialData || {
+    numero: '',
+    type: '',
+    solde: 0,
+    devise: 'EUR',
+    description: ''
   });
 
-  // Charger les données du compte pour l'édition
-  useEffect(() => {
-    if (isEdit && id) {
-      dispatch(fetchAccountById(id) as any);
-    }
-  }, [dispatch, isEdit, id]);
-
-  // Mettre à jour les valeurs du formulaire lorsque le compte sélectionné change
-  useEffect(() => {
-    if (isEdit && selectedAccount) {
-      formik.setValues({
-        clientId: selectedAccount.clientId,
-        clientName: selectedAccount.clientName,
-        type: selectedAccount.type,
-        currency: selectedAccount.currency,
-        initialBalance: selectedAccount.balance,
-        category: 'particulier', // Vous devrez ajouter cette propriété à l'interface Account
-        interestRate: selectedAccount.interestRate || 0,
-        monthlyFees: selectedAccount.monthlyFees || 0,
-        minimumBalance: selectedAccount.minimumBalance || 0,
-        withdrawalLimit: selectedAccount.withdrawalLimit || 0,
-      });
-    }
-  }, [selectedAccount, isEdit]);
-
-  // Gestion de l'affichage des sous-comptes MATA
-  useEffect(() => {
-    setShowSubAccounts(formik.values.type === 'mata_boost');
-  }, [formik.values.type]);
-
-  const handleNext = () => {
-    setActiveStep((prevStep) => Math.min(prevStep + 1, steps.length - 1));
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
   };
 
-  const handleBack = () => {
-    setActiveStep((prevStep) => Math.max(prevStep - 1, 0));
-  };
-
-  const handleCancel = () => {
-    navigate('/accounts');
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSubmit?.(formData);
   };
 
   return (
-    <Box>
-      <Typography variant="h4" gutterBottom fontWeight="bold">
-        {isEdit ? 'Modifier le Compte' : 'Créer un Nouveau Compte'}
-      </Typography>
+    <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6 space-y-6">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Numéro de compte</label>
+        <input
+          type="text"
+          name="numero"
+          value={formData.numero}
+          onChange={handleChange}
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600"
+          placeholder="Ex: 2024001"
+        />
+      </div>
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 3 }}>
-          {error}
-        </Alert>
-      )}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Type</label>
+          <select
+            name="type"
+            value={formData.type}
+            onChange={handleChange}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-white"
+          >
+            <option value="">Sélectionner...</option>
+            <option value="courant">Courant</option>
+            <option value="epargne">Épargne</option>
+            <option value="titre">Titre</option>
+          </select>
+        </div>
 
-      <Card>
-        <CardContent>
-          {/* Stepper pour les formulaires multi-étapes */}
-          <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
-            {steps.map((label) => (
-              <Step key={label}>
-                <StepLabel>{label}</StepLabel>
-              </Step>
-            ))}
-          </Stepper>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Devise</label>
+          <select
+            name="devise"
+            value={formData.devise}
+            onChange={handleChange}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-white"
+          >
+            <option value="EUR">EUR</option>
+            <option value="USD">USD</option>
+            <option value="GBP">GBP</option>
+          </select>
+        </div>
+      </div>
 
-          <form onSubmit={formik.handleSubmit}>
-            {activeStep === 0 && (
-              <Grid container spacing={3}>
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    id="clientId"
-                    name="clientId"
-                    label="ID Client"
-                    value={formik.values.clientId}
-                    onChange={formik.handleChange}
-                    onBlur={formik.handleBlur}
-                    error={formik.touched.clientId && Boolean(formik.errors.clientId)}
-                    helperText={formik.touched.clientId && formik.errors.clientId}
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <PersonIcon color="action" />
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
-                </Grid>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Solde initial</label>
+        <input
+          type="number"
+          name="solde"
+          value={formData.solde}
+          onChange={handleChange}
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600"
+          placeholder="0.00"
+        />
+      </div>
 
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    id="clientName"
-                    name="clientName"
-                    label="Nom Complet du Client"
-                    value={formik.values.clientName}
-                    onChange={formik.handleChange}
-                    onBlur={formik.handleBlur}
-                    error={formik.touched.clientName && Boolean(formik.errors.clientName)}
-                    helperText={formik.touched.clientName && formik.errors.clientName}
-                  />
-                </Grid>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+        <textarea
+          name="description"
+          value={formData.description}
+          onChange={handleChange}
+          rows={4}
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600"
+          placeholder="Ajoutez une description..."
+        />
+      </div>
 
+<<<<<<< HEAD
                 <Grid item xs={12} md={6}>
                   <FormControl fullWidth error={formik.touched.category && Boolean(formik.errors.category)}>
                     <InputLabel>Catégorie de Client</InputLabel>
@@ -543,7 +433,24 @@ const AccountForm: React.FC<AccountFormProps> = ({ isEdit = false }) => {
         </CardContent>
       </Card>
     </Box>
+=======
+      <div className="flex gap-3">
+        <button
+          type="submit"
+          className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition"
+        >
+          Valider
+        </button>
+        <button
+          type="button"
+          className="px-6 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg font-medium transition"
+        >
+          Annuler
+        </button>
+      </div>
+    </form>
+>>>>>>> dev
   );
 };
 
-export default AccountForm;
+export default CompteForm;

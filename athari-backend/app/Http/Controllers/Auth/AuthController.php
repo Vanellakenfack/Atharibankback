@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
-// REMPLACÉ : use Spatie\Activitylog\ActivityLogger; // ✅ La classe concrète
+
 
 class AuthController extends Controller
 {

@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\logs\AuditLogController;
 use App\Http\Controllers\AgencyController;
+ use App\Http\Controllers\ClientController;
 use App\Http\Controllers\Api\CompteController;
 use App\Http\Controllers\Api\TypesCompteController;
 
@@ -68,6 +69,21 @@ Route::middleware('auth:sanctum')->group(function () {
 
 
 
+});
+// route gestion clients
+
+Route::middleware('auth:sanctum')->group(function () {
+    
+    // Routes de création (Chef Agence & DG via les FormRequests)
+    Route::post('/clients/physique', [ClientController::class, 'storePhysique']);
+    Route::post('/clients/morale', [ClientController::class, 'storeMorale']);
+    
+    // Autres routes CRUD
+    Route::get('/clients', [ClientController::class, 'index']);
+    Route::get('/clients/{id}', [ClientController::class, 'show']);
+    Route::put('/clients/{id}', [ClientController::class, 'update']);
+    Route::delete('/clients/{id}', [ClientController::class, 'destroy']);
+    
 });
 
 Route::middleware(['auth:sanctum', 'permission:consulter logs'])->group(function () {

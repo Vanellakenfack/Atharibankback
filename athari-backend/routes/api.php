@@ -10,6 +10,8 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\logs\AuditLogController;
 use App\Http\Controllers\AgencyController;
  use App\Http\Controllers\ClientController;
+use App\Http\Controllers\Api\CompteController;
+use App\Http\Controllers\Api\TypesCompteController;
 
 
 // Route publique (non protégée par Sanctum) pour l'authentification
@@ -36,6 +38,34 @@ Route::middleware('auth:sanctum')->group(function () {
     // Route pour l'utilisateur connecté
     Route::get('me', [UserController::class, 'me']);
     Route::apiResource('agencies', AgencyController::class);
+
+        // Comptes
+    Route::prefix('accounts')->group(function () {
+        Route::get('/', [CompteController::class, 'index']);
+        Route::post('/', [CompteController::class, 'store']);
+        Route::get('/pending-validation', [CompteController::class, 'pendingValidation']);
+        Route::get('/{account}', [CompteController::class, 'show']);
+        Route::put('/{account}', [CompteController::class, 'update']);
+        Route::delete('/{account}', [CompteController::class, 'destroy']);
+        Route::post('/{account}/validate', [CompteController::class, 'validate']);
+        Route::post('/{account}/close', [CompteController::class, 'close']);
+        Route::post('/{account}/block', [CompteController::class, 'block']);
+        Route::post('/{account}/unblock', [CompteController::class, 'unblock']);
+        Route::get('/{account}/statement', [CompteController::class, 'statement']);
+    });
+
+    // Types de comptes
+    Route::prefix('account-types')->group(function () {
+        Route::get('/', [TypesCompteController::class, 'index']);
+        Route::post('/', [TypesCompteController::class, 'store']);
+        Route::get('/categories', [TypesCompteController::class, 'categories']);
+        Route::get('/{accountType}', [TypesCompteController::class, 'show']);
+        Route::put('/{accountType}', [TypesCompteController::class, 'update']);
+        Route::delete('/{accountType}', [TypesCompteController::class, 'destroy']);
+    });
+
+    // Chapitres comptables
+    Route::apiResource('accounting-chapters', AccountingChapterController::class);
 
 
 

@@ -51,7 +51,6 @@ class StoreMoraleClientRequest extends FormRequest
         'adresse_ville'   => 'required|string',
         'raison_sociale' => 'required|string|max:255',
         'sigle'          => 'nullable|string|max:50',
-        'nom_gerant'     => 'required|string|max:255',
         'adresse_quartier' => 'required|string', // <--- Ajoutez cette ligne
 
         

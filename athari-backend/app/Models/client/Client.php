@@ -14,7 +14,7 @@ class Client extends Model
     protected $fillable = [
         'num_client', 'agency_id', 'type_client', 'telephone', 'email', 
         'adresse_ville', 'adresse_quartier', 'bp', 'pays_residence',
-        'gestionnaire', 'profil', 'taxable', 'interdit_chequier', 'solde_initial'
+        'gestionnaire', 'profil', 'taxable', 'interdit_chequier', 'solde_initial','immobiliere', 'autres_biens'
     ];
 
     /**

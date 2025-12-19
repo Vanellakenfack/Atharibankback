@@ -1,71 +1,64 @@
 <?php
+// app/Models/AccountDocument.php
 
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Storage;
 
 class DocumentsCompte extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory;
 
     protected $fillable = [
         'account_id',
-        'document_type',
-        'document_name',
-        'file_path',
-        'file_type',
-        'file_size',
-        'is_verified',
-        'verified_by',
-        'verified_at',
         'uploaded_by',
+        'type_document',
+        'nom_fichier',
+        'chemin_fichier',
+        'mime_type',
+        'taille',
+        'is_validated',
+        'validated_by',
+        'validated_at',
     ];
 
     protected $casts = [
-        'is_verified' => 'boolean',
-        'verified_at' => 'datetime',
+        'is_validated' => 'boolean',
+        'validated_at' => 'datetime',
     ];
-
-    public const DOCUMENT_TYPES = [
-        'cni' => 'Carte Nationale d\'Identité',
-        'passport' => 'Passeport',
-        'justificatif_domicile' => 'Justificatif de domicile',
-        'photo' => 'Photo d\'identité',
-        'signature' => 'Spécimen de signature',
-        'statuts' => 'Statuts de l\'entreprise',
-        'rccm' => 'Registre de Commerce',
-        'niu' => 'Numéro d\'Identification Unique',
-        'autres' => 'Autres documents',
-    ];
-
-    public const MAX_FILE_SIZE = 8 * 1024 * 1024; // 8 Mo
-
-    public const ALLOWED_TYPES = ['pdf', 'jpg', 'jpeg', 'png'];
 
     public function account(): BelongsTo
     {
         return $this->belongsTo(Account::class);
     }
 
-    public function uploadedBy(): BelongsTo
+    public function uploader(): BelongsTo
     {
         return $this->belongsTo(User::class, 'uploaded_by');
     }
 
-    public function verifiedBy(): BelongsTo
+    public function validator(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'verified_by');
+        return $this->belongsTo(User::class, 'validated_by');
     }
 
-    public function verify(int $userId): void
+    public function getUrlAttribute(): string
     {
-        $this->update([
-            'is_verified' => true,
-            'verified_by' => $userId,
-            'verified_at' => now(),
-        ]);
+        return Storage::url($this->chemin_fichier);
+    }
+
+    public function getTailleFormatteeAttribute(): string
+    {
+        $bytes = $this->taille;
+        $units = ['o', 'Ko', 'Mo', 'Go'];
+        
+        for ($i = 0; $bytes > 1024 && $i < count($units) - 1; $i++) {
+            $bytes /= 1024;
+        }
+        
+        return round($bytes, 2) . ' ' . $units[$i];
     }
 }

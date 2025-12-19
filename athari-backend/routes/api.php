@@ -10,8 +10,8 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\logs\AuditLogController;
 use App\Http\Controllers\AgencyController;
  use App\Http\Controllers\ClientController;
-use App\Http\Controllers\Api\CompteController;
-use App\Http\Controllers\Api\TypesCompteController;
+use App\Http\Controllers\CompteController;
+use App\Http\Controllers\TypesCompteController;
 
 
 // Route publique (non protégée par Sanctum) pour l'authentification
@@ -20,7 +20,7 @@ Route::post('/login', [AuthController::class, 'login']);
 // Route protégée par Sanctum pour la déconnexion
 Route::middleware('auth:sanctum')->post('/logout', [AuthController::class, 'logout']);
 
-// Routes protégées par Sanctum
+// Routes protégées pour authentification
 Route::middleware('auth:sanctum')->group(function () {
     
     // Routes CRUD Utilisateurs
@@ -39,37 +39,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('me', [UserController::class, 'me']);
     Route::apiResource('agencies', AgencyController::class);
 
-        // Comptes
-    Route::prefix('accounts')->group(function () {
-        Route::get('/', [CompteController::class, 'index']);
-        Route::post('/', [CompteController::class, 'store']);
-        Route::get('/pending-validation', [CompteController::class, 'pendingValidation']);
-        Route::get('/{account}', [CompteController::class, 'show']);
-        Route::put('/{account}', [CompteController::class, 'update']);
-        Route::delete('/{account}', [CompteController::class, 'destroy']);
-        Route::post('/{account}/validate', [CompteController::class, 'validate']);
-        Route::post('/{account}/close', [CompteController::class, 'close']);
-        Route::post('/{account}/block', [CompteController::class, 'block']);
-        Route::post('/{account}/unblock', [CompteController::class, 'unblock']);
-        Route::get('/{account}/statement', [CompteController::class, 'statement']);
-    });
-
-    // Types de comptes
-    Route::prefix('account-types')->group(function () {
-        Route::get('/', [TypesCompteController::class, 'index']);
-        Route::post('/', [TypesCompteController::class, 'store']);
-        Route::get('/categories', [TypesCompteController::class, 'categories']);
-        Route::get('/{accountType}', [TypesCompteController::class, 'show']);
-        Route::put('/{accountType}', [TypesCompteController::class, 'update']);
-        Route::delete('/{accountType}', [TypesCompteController::class, 'destroy']);
-    });
-
-    // Chapitres comptables
-    Route::apiResource('accounting-chapters', AccountingChapterController::class);
-
-
 
 });
+
 // route gestion clients
 
 Route::middleware('auth:sanctum')->group(function () {
@@ -88,4 +60,31 @@ Route::middleware('auth:sanctum')->group(function () {
 
 Route::middleware(['auth:sanctum', 'permission:consulter logs'])->group(function () {
     Route::get('/audit/logs', [AuditLogController::class, 'index']);
+});
+
+// Routes pour la gestion des Comptes
+Route::middleware(['auth:sanctum'])->group(function () {
+    
+    // Types de comptes
+    Route::apiResource('account-types', TypesCompteController::class);
+    
+    // Comptes bancaires
+    Route::prefix('accounts')->name('accounts.')->group(function () {
+        // Liste et CRUD de base
+        Route::get('/', [CompteController::class, 'index'])->name('index');
+        Route::post('/', [CompteController::class, 'store'])->name('store');
+        Route::get('/{account}', [CompteController::class, 'show'])->name('show');
+        Route::put('/{account}', [CompteController::class, 'update'])->name('update');
+        
+        // Validation workflow
+        Route::post('/{account}/validate', [CompteController::class, 'validate'])->name('validate');
+        Route::get('/pending/validation', [CompteController::class, 'enAttenteValidation'])->name('pending');
+        
+        // Actions spéciales
+        Route::post('/{account}/opposition', [CompteController::class, 'opposition'])->name('opposition');
+        Route::post('/{account}/cloturer', [CompteController::class, 'cloturer'])->name('cloturer');
+        
+        // Historique
+        Route::get('/{account}/transactions', [CompteController::class, 'transactions'])->name('transactions');
+    });
 });

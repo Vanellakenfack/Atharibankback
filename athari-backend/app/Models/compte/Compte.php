@@ -1,0 +1,163 @@
+<?php
+
+namespace App\Models\compte;
+
+use App\Models\chapitre\PlanComptable;
+use App\Models\client\Client;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
+
+/**
+ * Modèle représentant un compte bancaire
+ * 
+ * @property int $id
+ * @property string $numero_compte Numéro unique du compte (13 caractères)
+ * @property int $client_id ID du client propriétaire
+ * @property int $type_compte_id ID du type de compte
+ * @property int $chapitre_comptable_id ID du chapitre comptable
+ * @property string $devise Devise (FCFA, EURO, DOLLAR, POUND)
+ * @property string $gestionnaire_nom Nom du gestionnaire
+ * @property string $gestionnaire_prenom Prénom du gestionnaire
+ * @property string $gestionnaire_code Code du gestionnaire
+ * @property array|null $rubriques_mata Rubriques pour comptes MATA
+ * @property int|null $duree_blocage_mois Durée de blocage en mois
+ * @property string $statut Statut du compte
+ * @property float $solde Solde du compte
+ * @property bool $notice_acceptee Notice d'engagement acceptée
+ * @property \DateTime|null $date_acceptation_notice Date d'acceptation
+ * @property string|null $signature_path Chemin signature
+ * @property \DateTime $date_ouverture Date d'ouverture
+ * @property \DateTime|null $date_cloture Date de clôture
+ */
+class Compte extends Model
+{
+    use HasFactory, SoftDeletes;
+
+    protected $fillable = [
+        'numero_compte',
+        'client_id',
+        'type_compte_id',
+        'chapitre_comptable_id',
+        'devise',
+        'gestionnaire_nom',
+        'gestionnaire_prenom',
+        'gestionnaire_code',
+        'rubriques_mata',
+        'duree_blocage_mois',
+        'statut',
+        'solde',
+        'notice_acceptee',
+        'date_acceptation_notice',
+        'signature_path',
+        'date_ouverture',
+        'date_cloture',
+        'observations',
+    ];
+
+    protected $casts = [
+        'rubriques_mata' => 'array',
+        'solde' => 'decimal:2',
+        'notice_acceptee' => 'boolean',
+        'date_acceptation_notice' => 'datetime',
+        'date_ouverture' => 'datetime',
+        'date_cloture' => 'datetime',
+    ];
+
+    /**
+     * Relation: Compte appartient à un client
+     */
+    public function client()
+    {
+        return $this->belongsTo(Client::class);
+    }
+
+    /**
+     * Relation: Compte a un type
+     */
+    public function typeCompte()
+    {
+        return $this->belongsTo(TypeCompte::class);
+    }
+
+    /**
+     * Relation: Compte lié à un chapitre comptable
+     */
+public function planComptable()
+{
+    return $this->belongsTo(
+        PlanComptable::class,
+        'chapitre_comptable_id'
+    );
+}
+
+    /**
+     * Relation: Compte peut avoir plusieurs mandataires (max 2)
+     */
+    public function mandataires()
+    {
+        return $this->hasMany(Mandataire::class)->orderBy('ordre');
+    }
+
+    /**
+     * Relation: Compte peut avoir plusieurs documents
+     */
+    public function documents()
+    {
+        return $this->hasMany(DocumentCompte::class);
+    }
+
+    /**
+     * Scope: Comptes actifs uniquement
+     */
+    public function scopeActif($query)
+    {
+        return $query->where('statut', 'actif');
+    }
+
+    /**
+     * Scope: Filtrer par devise
+     */
+    public function scopeDevise($query, $devise)
+    {
+        return $query->where('devise', $devise);
+    }
+
+    /**
+     * Accessor: Formater le numéro de compte
+     */
+    public function getNumeroCompteFormatteAttribute()
+    {
+        // Format: XXX-XXXXXX-XX-X-X (Agence-Client-Type-Ordre-Clé)
+        $num = $this->numero_compte;
+        return substr($num, 0, 3) . '-' . 
+               substr($num, 3, 6) . '-' . 
+               substr($num, 9, 2) . '-' . 
+               substr($num, 11, 1) . '-' . 
+               substr($num, 12, 1);
+    }
+
+    /**
+     * Vérifier si le compte est un compte MATA
+     */
+    public function estCompteMata(): bool
+    {
+        return $this->typeCompte->est_mata;
+    }
+
+    /**
+     * Vérifier si le compte nécessite une durée de blocage
+     */
+    public function necessiteDuree(): bool
+    {
+        return $this->typeCompte->necessite_duree;
+    }
+
+    /**
+     * Obtenir le solde formaté avec devise
+     */
+    public function getSoldeFormatteAttribute(): string
+    {
+        return number_format($this->solde, 2, ',', ' ') . ' ' . $this->devise;
+    }
+}

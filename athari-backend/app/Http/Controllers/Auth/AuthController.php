@@ -6,31 +6,47 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
-// REMOVED: use Spatie\Permission\Traits\HasRoles; <--- C'est la ligne à supprimer
+
 
 class AuthController extends Controller
 {
+    /**
+     * Gère la connexion de l'utilisateur et la génération du token Sanctum.
+     */
     public function login(Request $request)
     {
         $request->validate([
             'email' => 'required|email',
             'password' => 'required',
-
             // device_name est obligatoire pour la traçabilité des tokens Sanctum
             'device_name' => 'required|string', 
         ]);
 
         // 1. Tente d'authentifier l'utilisateur
         if (! Auth::attempt($request->only('email', 'password'))) {
+            
+            // --- LOG EN CAS D'ÉCHEC ---
+            // CORRECTION : Utilisez activity() et mettez la description dans la méthode log()
+            activity()
+                ->log('Tentative de connexion échouée', 'auth.failed'); // Le 2e argument est l'événement
+
             throw ValidationException::withMessages([
                 'email' => ['Identifiants invalides.'],
             ]);
         }
+        
         $user = Auth::user();
 
-        // Récupération du rôle principal de l'utilisateur (issu du Seeder)
-        // ATTENTION : L'utilisateur DOIT avoir le trait HasRoles dans son modèle (User.php)
-        // Ligne précédente (redondante) : $role = $user->roles->first()?->name ?? 'default';
+        // --- LOG EN CAS DE SUCCÈS ---
+        // CORRECTION : Supprimez ActivityLogger::info() et commencez par activity()
+        activity()
+            ->performedOn($user) // Associe le log à l'utilisateur qui se connecte
+            ->withProperty('ip_address', $request->ip()) // Ajoute l'adresse IP du client
+            ->withProperty('user_agent', $request->header('User-Agent')) // Ajoute l'agent utilisateur
+            ->log("Connexion réussie depuis l'appareil : " . $request->device_name, 'auth.login'); 
+        // -----------------------------
+
+        // Récupération du rôle principal de l'utilisateur (assumant l'utilisation de spatie/laravel-permission)
         $role = $user->getRoleNames()->first();
         $abilities = [];
 
@@ -83,12 +99,21 @@ class AuthController extends Controller
 
     /**
      * Déconnexion sécurisée : révoque le token utilisé pour la requête actuelle.
-     * Cette méthode est appelée par POST /api/logout
      */
     public function logout(Request $request)
     {
+        $user = $request->user();
+        
+        // --- LOG DE DÉCONNEXION ---
+        // CORRECTION : Supprimez ActivityLogger::info() et commencez par activity()
+        activity()
+            ->performedOn($user)
+            ->withProperty('ip_address', $request->ip())
+            ->log('Déconnexion réussie', 'auth.logout');
+        // --------------------------
+
         // Supprime le token spécifique utilisé pour la requête, assurant la révocation immédiate
-        $request->user()->currentAccessToken()->delete(); 
+        $user->currentAccessToken()->delete(); 
 
         return response()->json(['message' => 'Déconnexion réussie']);
     }

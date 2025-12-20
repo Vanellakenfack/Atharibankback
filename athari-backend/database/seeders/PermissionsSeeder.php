@@ -91,7 +91,7 @@ class PermissionsSeeder extends Seeder
         ]);
 
         // Rôle 3: Chef d'Agence (CA) - Opérations Agence, Crédits 500K
-        $roleCA = Role::firstOrCreate(['name' => 'Chef d\'Agence (CA)', 'guard_name' => 'web']);
+        $roleCA = Role::firstOrCreate(['name' => "Chef d'Agence (CA)",'guard_name' => 'web']);
         $roleCA->givePermissionTo([
             'ouvrir compte', 
             'valider operation caisse',

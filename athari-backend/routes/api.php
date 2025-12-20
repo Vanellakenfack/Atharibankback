@@ -10,16 +10,12 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\logs\AuditLogController;
 use App\Http\Controllers\AgencyController;
  use App\Http\Controllers\ClientController;
-<<<<<<< HEAD
-use App\Http\Controllers\Api\CompteController;
-use App\Http\Controllers\Api\TypesCompteController;
-use App\Http\Controllers\Admin\PlanComptableController;
-use App\Http\Controllers\Admin\CategorieComptableController;
-=======
+
 use App\Http\Controllers\CompteController;
 use App\Http\Controllers\TypesCompteController;
+use App\Http\Controllers\Admin\PlanComptableController;
+use App\Http\Controllers\Admin\CategorieComptableController;
 
->>>>>>> 7afb7d56279118c0710f56a77c4110347d5b815f
 
 // Route publique (non protégée par Sanctum) pour l'authentification
 Route::post('/login', [AuthController::class, 'login']);
@@ -46,22 +42,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('me', [UserController::class, 'me']);
     Route::apiResource('agencies', AgencyController::class);
 
-<<<<<<< HEAD
         // Comptes
-    Route::prefix('accounts')->group(function () {
-        Route::get('/', [CompteController::class, 'index']);
-        Route::post('/', [CompteController::class, 'store']);
-        Route::get('/pending-validation', [CompteController::class, 'pendingValidation']);
-        Route::get('/{account}', [CompteController::class, 'show']);
-        Route::put('/{account}', [CompteController::class, 'update']);
-        Route::delete('/{account}', [CompteController::class, 'destroy']);
-        Route::post('/{account}/validate', [CompteController::class, 'validate']);
-        Route::post('/{account}/close', [CompteController::class, 'close']);
-        Route::post('/{account}/block', [CompteController::class, 'block']);
-        Route::post('/{account}/unblock', [CompteController::class, 'unblock']);
-        Route::get('/{account}/statement', [CompteController::class, 'statement']);
-    });
-
+    
     // Types de comptes
     Route::prefix('account-types')->group(function () {
         Route::get('/', [TypesCompteController::class, 'index']);
@@ -88,8 +70,6 @@ Route::prefix('admin/comptabilite')->group(function () {
 });
 
 
-=======
->>>>>>> 7afb7d56279118c0710f56a77c4110347d5b815f
 
 });
 

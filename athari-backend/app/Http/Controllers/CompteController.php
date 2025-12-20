@@ -44,7 +44,7 @@ class CompteController extends Controller
      */
     public function index(IndexCompteRequest $request): JsonResponse
     {
-        $query = Compte::with(['client', 'typeCompte', 'chapitreComptable', 'mandataires']);
+        $query = Compte::with(['client', 'typeCompte', 'planComptable', 'mandataires']);
 
         if ($request->has('client_id')) {
             $query->where('client_id', $request->client_id);
@@ -80,7 +80,7 @@ class CompteController extends Controller
         $compte = Compte::with([
             'client',
             'typeCompte',
-            'chapitreComptable',
+            'planComptable',
             'mandataires',
             'documents.uploader'
         ])->findOrFail($id);

@@ -2,6 +2,7 @@
 
 namespace App\Models\compte;
 
+use App\Models\chapitre\PlanComptable;
 use App\Models\client\Client;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -82,10 +83,13 @@ class Compte extends Model
     /**
      * Relation: Compte lié à un chapitre comptable
      */
-    public function chapitreComptable()
-    {
-        return $this->belongsTo(ChapitreComptable::class);
-    }
+public function planComptable()
+{
+    return $this->belongsTo(
+        PlanComptable::class,
+        'chapitre_comptable_id'
+    );
+}
 
     /**
      * Relation: Compte peut avoir plusieurs mandataires (max 2)

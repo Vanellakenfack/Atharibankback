@@ -22,10 +22,11 @@ class TypeCompte extends Model
 {
     use HasFactory;
 
+    protected $table = 'types_comptes';
+
     protected $fillable = [
         'code',
         'libelle',
-        'description',
         'est_mata',
         'necessite_duree',
         'est_islamique',

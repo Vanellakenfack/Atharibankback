@@ -14,7 +14,7 @@ return new class extends Migration
     {
         Schema::create('types_comptes', function (Blueprint $table) {
             $table->id();
-            $table->string('code', 2)->unique()->comment('Code à 2 chiffres du type de compte');
+            $table->char('code', 2)->unique()->comment('Code à 2 chiffres du type de compte');
             $table->string('libelle')->comment('Libellé du type de compte');
             
             // Spécificités

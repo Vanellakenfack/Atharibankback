@@ -19,7 +19,7 @@ return new class extends Migration
             $table->string('numero_compte', 13)->unique()->comment('Numéro unique du compte (13 caractères)');
             $table->foreignId('client_id')->constrained('clients')->onDelete('cascade')->comment('Référence au client propriétaire');
             $table->foreignId('type_compte_id')->constrained('types_comptes')->comment('Type de compte (épargne, courant, etc.)');
-            $table->foreignId('chapitre_comptable_id')->constrained('chapitres_comptables')->comment('Chapitre comptable associé');
+            $table->foreignId('chapitre_comptable_id')->constrained('plan_comptable')->comment('Chapitre comptable associé');
             
             // Devise
             $table->enum('devise', ['FCFA', 'EURO', 'DOLLAR', 'POUND'])->default('FCFA')->comment('Devise du compte');

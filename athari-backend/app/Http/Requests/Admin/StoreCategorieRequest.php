@@ -20,11 +20,11 @@ class StoreCategorieRequest extends FormRequest
      * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
      */
          public function rules(): array {
-            return [
-                'code'        => 'required|unique:categories_comptables',
-                'libelle'     => 'required|string',
-                'type_compte' => 'required|in:ACTIF,PASSIF,CHARGE,PRODUIT', // On impose le type ici
-                'niveau'      => 'required|integer',
-            ];
-        }
+        return [
+            'code'        => 'required|unique:categories_comptables',
+            'libelle'     => 'required|string',
+            'type_compte' => 'required|in:ACTIF,PASSIF,CHARGE,PRODUIT', // On impose le type ici
+            'niveau'      => 'required|integer',
+        ];
+    }
 }

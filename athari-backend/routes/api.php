@@ -57,7 +57,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Chapitres comptables
 
 
-Route::prefix('admin/comptabilite')->group(function () {
+Route::prefix('plan_comptable')->group(function () {
     // Routes pour les rubriques (371, 372...)
     Route::get('categories', [CategorieComptableController::class, 'index']);
     Route::post('categories', [CategorieComptableController::class, 'store']);
@@ -65,6 +65,8 @@ Route::prefix('admin/comptabilite')->group(function () {
     // Routes pour les comptes de détail (37225000...)
     Route::get('comptes', [PlanComptableController::class, 'index']);
     Route::post('comptes', [PlanComptableController::class, 'store']);
+        Route::put('comptes/{id}', [PlanComptableController::class, 'update']);
+
     Route::get('comptes/{planComptable}', [PlanComptableController::class, 'show']);
     Route::patch('comptes/{planComptable}/archive', [PlanComptableController::class, 'archive']);
 });

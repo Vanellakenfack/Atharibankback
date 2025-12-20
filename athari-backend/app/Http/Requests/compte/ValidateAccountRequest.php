@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Requests\Account;
+namespace App\Http\Requests\Compte;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -10,24 +10,30 @@ class ValidateAccountRequest extends FormRequest
     public function authorize(): bool
     {
         $user = $this->user();
-        return $user->hasAnyRole(['Chef d\'Agence (CA)', 'Assistant Juridique (AJ)', 'Chef Comptable', 'DG', 'Admin']);
+        $action = $this->input('action');
+
+        return match ($action) {
+            'validate_ca' => $user->hasRole('Chef d\'Agence (CA)'),
+            'validate_aj' => $user->hasRole('Assistant Juridique (AJ)'),
+            'reject' => $user->hasAnyRole(['Chef d\'Agence (CA)', 'Assistant Juridique (AJ)', 'Chef Comptable']),
+            default => false,
+        };
     }
 
     public function rules(): array
     {
         return [
-            'validation_type' => ['required', Rule::in(['ca', 'aj'])],
-            'approved' => ['required', 'boolean'],
-            'comments' => ['nullable', 'string', 'max:1000'],
+            'action' => ['required', Rule::in(['validate_ca', 'validate_aj', 'reject'])],
+            'motif' => ['required_if:action,reject', 'nullable', 'string', 'max:500'],
         ];
     }
 
     public function messages(): array
     {
         return [
-            'validation_type.required' => 'Le type de validation est obligatoire.',
-            'validation_type.in' => 'Le type de validation doit être "ca" ou "aj".',
-            'approved.required' => 'La décision de validation est obligatoire.',
+            'action.required' => 'L\'action de validation est obligatoire.',
+            'action.in' => 'L\'action spécifiée n\'est pas valide.',
+            'motif.required_if' => 'Le motif de rejet est obligatoire.',
         ];
     }
 }

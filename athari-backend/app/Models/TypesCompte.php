@@ -1,91 +1,86 @@
 <?php
+// app/Models/AccountType.php
 
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class TypesCompte extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory;
 
     protected $fillable = [
-        'accounting_chapter_id',
         'code',
         'name',
+        'slug',
         'category',
         'sub_category',
-        'opening_fee',
-        'monthly_commission',
-        'withdrawal_fee',
-        'sms_fee',
-        'minimum_balance',
-        'unblocking_fee',
-        'early_withdrawal_penalty_rate',
-        'interest_rate',
-        'blocking_duration_days',
-        'is_remunerated',
-        'requires_checkbook',
-        'mata_boost_sections',
+        'frais_ouverture',
+        'frais_tenue_compte',
+        'frais_carnet',
+        'frais_retrait',
+        'frais_sms',
+        'frais_deblocage',
+        'penalite_retrait_anticipe',
+        'commission_mensuelle_seuil',
+        'commission_mensuelle_basse',
+        'commission_mensuelle_haute',
+        'minimum_compte',
+        'remunere',
+        'taux_interet_annuel',
+        'est_bloque',
+        'duree_blocage_mois',
+        'autorise_decouvert',
+        'periodicite_arrete',
+        'periodicite_extrait',
         'is_active',
     ];
 
     protected $casts = [
-        'opening_fee' => 'decimal:2',
-        'monthly_commission' => 'decimal:2',
-        'withdrawal_fee' => 'decimal:2',
-        'sms_fee' => 'decimal:2',
-        'minimum_balance' => 'decimal:2',
-        'unblocking_fee' => 'decimal:2',
-        'early_withdrawal_penalty_rate' => 'decimal:2',
-        'interest_rate' => 'decimal:4',
-        'is_remunerated' => 'boolean',
-        'requires_checkbook' => 'boolean',
-        'mata_boost_sections' => 'array',
+        'frais_ouverture' => 'decimal:2',
+        'frais_tenue_compte' => 'decimal:2',
+        'frais_carnet' => 'decimal:2',
+        'frais_retrait' => 'decimal:2',
+        'frais_sms' => 'decimal:2',
+        'frais_deblocage' => 'decimal:2',
+        'penalite_retrait_anticipe' => 'decimal:2',
+        'commission_mensuelle_seuil' => 'decimal:2',
+        'commission_mensuelle_basse' => 'decimal:2',
+        'commission_mensuelle_haute' => 'decimal:2',
+        'minimum_compte' => 'decimal:2',
+        'taux_interet_annuel' => 'decimal:4',
+        'remunere' => 'boolean',
+        'est_bloque' => 'boolean',
+        'autorise_decouvert' => 'boolean',
         'is_active' => 'boolean',
     ];
 
-    public const CATEGORIES = [
-        'courant' => 'Compte Courant',
-        'epargne' => 'Compte Épargne',
-        'mata_boost' => 'Compte MATA BOOST',
-        'collecte' => 'Compte de Collecte',
-        'dat' => 'Dépôt à Terme',
-        'autres' => 'Autres',
-    ];
-
-    public const SUB_CATEGORIES = [
-        'a_vue' => 'À Vue',
-        'bloque' => 'Bloqué',
-        'particulier' => 'Particulier',
-        'entreprise' => 'Entreprise',
-        'family' => 'Family',
-        'classique' => 'Classique',
-        'logement' => 'Logement',
-        'participative' => 'Participative',
-        'garantie' => 'Garantie',
-    ];
-
-    public const MATA_BOOST_SECTIONS = [
-        'business' => 'BUSINESS',
-        'sante' => 'SANTÉ',
-        'scolarite' => 'SCOLARITÉ',
-        'fete' => 'FÊTE',
-        'fournitures' => 'FOURNITURES',
-        'immobilier' => 'IMMOBILIER',
-    ];
-
-    public function accountingChapter(): BelongsTo
-    {
-        return $this->belongsTo(AccountingChapter::class);
-    }
-
     public function accounts(): HasMany
     {
-        return $this->hasMany(Account::class);
+        return $this->hasMany(Compte::class);
+    }
+
+    public function isMataBoost(): bool
+    {
+        return $this->category === 'mata_boost';
+    }
+
+    public function isBloque(): bool
+    {
+        return $this->est_bloque;
+    }
+
+    public function getCommissionMensuelle(float $totalVersements): float
+    {
+        if ($this->commission_mensuelle_seuil === null) {
+            return $this->commission_mensuelle_basse;
+        }
+
+        return $totalVersements >= $this->commission_mensuelle_seuil
+            ? $this->commission_mensuelle_haute
+            : $this->commission_mensuelle_basse;
     }
 
     public function scopeActive($query)
@@ -96,24 +91,5 @@ class TypesCompte extends Model
     public function scopeByCategory($query, string $category)
     {
         return $query->where('category', $category);
-    }
-
-    public function isMataBoost(): bool
-    {
-        return $this->category === 'mata_boost';
-    }
-
-    public function isBlocked(): bool
-    {
-        return $this->sub_category === 'bloque';
-    }
-
-    public function calculateMonthlyCommission(float $totalDeposits): float
-    {
-        if ($this->category === 'mata_boost' && $this->sub_category === 'a_vue') {
-            return $totalDeposits >= 50000 ? 1000 : 300;
-        }
-
-        return $this->monthly_commission;
     }
 }

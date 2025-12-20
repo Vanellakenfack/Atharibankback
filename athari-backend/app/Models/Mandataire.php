@@ -1,46 +1,47 @@
 <?php
+// app/Models/AccountMandatary.php
 
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Mandataire extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory;
 
     protected $fillable = [
         'account_id',
-        'order',
-        'gender',
-        'last_name',
-        'first_name',
-        'birth_date',
-        'birth_place',
-        'phone',
-        'address',
-        'nationality',
+        'type_mandataire',
+        'sexe',
+        'nom',
+        'prenoms',
+        'date_naissance',
+        'lieu_naissance',
+        'telephone',
+        'adresse',
+        'nationalite',
         'profession',
-        'mother_maiden_name',
-        'cni_number',
-        'cni_issue_date',
-        'cni_expiry_date',
-        'marital_status',
-        'spouse_name',
-        'spouse_birth_date',
-        'spouse_birth_place',
-        'spouse_cni',
+        'nom_jeune_fille_mere',
+        'numero_cni',
+        'cni_delivrance',
+        'cni_expiration',
+        'situation_familiale',
+        'nom_conjoint',
+        'date_naissance_conjoint',
+        'lieu_naissance_conjoint',
+        'cni_conjoint',
         'signature_path',
+        'photo_path',
         'is_active',
     ];
 
     protected $casts = [
-        'birth_date' => 'date',
-        'cni_issue_date' => 'date',
-        'cni_expiry_date' => 'date',
-        'spouse_birth_date' => 'date',
+        'date_naissance' => 'date',
+        'cni_delivrance' => 'date',
+        'cni_expiration' => 'date',
+        'date_naissance_conjoint' => 'date',
         'is_active' => 'boolean',
     ];
 
@@ -49,9 +50,16 @@ class Mandataire extends Model
         return $this->belongsTo(Compte::class);
     }
 
-    //Obtien le Nom complet du mandataire
-    public function getFullNameAttribute(): string
+    public function getNomCompletAttribute(): string
     {
-        return trim("{$this->last_name} {$this->first_name}");
+        return $this->nom . ' ' . $this->prenoms;
+    }
+
+    public function isCniValide(): bool
+    {
+        if (!$this->cni_expiration) {
+            return true;
+        }
+        return now()->lt($this->cni_expiration);
     }
 }

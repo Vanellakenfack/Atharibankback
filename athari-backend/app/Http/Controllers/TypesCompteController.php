@@ -1,128 +1,115 @@
 <?php
 
-namespace App\Http\Controllers\Api;
+namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
-use App\Http\Resources\AccountTypeResource;
+use App\Http\Resources\TypesCompteResource;
 use App\Models\TypesCompte;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class TypesCompteController extends Controller
 {
-    public function index(Request $request): JsonResponse
+    /**
+     * Liste des types de comptes
+     */
+    public function index(Request $request): AnonymousResourceCollection
     {
-        $query = TypesCompte::with('accountingChapter')
-            ->when($request->filled('category'), fn($q) => $q->where('category', $request->category))
-            ->when($request->filled('is_active'), fn($q) => $q->where('is_active', $request->boolean('is_active')))
-            ->orderBy('category')
-            ->orderBy('name');
+        $query = TypesCompte::query();
 
-        $accountTypes = $request->boolean('paginate', false)
-            ? $query->paginate($request->get('per_page', 15))
-            : $query->get();
+        if ($request->filled('category')) {
+            $query->where('category', $request->category);
+        }
 
-        return response()->json([
-            'data' => AccountTypeResource::collection($accountTypes),
-        ]);
+        if ($request->boolean('active_only', true)) {
+            $query->where('is_active', true);
+        }
+
+        return TypesCompteResource::collection(
+            $query->orderBy('code')->get()
+        );
     }
 
+    /**
+     * Affichage d'un type de compte
+     */
+    public function show(TypesCompte $accountType): TypesCompteResource
+    {
+        return new TypesCompteResource($accountType);
+    }
+
+    /**
+     * Création d'un type de compte
+     */
     public function store(Request $request): JsonResponse
     {
-        $this->authorize('create', TypesCompte::class);
+        $this->authorize('parametage plan comptable');
 
         $validated = $request->validate([
-            'accounting_chapter_id' => ['required', 'exists:accounting_chapters,id'],
-            'code' => ['required', 'string', 'max:20', 'unique:account_types,code'],
-            'name' => ['required', 'string', 'max:255'],
-            'category' => ['required', Rule::in(array_keys(TypesCompte::CATEGORIES))],
-            'sub_category' => ['nullable', Rule::in(array_keys(TypesCompte::SUB_CATEGORIES))],
-            'opening_fee' => ['nullable', 'numeric', 'min:0'],
-            'monthly_commission' => ['nullable', 'numeric', 'min:0'],
-            'withdrawal_fee' => ['nullable', 'numeric', 'min:0'],
-            'sms_fee' => ['nullable', 'numeric', 'min:0'],
-            'minimum_balance' => ['nullable', 'numeric', 'min:0'],
-            'unblocking_fee' => ['nullable', 'numeric', 'min:0'],
-            'early_withdrawal_penalty_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
-            'interest_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
-            'blocking_duration_days' => ['nullable', 'integer', 'min:1'],
-            'is_remunerated' => ['nullable', 'boolean'],
-            'requires_checkbook' => ['nullable', 'boolean'],
-            'mata_boost_sections' => ['nullable', 'array'],
-            'is_active' => ['nullable', 'boolean'],
+            'code' => ['required', 'string', 'size:2', 'unique:account_types,code'],
+            'name' => ['required', 'string', 'max:100'],
+            'slug' => ['required', 'string', 'max:100', 'unique:account_types,slug'],
+            'category' => ['required', 'in:courant,epargne,mata_boost,collecte,dat,autre'],
+            'sub_category' => ['nullable', 'string'],
+            'frais_ouverture' => ['numeric', 'min:0'],
+            'frais_tenue_compte' => ['numeric', 'min:0'],
+            'frais_carnet' => ['numeric', 'min:0'],
+            'frais_retrait' => ['numeric', 'min:0'],
+            'frais_sms' => ['numeric', 'min:0'],
+            'frais_deblocage' => ['numeric', 'min:0'],
+            'penalite_retrait_anticipe' => ['numeric', 'min:0', 'max:100'],
+            'commission_mensuelle_seuil' => ['nullable', 'numeric', 'min:0'],
+            'commission_mensuelle_basse' => ['numeric', 'min:0'],
+            'commission_mensuelle_haute' => ['numeric', 'min:0'],
+            'minimum_compte' => ['numeric', 'min:0'],
+            'remunere' => ['boolean'],
+            'taux_interet_annuel' => ['numeric', 'min:0', 'max:100'],
+            'est_bloque' => ['boolean'],
+            'duree_blocage_mois' => ['nullable', 'integer', 'min:1'],
+            'autorise_decouvert' => ['boolean'],
+            'periodicite_arrete' => ['in:journalier,mensuel,trimestriel,annuel'],
+            'periodicite_extrait' => ['in:journalier,mensuel,trimestriel,annuel'],
         ]);
 
         $accountType = TypesCompte::create($validated);
 
         return response()->json([
             'message' => 'Type de compte créé avec succès.',
-            'data' => new AccountTypeResource($accountType),
+            'data' => new TypesCompteResource($accountType),
         ], 201);
     }
 
-    public function show(TypesCompte $accountType): AccountTypeResource
-    {
-        $accountType->load('accountingChapter');
-        return new AccountTypeResource($accountType);
-    }
-
+    /**
+     * Mise à jour d'un type de compte
+     */
     public function update(Request $request, TypesCompte $accountType): JsonResponse
     {
-        $this->authorize('update', $accountType);
+        $this->authorize('parametage plan comptable');
 
         $validated = $request->validate([
-            'accounting_chapter_id' => ['sometimes', 'exists:accounting_chapters,id'],
-            'code' => ['sometimes', 'string', 'max:20', Rule::unique('account_types')->ignore($accountType)],
-            'name' => ['sometimes', 'string', 'max:255'],
-            'category' => ['sometimes', Rule::in(array_keys(TypesCompte::CATEGORIES))],
-            'sub_category' => ['nullable', Rule::in(array_keys(TypesCompte::SUB_CATEGORIES))],
-            'opening_fee' => ['nullable', 'numeric', 'min:0'],
-            'monthly_commission' => ['nullable', 'numeric', 'min:0'],
-            'withdrawal_fee' => ['nullable', 'numeric', 'min:0'],
-            'sms_fee' => ['nullable', 'numeric', 'min:0'],
-            'minimum_balance' => ['nullable', 'numeric', 'min:0'],
-            'unblocking_fee' => ['nullable', 'numeric', 'min:0'],
-            'early_withdrawal_penalty_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
-            'interest_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
-            'blocking_duration_days' => ['nullable', 'integer', 'min:1'],
-            'is_remunerated' => ['nullable', 'boolean'],
-            'requires_checkbook' => ['nullable', 'boolean'],
-            'mata_boost_sections' => ['nullable', 'array'],
-            'is_active' => ['nullable', 'boolean'],
+            'name' => ['sometimes', 'string', 'max:100'],
+            'frais_ouverture' => ['sometimes', 'numeric', 'min:0'],
+            'frais_tenue_compte' => ['sometimes', 'numeric', 'min:0'],
+            'frais_carnet' => ['sometimes', 'numeric', 'min:0'],
+            'frais_retrait' => ['sometimes', 'numeric', 'min:0'],
+            'frais_sms' => ['sometimes', 'numeric', 'min:0'],
+            'frais_deblocage' => ['sometimes', 'numeric', 'min:0'],
+            'penalite_retrait_anticipe' => ['sometimes', 'numeric', 'min:0', 'max:100'],
+            'commission_mensuelle_seuil' => ['nullable', 'numeric', 'min:0'],
+            'commission_mensuelle_basse' => ['sometimes', 'numeric', 'min:0'],
+            'commission_mensuelle_haute' => ['sometimes', 'numeric', 'min:0'],
+            'minimum_compte' => ['sometimes', 'numeric', 'min:0'],
+            'remunere' => ['sometimes', 'boolean'],
+            'taux_interet_annuel' => ['sometimes', 'numeric', 'min:0', 'max:100'],
+            'is_active' => ['sometimes', 'boolean'],
         ]);
 
         $accountType->update($validated);
 
         return response()->json([
             'message' => 'Type de compte mis à jour avec succès.',
-            'data' => new AccountTypeResource($accountType->fresh()),
-        ]);
-    }
-
-    public function destroy(TypesCompte $accountType): JsonResponse
-    {
-        $this->authorize('delete', $accountType);
-
-        if ($accountType->accounts()->exists()) {
-            return response()->json([
-                'message' => 'Impossible de supprimer un type de compte utilisé.',
-            ], 422);
-        }
-
-        $accountType->delete();
-
-        return response()->json([
-            'message' => 'Type de compte supprimé avec succès.',
-        ]);
-    }
-
-    public function categories(): JsonResponse
-    {
-        return response()->json([
-            'categories' => TypesCompte::CATEGORIES,
-            'sub_categories' => TypesCompte::SUB_CATEGORIES,
-            'mata_boost_sections' => TypesCompte::MATA_BOOST_SECTIONS,
+            'data' => new TypesCompteResource($accountType->fresh()),
         ]);
     }
 }

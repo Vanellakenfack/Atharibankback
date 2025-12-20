@@ -10,10 +10,16 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\logs\AuditLogController;
 use App\Http\Controllers\AgencyController;
  use App\Http\Controllers\ClientController;
+<<<<<<< HEAD
 use App\Http\Controllers\Api\CompteController;
 use App\Http\Controllers\Api\TypesCompteController;
 use App\Http\Controllers\Admin\PlanComptableController;
 use App\Http\Controllers\Admin\CategorieComptableController;
+=======
+use App\Http\Controllers\CompteController;
+use App\Http\Controllers\TypesCompteController;
+
+>>>>>>> 7afb7d56279118c0710f56a77c4110347d5b815f
 
 // Route publique (non protégée par Sanctum) pour l'authentification
 Route::post('/login', [AuthController::class, 'login']);
@@ -21,7 +27,7 @@ Route::post('/login', [AuthController::class, 'login']);
 // Route protégée par Sanctum pour la déconnexion
 Route::middleware('auth:sanctum')->post('/logout', [AuthController::class, 'logout']);
 
-// Routes protégées par Sanctum
+// Routes protégées pour authentification
 Route::middleware('auth:sanctum')->group(function () {
     
     // Routes CRUD Utilisateurs
@@ -40,6 +46,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('me', [UserController::class, 'me']);
     Route::apiResource('agencies', AgencyController::class);
 
+<<<<<<< HEAD
         // Comptes
     Route::prefix('accounts')->group(function () {
         Route::get('/', [CompteController::class, 'index']);
@@ -81,8 +88,11 @@ Route::prefix('admin/comptabilite')->group(function () {
 });
 
 
+=======
+>>>>>>> 7afb7d56279118c0710f56a77c4110347d5b815f
 
 });
+
 // route gestion clients
 
 Route::middleware('auth:sanctum')->group(function () {
@@ -101,4 +111,31 @@ Route::middleware('auth:sanctum')->group(function () {
 
 Route::middleware(['auth:sanctum', 'permission:consulter logs'])->group(function () {
     Route::get('/audit/logs', [AuditLogController::class, 'index']);
+});
+
+// Routes pour la gestion des Comptes
+Route::middleware(['auth:sanctum'])->group(function () {
+    
+    // Types de comptes
+    Route::apiResource('account-types', TypesCompteController::class);
+    
+    // Comptes bancaires
+    Route::prefix('accounts')->name('accounts.')->group(function () {
+        // Liste et CRUD de base
+        Route::get('/', [CompteController::class, 'index'])->name('index');
+        Route::post('/', [CompteController::class, 'store'])->name('store');
+        Route::get('/{account}', [CompteController::class, 'show'])->name('show');
+        Route::put('/{account}', [CompteController::class, 'update'])->name('update');
+        
+        // Validation workflow
+        Route::post('/{account}/validate', [CompteController::class, 'validate'])->name('validate');
+        Route::get('/pending/validation', [CompteController::class, 'enAttenteValidation'])->name('pending');
+        
+        // Actions spéciales
+        Route::post('/{account}/opposition', [CompteController::class, 'opposition'])->name('opposition');
+        Route::post('/{account}/cloturer', [CompteController::class, 'cloturer'])->name('cloturer');
+        
+        // Historique
+        Route::get('/{account}/transactions', [CompteController::class, 'transactions'])->name('transactions');
+    });
 });

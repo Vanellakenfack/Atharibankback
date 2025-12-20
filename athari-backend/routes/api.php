@@ -10,9 +10,9 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\logs\AuditLogController;
 use App\Http\Controllers\AgencyController;
  use App\Http\Controllers\ClientController;
+
 use App\Http\Controllers\CompteController;
-use App\Http\Controllers\TypeCompteController;
-use App\Http\Controllers\DocumentCompteController;
+use App\Http\Controllers\TypesCompteController;
 
 
 // Route publique (non protégée par Sanctum) pour l'authentification
@@ -39,6 +39,34 @@ Route::middleware('auth:sanctum')->group(function () {
     // Route pour l'utilisateur connecté
     Route::get('me', [UserController::class, 'me']);
     Route::apiResource('agencies', AgencyController::class);
+
+        // Comptes
+    
+    // Types de comptes
+    Route::prefix('account-types')->group(function () {
+        Route::get('/', [TypesCompteController::class, 'index']);
+        Route::post('/', [TypesCompteController::class, 'store']);
+        Route::get('/categories', [TypesCompteController::class, 'categories']);
+        Route::get('/{accountType}', [TypesCompteController::class, 'show']);
+        Route::put('/{accountType}', [TypesCompteController::class, 'update']);
+        Route::delete('/{accountType}', [TypesCompteController::class, 'destroy']);
+    });
+
+    // Chapitres comptables
+
+
+Route::prefix('admin/comptabilite')->group(function () {
+    // Routes pour les rubriques (371, 372...)
+    Route::get('categories', [CategorieComptableController::class, 'index']);
+    Route::post('categories', [CategorieComptableController::class, 'store']);
+
+    // Routes pour les comptes de détail (37225000...)
+    Route::get('comptes', [PlanComptableController::class, 'index']);
+    Route::post('comptes', [PlanComptableController::class, 'store']);
+    Route::get('comptes/{planComptable}', [PlanComptableController::class, 'show']);
+    Route::patch('comptes/{planComptable}/archive', [PlanComptableController::class, 'archive']);
+});
+
 
 
 });

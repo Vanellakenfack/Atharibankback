@@ -2,275 +2,303 @@
 
 namespace App\Services\Compte;
 
-use App\Models\Compte;
-use App\Models\TypesCompte;
-use App\Models\Agency;
+use App\Models\compte\Compte;
 use App\Models\client\Client;
-use App\Models\User;
-use App\Events\AccountCreated;
-use App\Events\AccountValidated;
-use App\Exceptions\AccountException;
+use App\Models\compte\TypeCompte;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
+/**
+ * Service de gestion des comptes bancaires
+ * Gère la logique métier complexe de création et gestion des comptes
+ */
 class CompteService
 {
-    public function __construct(
-        private AccountNumberGenerator $numberGenerator,
-        private FeeService $feeService,
-        private CommissionService $commissionService
-    ) {}
-
     /**
-     * Crée un nouveau compte bancaire
+     * Générer un numéro de compte unique
+     * 
+     * Format: AAA-CCCCCC-TT-O-K
+     * - AAA: Code agence (3 chiffres) - récupéré du client
+     * - CCCCCC: Numéro client (6 chiffres)
+     * - TT: Code type compte (2 chiffres)
+     * - O: Numéro ordinal (nombre de comptes de même type)
+     * - K: Clé de contrôle (lettre majuscule)
+     * 
+     * @param int $clientId ID du client
+     * @param string $codeTypeCompte Code du type de compte (2 chiffres)
+     * @return string Numéro de compte généré
      */
-    public function create(array $data, User $creator): Compte
+    public function genererNumeroCompte(int $clientId, string $codeTypeCompte): string
     {
-        return DB::transaction(function () use ($data, $creator) {
-            $client = Client::findOrFail($data['client_id']);
-            $accountType = TypesCompte::findOrFail($data['account_type_id']);
-            $agency = Agency::findOrFail($data['agency_id']);
-
-            // Génération du numéro de compte
-            $numeroData = $this->numberGenerator->generate($client, $accountType, $agency);
-
-            // Création du compte
-            $account = Compte::create([
-                'numero_compte' => substr($numeroData['numero_compte'], 0, 13),
-                'cle_compte' => $numeroData['cle_compte'],
-                'client_id' => $client->id,
-                'account_type_id' => $accountType->id,
-                'agency_id' => $agency->id,
-                'created_by' => $creator->id,
-                'numero_ordre' => $numeroData['numero_ordre'],
-                'minimum_compte' => $accountType->minimum_compte,
-                'statut' => 'en_cours',
-                'statut_validation' => 'en_attente',
-                'opposition_debit' => true, // Bloqué sur débit à l'ouverture
-                'devise' => 'XAF',
-                'taxable' => $data['taxable'] ?? false,
-                'notes' => $data['notes'] ?? null,
-            ]);
-
-            // Calcul de la date d'échéance pour les comptes bloqués
-            if ($accountType->est_bloque && $accountType->duree_blocage_mois) {
-                $account->date_echeance = now()->addMonths($accountType->duree_blocage_mois);
-                $account->save();
-            }
-
-            // Prélèvement automatique des frais d'ouverture
-            $this->feeService->prelevesFraisOuverture($account, $accountType);
-
-            Log::info('Compte créé', [
-                'account_id' => $account->id,
-                'numero' => $account->numero_compte_formate,
-                'client' => $client->num_client,
-                'type' => $accountType->name,
-                'creator' => $creator->id,
-            ]);
-
-            event(new AccountCreated($account));
-
-            return $account->fresh(['client', 'accountType', 'agency', 'creator']);
-        });
+        // Récupérer le client
+        $client = Client::findOrFail($clientId);
+        
+        // Extraire le code agence et numéro client depuis numero_client
+        // Format numero_client: AAAXXXXXX (3 chiffres agence + 6 chiffres client)
+        $numeroClient = $client->numero_client;
+        $codeAgence = substr($numeroClient, 0, 3);
+        $numClient = substr($numeroClient, 3, 6);
+        
+        // Compter les comptes existants de même type pour ce client
+        // CORRECTION 1: Espace en trop dans le nom de variable "$nombreComptesMemeTy pe"
+        $nombreComptesMemType = Compte::where('client_id', $clientId)
+            ->whereHas('typeCompte', function ($query) use ($codeTypeCompte) {
+                $query->where('code', $codeTypeCompte);
+            })
+            ->count();
+        
+        // Numéro ordinal (commence à 1)
+        $numeroOrdinal = $nombreComptesMemType + 1;
+        
+        // Construire le numéro de compte sans la clé
+        $numeroSansCle = $codeAgence . $numClient . str_pad($codeTypeCompte, 2, '0', STR_PAD_LEFT) . $numeroOrdinal;
+        
+        // Générer la clé de contrôle (lettre majuscule aléatoire)
+        $cle = $this->genererCleControle($numeroSansCle);
+        
+        // Numéro de compte complet (13 caractères)
+        return $numeroSansCle . $cle;
     }
 
     /**
-     * Met à jour un compte existant
+     * Générer une clé de contrôle (lettre majuscule)
+     * 
+     * @param string $numeroSansCle Numéro de compte sans la clé
+     * @return string Lettre majuscule
      */
-    public function update(Compte $account, array $data, User $updater): Compte
+    private function genererCleControle(string $numeroSansCle): string
     {
-        return DB::transaction(function () use ($account, $data, $updater) {
-            $updatableFields = [
-                'taxable',
-                'notes',
-                'minimum_compte',
-            ];
-
-            $account->update(array_intersect_key($data, array_flip($updatableFields)));
-
-            Log::info('Compte mis à jour', [
-                'account_id' => $account->id,
-                'updater' => $updater->id,
-                'changes' => $account->getChanges(),
-            ]);
-
-            return $account->fresh();
-        });
+        // Algorithme simple: somme des chiffres modulo 26 + 'A'
+        $somme = array_sum(str_split($numeroSansCle));
+        $index = $somme % 26;
+        return chr(65 + $index); // A=65 en ASCII
     }
 
     /**
-     * Validation par le Chef d'Agence
+     * Créer un nouveau compte bancaire (processus complet en 4 étapes)
+     * 
+     * @param array $donneesEtape1 Données de l'étape 1
+     * @param array $donneesEtape2 Données de l'étape 2
+     * @param array $donneesEtape3 Données de l'étape 3
+     * @param array $donneesEtape4 Données de l'étape 4
+     * @return Compte Compte créé
      */
-    public function validateByChefAgence(Compte $account, User $validator): Compte
-    {
-        if ($account->statut_validation !== 'en_attente') {
-            throw new AccountException("Le compte n'est pas en attente de validation.");
-        }
-
-        return DB::transaction(function () use ($account, $validator) {
-            $account->update([
-                'statut_validation' => 'valide_ca',
-                'validated_by_ca' => $validator->id,
-                'validated_at_ca' => now(),
-            ]);
-
-            Log::info('Compte validé par Chef d\'Agence', [
-                'account_id' => $account->id,
-                'validator' => $validator->id,
-            ]);
-
-            return $account->fresh();
-        });
-    }
-
-    /**
-     * Validation par l'Assistant Juridique (lève le blocage sur débit)
-     */
-    public function validateByAssistantJuridique(Compte $account, User $validator): Compte
-    {
-        if ($account->statut_validation !== 'valide_ca') {
-            throw new AccountException("Le compte doit d'abord être validé par le Chef d'Agence.");
-        }
-
-        return DB::transaction(function () use ($account, $validator) {
-            $account->update([
-                'statut_validation' => 'valide_aj',
-                'validated_by_aj' => $validator->id,
-                'validated_at_aj' => now(),
+    public function creerCompte(
+        array $donneesEtape1,
+        array $donneesEtape2,
+        array $donneesEtape3,
+        array $donneesEtape4
+    ): Compte {
+        return DB::transaction(function () use ($donneesEtape1, $donneesEtape2, $donneesEtape3, $donneesEtape4) {
+            
+            // Générer le numéro de compte
+            $numeroCompte = $this->genererNumeroCompte(
+                $donneesEtape1['client_id'],
+                $donneesEtape1['code_type_compte']
+            );
+            
+            // Créer le compte
+            $compte = Compte::create([
+                'numero_compte' => $numeroCompte,
+                'client_id' => $donneesEtape1['client_id'],
+                'type_compte_id' => $donneesEtape1['type_compte_id'],
+                'chapitre_comptable_id' => $donneesEtape2['chapitre_comptable_id'],
+                'devise' => $donneesEtape1['devise'],
+                'gestionnaire_nom' => $donneesEtape1['gestionnaire_nom'],
+                'gestionnaire_prenom' => $donneesEtape1['gestionnaire_prenom'],
+                'gestionnaire_code' => $donneesEtape1['gestionnaire_code'],
+                'rubriques_mata' => $donneesEtape1['rubriques_mata'] ?? null,
+                'duree_blocage_mois' => $donneesEtape1['duree_blocage_mois'] ?? null,
                 'statut' => 'actif',
-                'opposition_debit' => false, // Levée du blocage
+                'solde' => 0,
+                'notice_acceptee' => $donneesEtape4['notice_acceptee'],
+                'date_acceptation_notice' => now(),
+                'signature_path' => $donneesEtape4['signature_path'] ?? null,
                 'date_ouverture' => now(),
             ]);
-
-            Log::info('Compte validé par Assistant Juridique et activé', [
-                'account_id' => $account->id,
-                'validator' => $validator->id,
-            ]);
-
-            event(new AccountValidated($account));
-
-            return $account->fresh();
-        });
-    }
-
-    /**
-     * Rejet d'un compte
-     */
-    public function reject(Compte $account, User $rejector, string $motif): Compte
-    {
-        return DB::transaction(function () use ($account, $rejector, $motif) {
-            $account->update([
-                'statut_validation' => 'rejete',
-                'statut' => 'suspendu',
-                'motif_opposition' => $motif,
-            ]);
-
-            Log::warning('Compte rejeté', [
-                'account_id' => $account->id,
-                'rejector' => $rejector->id,
-                'motif' => $motif,
-            ]);
-
-            return $account->fresh();
-        });
-    }
-
-    /**
-     * Mise en opposition d'un compte
-     */
-    public function mettreEnOpposition(Compte $account, string $type, string $motif, User $user): Compte
-    {
-        return DB::transaction(function () use ($account, $type, $motif, $user) {
-            $updates = ['motif_opposition' => $motif];
-
-            if ($type === 'debit' || $type === 'total') {
-                $updates['opposition_debit'] = true;
+            
+            // Créer les mandataires (étape 3)
+            // CORRECTION 2: Accolade mal placée et indentation incorrecte
+            if (isset($donneesEtape3['mandataire_1'])) {
+                $compte->mandataires()->create(array_merge(
+                    $donneesEtape3['mandataire_1'],
+                    ['ordre' => 1]
+                ));
             }
-            if ($type === 'credit' || $type === 'total') {
-                $updates['opposition_credit'] = true;
+            
+            if (isset($donneesEtape3['mandataire_2'])) {
+                $compte->mandataires()->create(array_merge(
+                    $donneesEtape3['mandataire_2'],
+                    ['ordre' => 2]
+                ));
             }
-
-            $account->update($updates);
-
-            Log::warning('Compte mis en opposition', [
-                'account_id' => $account->id,
-                'type' => $type,
-                'motif' => $motif,
-                'user' => $user->id,
-            ]);
-
-            return $account->fresh();
+            
+            // Enregistrer les documents (étape 4)
+            if (isset($donneesEtape4['documents'])) {
+                foreach ($donneesEtape4['documents'] as $document) {
+                    $compte->documents()->create($document);
+                }
+            }
+            
+            return $compte->load(['client', 'typeCompte', 'chapitreComptable', 'mandataires', 'documents']);
         });
     }
 
     /**
-     * Clôture d'un compte
+     * Valider les données de l'étape 1
+     * 
+     * @param array $donnees Données à valider
+     * @return array Données validées
+     * @throws \Illuminate\Validation\ValidationException
      */
-    public function cloturer(Compte $account, User $user, string $motif): Compte
+    public function validerEtape1(array $donnees): array
     {
-        if ($account->solde != 0) {
-            throw new AccountException("Le solde du compte doit être à zéro pour clôturer.");
-        }
-
-        return DB::transaction(function () use ($account, $user, $motif) {
-            $account->update([
-                'statut' => 'cloture',
-                'date_cloture' => now(),
-                'notes' => ($account->notes ? $account->notes . "\n" : '') . "Clôturé le " . now()->format('d/m/Y') . ": " . $motif,
-            ]);
-
-            Log::info('Compte clôturé', [
-                'account_id' => $account->id,
-                'user' => $user->id,
-                'motif' => $motif,
-            ]);
-
-            return $account->fresh();
-        });
+        return validator($donnees, [
+            'client_id' => 'required|exists:clients,id',
+            'type_compte_id' => 'required|exists:types_comptes,id',
+            'code_type_compte' => 'required|string|size:2',
+            'devise' => 'required|in:FCFA,EURO,DOLLAR,POUND',
+            'gestionnaire_nom' => 'required|string|max:255',
+            'gestionnaire_prenom' => 'required|string|max:255',
+            'gestionnaire_code' => 'required|string|max:20',
+            'rubriques_mata' => 'nullable|array',
+            'rubriques_mata.*' => 'in:SANTE,BUSINESS,FETE,FOURNITURE,IMMO,SCOLARITE',
+            'duree_blocage_mois' => 'nullable|integer|between:3,12',
+        ])->validate();
     }
 
     /**
-     * Recherche de comptes avec filtres
+     * Valider les données de l'étape 2
+     * 
+     * @param array $donnees Données à valider
+     * @return array Données validées
      */
-    public function search(array $filters, int $perPage = 15)
+    public function validerEtape2(array $donnees): array
     {
-        $query = Compte::with(['client', 'accountType', 'agency', 'creator']);
+        return validator($donnees, [
+            'chapitre_comptable_id' => 'required|exists:chapitres_comptables,id',
+        ])->validate();
+    }
 
-        if (!empty($filters['numero_compte'])) {
-            $query->where('numero_compte', 'like', '%' . $filters['numero_compte'] . '%');
+    /**
+     * Valider les données de l'étape 3 (mandataires)
+     * 
+     * @param array $donnees Données à valider
+     * @return array Données validées
+     */
+    public function validerEtape3(array $donnees): array
+    {
+        $rules = [
+            // Mandataire 1 (obligatoire)
+            'mandataire_1.sexe' => 'required|in:masculin,feminin',
+            'mandataire_1.nom' => 'required|string|max:255',
+            'mandataire_1.prenom' => 'required|string|max:255',
+            'mandataire_1.date_naissance' => 'required|date|before:today',
+            'mandataire_1.lieu_naissance' => 'required|string|max:255',
+            'mandataire_1.telephone' => 'required|string|max:20',
+            'mandataire_1.adresse' => 'required|string',
+            'mandataire_1.nationalite' => 'required|string|max:255',
+            'mandataire_1.profession' => 'required|string|max:255',
+            'mandataire_1.nom_jeune_fille_mere' => 'nullable|string|max:255',
+            'mandataire_1.numero_cni' => 'required|string|max:50',
+            'mandataire_1.situation_familiale' => 'required|in:marie,celibataire,autres',
+            'mandataire_1.nom_conjoint' => 'required_if:mandataire_1.situation_familiale,marie|nullable|string|max:255',
+            'mandataire_1.date_naissance_conjoint' => 'required_if:mandataire_1.situation_familiale,marie|nullable|date',
+            'mandataire_1.lieu_naissance_conjoint' => 'required_if:mandataire_1.situation_familiale,marie|nullable|string|max:255',
+            'mandataire_1.cni_conjoint' => 'required_if:mandataire_1.situation_familiale,marie|nullable|string|max:50',
+            'mandataire_1.signature_path' => 'nullable|string',
+            
+            // Mandataire 2 (optionnel)
+            'mandataire_2.sexe' => 'nullable|in:masculin,feminin',
+            'mandataire_2.nom' => 'nullable|string|max:255',
+            'mandataire_2.prenom' => 'nullable|string|max:255',
+            'mandataire_2.date_naissance' => 'nullable|date|before:today',
+            'mandataire_2.lieu_naissance' => 'nullable|string|max:255',
+            'mandataire_2.telephone' => 'nullable|string|max:20',
+            'mandataire_2.adresse' => 'nullable|string',
+            'mandataire_2.nationalite' => 'nullable|string|max:255',
+            'mandataire_2.profession' => 'nullable|string|max:255',
+            'mandataire_2.nom_jeune_fille_mere' => 'nullable|string|max:255',
+            'mandataire_2.numero_cni' => 'nullable|string|max:50',
+            'mandataire_2.situation_familiale' => 'nullable|in:marie,celibataire,autres',
+            'mandataire_2.nom_conjoint' => 'nullable|string|max:255',
+            'mandataire_2.date_naissance_conjoint' => 'nullable|date',
+            'mandataire_2.lieu_naissance_conjoint' => 'nullable|string|max:255',
+            'mandataire_2.cni_conjoint' => 'nullable|string|max:50',
+            'mandataire_2.signature_path' => 'nullable|string',
+        ];
+
+        return validator($donnees, $rules)->validate();
+    }
+
+    /**
+     * Valider les données de l'étape 4 (documents et validation)
+     * 
+     * @param array $donnees Données à valider
+     * @return array Données validées
+     */
+    public function validerEtape4(array $donnees): array
+    {
+        return validator($donnees, [
+            'notice_acceptee' => 'required|boolean|accepted',
+            'signature_path' => 'nullable|string',
+            'documents' => 'required|array|min:1',
+            'documents.*.type_document' => 'required|string',
+            'documents.*.fichier' => 'required|file|mimes:pdf,jpg,jpeg,png|max:10240', // 10 MB
+        ])->validate();
+    }
+
+    /**
+     * Mettre à jour un compte
+     * 
+     * @param int $compteId ID du compte
+     * @param array $donnees Données à mettre à jour
+     * @return Compte Compte mis à jour
+     */
+    public function mettreAJourCompte(int $compteId, array $donnees): Compte
+    {
+        $compte = Compte::findOrFail($compteId);
+        
+        $compte->update($donnees);
+        
+        return $compte->fresh();
+    }
+
+    /**
+     * Clôturer un compte
+     * 
+     * @param int $compteId ID du compte
+     * @param string|null $motif Motif de clôture
+     * @return Compte Compte clôturé
+     */
+    public function cloturerCompte(int $compteId, ?string $motif = null): Compte
+    {
+        $compte = Compte::findOrFail($compteId);
+        
+        // Vérifier que le solde est à zéro
+        if ($compte->solde != 0) {
+            throw new \Exception('Le compte doit avoir un solde de 0 pour être clôturé.');
         }
+        
+        $compte->update([
+            'statut' => 'cloture',
+            'date_cloture' => now(),
+            'observations' => $motif,
+        ]);
+        
+        return $compte;
+    }
 
-        if (!empty($filters['client_id'])) {
-            $query->where('client_id', $filters['client_id']);
-        }
-
-        if (!empty($filters['agency_id'])) {
-            $query->where('agency_id', $filters['agency_id']);
-        }
-
-        if (!empty($filters['account_type_id'])) {
-            $query->where('account_type_id', $filters['account_type_id']);
-        }
-
-        if (!empty($filters['statut'])) {
-            $query->where('statut', $filters['statut']);
-        }
-
-        if (!empty($filters['statut_validation'])) {
-            $query->where('statut_validation', $filters['statut_validation']);
-        }
-
-        if (!empty($filters['category'])) {
-            $query->whereHas('accountType', function ($q) use ($filters) {
-                $q->where('category', $filters['category']);
-            });
-        }
-
-        if (!empty($filters['date_debut']) && !empty($filters['date_fin'])) {
-            $query->whereBetween('created_at', [$filters['date_debut'], $filters['date_fin']]);
-        }
-
-        return $query->orderBy('created_at', 'desc')->paginate($perPage);
+    /**
+     * Obtenir les comptes d'un client
+     * 
+     * @param int $clientId ID du client
+     * @return \Illuminate\Database\Eloquent\Collection
+     */
+    public function getComptesClient(int $clientId)
+    {
+        return Compte::where('client_id', $clientId)
+            ->with(['typeCompte', 'chapitreComptable', 'mandataires'])
+            ->get();
     }
 }

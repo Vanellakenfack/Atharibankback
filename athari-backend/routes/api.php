@@ -11,7 +11,8 @@ use App\Http\Controllers\logs\AuditLogController;
 use App\Http\Controllers\AgencyController;
  use App\Http\Controllers\ClientController;
 use App\Http\Controllers\CompteController;
-use App\Http\Controllers\TypesCompteController;
+use App\Http\Controllers\TypeCompteController;
+use App\Http\Controllers\DocumentCompteController;
 
 
 // Route publique (non protégée par Sanctum) pour l'authentification
@@ -58,6 +59,7 @@ Route::middleware('auth:sanctum')->group(function () {
     
 });
 
+// route audit
 Route::middleware(['auth:sanctum', 'permission:consulter logs'])->group(function () {
     Route::get('/audit/logs', [AuditLogController::class, 'index']);
 });
@@ -66,25 +68,50 @@ Route::middleware(['auth:sanctum', 'permission:consulter logs'])->group(function
 Route::middleware(['auth:sanctum'])->group(function () {
     
     // Types de comptes
-    Route::apiResource('account-types', TypesCompteController::class);
+    Route::prefix('types-comptes')->group(function () {
     
-    // Comptes bancaires
-    Route::prefix('accounts')->name('accounts.')->group(function () {
-        // Liste et CRUD de base
-        Route::get('/', [CompteController::class, 'index'])->name('index');
-        Route::post('/', [CompteController::class, 'store'])->name('store');
-        Route::get('/{account}', [CompteController::class, 'show'])->name('show');
-        Route::put('/{account}', [CompteController::class, 'update'])->name('update');
+        // Liste et recherche
+        Route::get('/', [TypeCompteController::class, 'index']);
+        Route::get('/statistiques', [TypeCompteController::class, 'statistiques']);
         
-        // Validation workflow
-        Route::post('/{account}/validate', [CompteController::class, 'validate'])->name('validate');
-        Route::get('/pending/validation', [CompteController::class, 'enAttenteValidation'])->name('pending');
+        // Informations utilitaires
+        Route::get('/rubriques-mata', [TypeCompteController::class, 'getRubriquesMata']);
+        Route::get('/durees-blocage', [TypeCompteController::class, 'getDureesBlocage']);
         
-        // Actions spéciales
-        Route::post('/{account}/opposition', [CompteController::class, 'opposition'])->name('opposition');
-        Route::post('/{account}/cloturer', [CompteController::class, 'cloturer'])->name('cloturer');
+        // Consultation
+        Route::get('/{id}', [TypeCompteController::class, 'show']);
+        Route::get('/code/{code}', [TypeCompteController::class, 'showByCode']);
         
-        // Historique
-        Route::get('/{account}/transactions', [CompteController::class, 'transactions'])->name('transactions');
+        //crud operation
+        Route::post('/', [TypeCompteController::class, 'store']);
+        Route::put('/{id}', [TypeCompteController::class, 'update']);
+        Route::delete('/{id}', [TypeCompteController::class, 'destroy']);
+        Route::patch('/{id}/toggle-actif', [TypeCompteController::class, 'toggleActif']);
+        });
+    
+   // Routes pour les comptes
+    Route::prefix('comptes')->group(function () {
+    
+    // Initialisation de l'ouverture de compte
+    Route::get('/init', [CompteController::class, 'initOuverture']);
+    
+    // Validation des étapes
+    Route::post('/etape1/valider', [CompteController::class, 'validerEtape1']);
+    Route::post('/etape2/valider', [CompteController::class, 'validerEtape2']);
+    Route::post('/etape3/valider', [CompteController::class, 'validerEtape3']);
+    
+    // CRUD des comptes
+    Route::get('/', [CompteController::class, 'index']);
+    Route::post('/creer', [CompteController::class, 'store']);
+    Route::get('/{id}', [CompteController::class, 'show']);
+    Route::put('/{id}', [CompteController::class, 'update']);
+    Route::delete('/{id}', [CompteController::class, 'destroy']);
+    // Actions spécifiques
+    Route::post('/{id}/cloturer', [CompteController::class, 'cloturer']);
+
+    // Documents du compte
+    Route::get('/{compteId}/documents', [DocumentCompteController::class, 'index']);
+    Route::post('/{compteId}/documents', [DocumentCompteController::class, 'store']);
+
     });
 });

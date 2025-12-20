@@ -12,7 +12,8 @@ use App\Http\Controllers\AgencyController;
  use App\Http\Controllers\ClientController;
 use App\Http\Controllers\Api\CompteController;
 use App\Http\Controllers\Api\TypesCompteController;
-
+use App\Http\Controllers\Admin\PlanComptableController;
+use App\Http\Controllers\Admin\CategorieComptableController;
 
 // Route publique (non protégée par Sanctum) pour l'authentification
 Route::post('/login', [AuthController::class, 'login']);
@@ -65,7 +66,19 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // Chapitres comptables
-    Route::apiResource('accounting-chapters', AccountingChapterController::class);
+
+
+Route::prefix('admin/comptabilite')->group(function () {
+    // Routes pour les rubriques (371, 372...)
+    Route::get('categories', [CategorieComptableController::class, 'index']);
+    Route::post('categories', [CategorieComptableController::class, 'store']);
+
+    // Routes pour les comptes de détail (37225000...)
+    Route::get('comptes', [PlanComptableController::class, 'index']);
+    Route::post('comptes', [PlanComptableController::class, 'store']);
+    Route::get('comptes/{planComptable}', [PlanComptableController::class, 'show']);
+    Route::patch('comptes/{planComptable}/archive', [PlanComptableController::class, 'archive']);
+});
 
 
 

@@ -36,6 +36,9 @@ class CompteService
         $numeroClient = $client->numero_client;
         $codeAgence = substr($numeroClient, 0, 3);
         $numClient = substr($numeroClient, 3, 6);
+        if (strlen($numeroClient) < 9) {
+            throw new \Exception("Numéro client invalide pour la génération de compte");
+        }
         
         $nombreComptesMemetype = Compte::where('client_id', $clientId)
             ->whereHas('typeCompte', function ($query) use ($codeTypeCompte) {
@@ -93,7 +96,7 @@ public function creerCompte(
                 'numero_compte' => $numeroCompte,
                 'client_id' => $donneesEtape1['client_id'],
                 'type_compte_id' => $donneesEtape1['type_compte_id'],
-                'plan_comptable_id' => $donneesEtape2['plan_comptable_id'], // MODIFICATION
+                'plan_comptable_id' => 'required|exists:plan_comptables,id', // MODIFICATION
                 'devise' => $donneesEtape1['devise'],
                 'gestionnaire_nom' => $donneesEtape1['gestionnaire_nom'],
                 'gestionnaire_prenom' => $donneesEtape1['gestionnaire_prenom'],

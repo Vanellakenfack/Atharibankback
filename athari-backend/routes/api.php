@@ -61,6 +61,7 @@ Route::prefix('plan_comptable')->group(function () {
     // Routes pour les rubriques (371, 372...)
     Route::get('categories', [CategorieComptableController::class, 'index']);
     Route::post('categories', [CategorieComptableController::class, 'store']);
+    Route::put('categories/{id}', [CategorieComptableController::class, 'update']);
 
     // Routes pour les comptes de détail (37225000...)
     Route::get('comptes', [PlanComptableController::class, 'index']);

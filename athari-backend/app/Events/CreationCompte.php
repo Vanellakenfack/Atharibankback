@@ -2,7 +2,7 @@
 
 namespace App\Events;
 
-use App\Models\Compte;
+use App\Models\compte\Compte;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;

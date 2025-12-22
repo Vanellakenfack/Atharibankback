@@ -3,7 +3,7 @@
 
 namespace App\Policies;
 
-use App\Models\Compte;
+use App\Models\compte\Compte;
 use App\Models\User;
 use Illuminate\Auth\Access\HandlesAuthorization;
 

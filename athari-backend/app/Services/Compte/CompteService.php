@@ -4,6 +4,7 @@ namespace App\Services\Compte;
 
 use App\Models\compte\Compte;
 use App\Models\client\Client;
+use App\Models\chapitre\PlanComptable;
 use App\Models\compte\TypeCompte;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -30,33 +31,24 @@ class CompteService
      */
     public function genererNumeroCompte(int $clientId, string $codeTypeCompte): string
     {
-        // Récupérer le client
         $client = Client::findOrFail($clientId);
         
-        // Extraire le code agence et numéro client depuis numero_client
-        // Format numero_client: AAAXXXXXX (3 chiffres agence + 6 chiffres client)
         $numeroClient = $client->numero_client;
         $codeAgence = substr($numeroClient, 0, 3);
         $numClient = substr($numeroClient, 3, 6);
         
-        // Compter les comptes existants de même type pour ce client
-        // CORRECTION 1: Espace en trop dans le nom de variable "$nombreComptesMemeTy pe"
-        $nombreComptesMemType = Compte::where('client_id', $clientId)
+        $nombreComptesMemetype = Compte::where('client_id', $clientId)
             ->whereHas('typeCompte', function ($query) use ($codeTypeCompte) {
                 $query->where('code', $codeTypeCompte);
             })
             ->count();
         
-        // Numéro ordinal (commence à 1)
-        $numeroOrdinal = $nombreComptesMemType + 1;
+        $numeroOrdinal = $nombreComptesMemetype + 1;
         
-        // Construire le numéro de compte sans la clé
         $numeroSansCle = $codeAgence . $numClient . str_pad($codeTypeCompte, 2, '0', STR_PAD_LEFT) . $numeroOrdinal;
         
-        // Générer la clé de contrôle (lettre majuscule aléatoire)
         $cle = $this->genererCleControle($numeroSansCle);
         
-        // Numéro de compte complet (13 caractères)
         return $numeroSansCle . $cle;
     }
 
@@ -83,7 +75,7 @@ class CompteService
      * @param array $donneesEtape4 Données de l'étape 4
      * @return Compte Compte créé
      */
-    public function creerCompte(
+public function creerCompte(
         array $donneesEtape1,
         array $donneesEtape2,
         array $donneesEtape3,
@@ -91,18 +83,17 @@ class CompteService
     ): Compte {
         return DB::transaction(function () use ($donneesEtape1, $donneesEtape2, $donneesEtape3, $donneesEtape4) {
             
-            // Générer le numéro de compte
             $numeroCompte = $this->genererNumeroCompte(
                 $donneesEtape1['client_id'],
                 $donneesEtape1['code_type_compte']
             );
             
-            // Créer le compte
+            // Créer le compte avec plan_comptable_id
             $compte = Compte::create([
                 'numero_compte' => $numeroCompte,
                 'client_id' => $donneesEtape1['client_id'],
                 'type_compte_id' => $donneesEtape1['type_compte_id'],
-                'chapitre_comptable_id' => $donneesEtape2['chapitre_comptable_id'],
+                'plan_comptable_id' => $donneesEtape2['plan_comptable_id'], // MODIFICATION
                 'devise' => $donneesEtape1['devise'],
                 'gestionnaire_nom' => $donneesEtape1['gestionnaire_nom'],
                 'gestionnaire_prenom' => $donneesEtape1['gestionnaire_prenom'],
@@ -117,8 +108,7 @@ class CompteService
                 'date_ouverture' => now(),
             ]);
             
-            // Créer les mandataires (étape 3)
-            // CORRECTION 2: Accolade mal placée et indentation incorrecte
+            // Créer les mandataires
             if (isset($donneesEtape3['mandataire_1'])) {
                 $compte->mandataires()->create(array_merge(
                     $donneesEtape3['mandataire_1'],
@@ -133,16 +123,17 @@ class CompteService
                 ));
             }
             
-            // Enregistrer les documents (étape 4)
+            // Enregistrer les documents
             if (isset($donneesEtape4['documents'])) {
                 foreach ($donneesEtape4['documents'] as $document) {
                     $compte->documents()->create($document);
                 }
             }
             
-            return $compte->load(['client', 'typeCompte', 'chapitreComptable', 'mandataires', 'documents']);
+            return $compte->load(['client', 'typeCompte', 'planComptable.categorie', 'mandataires', 'documents']);
         });
     }
+
 
     /**
      * Valider les données de l'étape 1
@@ -176,7 +167,8 @@ class CompteService
     public function validerEtape2(array $donnees): array
     {
         return validator($donnees, [
-            'chapitre_comptable_id' => 'required|exists:chapitres_comptables,id',
+            'plan_comptable_id' => 'required|exists:plan_comptable,id',
+            'categorie_id' => 'nullable|exists:categories_comptables,id',
         ])->validate();
     }
 
@@ -249,6 +241,21 @@ class CompteService
     }
 
     /**
+     * Obtenir les plans comptables par catégorie
+     * NOUVELLE MÉTHODE
+     */
+    public function getPlansComptablesParCategorie(?int $categorieId = null)
+    {
+        $query = PlanComptable::with('categorie')->actif();
+
+        if ($categorieId) {
+            $query->where('categorie_id', $categorieId);
+        }
+
+        return $query->orderBy('code')->get();
+    }
+
+    /**
      * Mettre à jour un compte
      * 
      * @param int $compteId ID du compte
@@ -289,16 +296,13 @@ class CompteService
         return $compte;
     }
 
-    /**
+  /**
      * Obtenir les comptes d'un client
-     * 
-     * @param int $clientId ID du client
-     * @return \Illuminate\Database\Eloquent\Collection
      */
     public function getComptesClient(int $clientId)
     {
         return Compte::where('client_id', $clientId)
-            ->with(['typeCompte', 'chapitreComptable', 'mandataires'])
+            ->with(['typeCompte', 'planComptable.categorie', 'mandataires'])
             ->get();
     }
 }

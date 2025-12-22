@@ -1,35 +1,14 @@
 <?php
 
 namespace App\Models\compte;
-
 use App\Models\chapitre\PlanComptable;
 use App\Models\client\Client;
+
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-/**
- * Modèle représentant un compte bancaire
- * 
- * @property int $id
- * @property string $numero_compte Numéro unique du compte (13 caractères)
- * @property int $client_id ID du client propriétaire
- * @property int $type_compte_id ID du type de compte
- * @property int $chapitre_comptable_id ID du chapitre comptable
- * @property string $devise Devise (FCFA, EURO, DOLLAR, POUND)
- * @property string $gestionnaire_nom Nom du gestionnaire
- * @property string $gestionnaire_prenom Prénom du gestionnaire
- * @property string $gestionnaire_code Code du gestionnaire
- * @property array|null $rubriques_mata Rubriques pour comptes MATA
- * @property int|null $duree_blocage_mois Durée de blocage en mois
- * @property string $statut Statut du compte
- * @property float $solde Solde du compte
- * @property bool $notice_acceptee Notice d'engagement acceptée
- * @property \DateTime|null $date_acceptation_notice Date d'acceptation
- * @property string|null $signature_path Chemin signature
- * @property \DateTime $date_ouverture Date d'ouverture
- * @property \DateTime|null $date_cloture Date de clôture
- */
+
 class Compte extends Model
 {
     use HasFactory, SoftDeletes;
@@ -38,7 +17,7 @@ class Compte extends Model
         'numero_compte',
         'client_id',
         'type_compte_id',
-        'chapitre_comptable_id',
+        'plan_comptable_id', // MODIFICATION: Remplace chapitre_comptable_id
         'devise',
         'gestionnaire_nom',
         'gestionnaire_prenom',
@@ -81,15 +60,13 @@ class Compte extends Model
     }
 
     /**
-     * Relation: Compte lié à un chapitre comptable
+     * Relation: Compte lié à un plan comptable
+     * MODIFICATION: Utilise PlanComptable au lieu de ChapitreComptable
      */
-public function planComptable()
-{
-    return $this->belongsTo(
-        PlanComptable::class,
-        'chapitre_comptable_id'
-    );
-}
+    public function planComptable()
+    {
+        return $this->belongsTo(PlanComptable::class, 'plan_comptable_id');
+    }
 
     /**
      * Relation: Compte peut avoir plusieurs mandataires (max 2)
@@ -121,6 +98,16 @@ public function planComptable()
     public function scopeDevise($query, $devise)
     {
         return $query->where('devise', $devise);
+    }
+
+    /**
+     * Scope: Filtrer par nature de solde du plan comptable
+     */
+    public function scopeParNatureSolde($query, string $nature)
+    {
+        return $query->whereHas('planComptable', function ($q) use ($nature) {
+            $q->where('nature_solde', $nature);
+        });
     }
 
     /**
@@ -159,5 +146,18 @@ public function planComptable()
     public function getSoldeFormatteAttribute(): string
     {
         return number_format($this->solde, 2, ',', ' ') . ' ' . $this->devise;
+    }
+
+    /**
+     * Obtenir les informations comptables complètes
+     */
+    public function getInfosComptablesAttribute(): array
+    {
+        return [
+            'plan_code' => $this->planComptable->code,
+            'plan_libelle' => $this->planComptable->libelle,
+            'nature_solde' => $this->planComptable->nature_solde,
+            'categorie' => $this->planComptable->categorie->libelle ?? null,
+        ];
     }
 }

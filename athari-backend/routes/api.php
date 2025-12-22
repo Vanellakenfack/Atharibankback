@@ -1,31 +1,42 @@
 <?php
 
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\UserController;
-use App\Http\Controllers\logs\AuditLogController;
 use App\Http\Controllers\AgencyController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\CompteController;
-use App\Http\Controllers\TypesCompteController;
+use App\Http\Controllers\TypeCompteController;
+use App\Http\Controllers\logs\AuditLogController;
 use App\Http\Controllers\Plancomptable\PlanComptableController;
 use App\Http\Controllers\Plancomptable\CategorieComptableController;
+use App\Http\Controllers\DocumentCompteController;
 
-
-// Routes publiques (sans authentification)
+/*
+|--------------------------------------------------------------------------
+| Routes publiques
+|--------------------------------------------------------------------------
+*/
 Route::post('/login', [AuthController::class, 'login']);
 
-// Routes protégées par Sanctum
+/*
+|--------------------------------------------------------------------------
+| Routes protégées (auth:sanctum)
+|--------------------------------------------------------------------------
+*/
 Route::middleware('auth:sanctum')->group(function () {
-    
-    // Authentification
-    Route::post('/logout', [AuthController::class, 'logout']);
-    Route::get('/me', [UserController::class, 'me']);
-    
+
     /*
     |--------------------------------------------------------------------------
-    | Gestion des utilisateurs et autorisations
+    | Authentification
+    |--------------------------------------------------------------------------
+    */
+    Route::post('/logout', [AuthController::class, 'logout']);
+    Route::get('/me', [UserController::class, 'me']);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Utilisateurs & rôles
     |--------------------------------------------------------------------------
     */
     Route::prefix('users')->group(function () {
@@ -34,89 +45,92 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{user}/roles', [UserController::class, 'syncRoles']);
     });
     Route::apiResource('users', UserController::class);
-    
+
     /*
     |--------------------------------------------------------------------------
-    | Gestion des agences
+    | Agences
     |--------------------------------------------------------------------------
     */
     Route::apiResource('agencies', AgencyController::class);
-    
+
     /*
     |--------------------------------------------------------------------------
-    | Gestion des clients
+    | Clients
     |--------------------------------------------------------------------------
     */
     Route::prefix('clients')->group(function () {
-        // Création
         Route::post('/physique', [ClientController::class, 'storePhysique']);
         Route::post('/morale', [ClientController::class, 'storeMorale']);
-        
-        // CRUD standard
+
         Route::get('/', [ClientController::class, 'index']);
         Route::get('/{id}', [ClientController::class, 'show']);
         Route::put('/{id}', [ClientController::class, 'update']);
         Route::delete('/{id}', [ClientController::class, 'destroy']);
     });
 
-    // Chapitres comptables
+    /*
+    |--------------------------------------------------------------------------
+    | Plan comptable
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('plan_comptable')->group(function () {
 
+        // Catégories comptables (classes)
+        Route::get('categories', [CategorieComptableController::class, 'index']);
+        Route::post('categories', [CategorieComptableController::class, 'store']);
 
-Route::prefix('plan_comptable')->group(function () {
-    // Routes pour les rubriques (371, 372...)
-    Route::get('categories', [CategorieComptableController::class, 'index']);
-    Route::post('categories', [CategorieComptableController::class, 'store']);
-
-    // Routes pour les comptes de détail (37225000...)
-    Route::get('comptes', [PlanComptableController::class, 'index']);
-    Route::post('comptes', [PlanComptableController::class, 'store']);
+        // Comptes comptables
+        Route::get('comptes', [PlanComptableController::class, 'index']);
+        Route::post('comptes', [PlanComptableController::class, 'store']);
+        Route::get('comptes/{planComptable}', [PlanComptableController::class, 'show']);
         Route::put('comptes/{id}', [PlanComptableController::class, 'update']);
+        Route::patch('comptes/{planComptable}/archive', [PlanComptableController::class, 'archive']);
+    });
 
-    Route::get('comptes/{planComptable}', [PlanComptableController::class, 'show']);
-    Route::patch('comptes/{planComptable}/archive', [PlanComptableController::class, 'archive']);
-});
-
-
-
-});
-
-// route gestion clients
-
-Route::middleware('auth:sanctum')->group(function () {
-    
-    // Routes de création (Chef Agence & DG via les FormRequests)
-    Route::post('/clients/physique', [ClientController::class, 'storePhysique']);
-    Route::post('/clients/morale', [ClientController::class, 'storeMorale']);
-    
-    // Autres routes CRUD
-    Route::get('/clients', [ClientController::class, 'index']);
-    Route::get('/clients/{id}', [ClientController::class, 'show']);
-    Route::put('/clients/{id}', [ClientController::class, 'update']);
-    Route::delete('/clients/{id}', [ClientController::class, 'destroy']);
-    
-});
-
-Route::middleware(['auth:sanctum', 'permission:consulter logs'])->group(function () {
-    Route::get('/audit/logs', [AuditLogController::class, 'index']);
-});
-
-// Routes pour la gestion des Comptes
-Route::middleware(['auth:sanctum'])->group(function () {
-    
-    // Types de comptes
-    Route::apiResource('account-types', TypesCompteController::class);
-    
-    // Comptes bancaires
-    Route::prefix('accounts')->name('accounts.')->group(function () {
-        // Liste et CRUD de base
-        Route::get('/', [CompteController::class, 'index'])->name('index');
-        Route::post('/', [CompteController::class, 'store'])->name('store');
-        Route::get('/{account}', [CompteController::class, 'show'])->name('show');
-        Route::put('/{account}', [CompteController::class, 'update'])->name('update');
+       /*
+    |--------------------------------------------------------------------------
+    | Types de comptes
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('types-comptes')->group(function () {
+        // Consultation
+        Route::get('/', [TypeCompteController::class, 'index']);
+        Route::get('/statistiques', [TypeCompteController::class, 'statistiques']);
+        Route::get('/{id}', [TypeCompteController::class, 'show']);
+        Route::get('/code/{code}', [TypeCompteController::class, 'showByCode']);
         
-        // Validation workflow
-        Route::post('/{account}/validate', [CompteController::class, 'validate'])->name('validate');
-        Route::get('/pending/validation', [CompteController::class, 'enAttenteValidation'])->name('pending');
+        // Informations utilitaires
+        Route::get('/rubriques-mata', [TypeCompteController::class, 'getRubriquesMata']);
+        Route::get('/durees-blocage', [TypeCompteController::class, 'getDureesBlocage']);
+        
+        // CRUD
+        Route::post('/', [TypeCompteController::class, 'store']);
+        Route::put('/{id}', [TypeCompteController::class, 'update']);
+        Route::delete('/{id}', [TypeCompteController::class, 'destroy']);
+        Route::patch('/{id}/toggle-actif', [TypeCompteController::class, 'toggleActif']);
+    });
+
+        /*
+    |--------------------------------------------------------------------------
+    | Gestion des comptes bancaires
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('comptes')->group(function () {
+        // Initialisation et validation d'ouverture
+        Route::get('/init', [CompteController::class, 'initOuverture']);
+        Route::post('/etape1/valider', [CompteController::class, 'validerEtape1']);
+        Route::post('/etape2/valider', [CompteController::class, 'validerEtape2']);
+        Route::post('/etape3/valider', [CompteController::class, 'validerEtape3']);
+        
+        // CRUD
+        Route::get('/', [CompteController::class, 'index']);
+        Route::post('/creer', [CompteController::class, 'store']);
+        Route::get('/{id}', [CompteController::class, 'show']);
+        Route::put('/{id}', [CompteController::class, 'update']);
+        Route::delete('/{id}', [CompteController::class, 'destroy']);
+        
+        // Actions spécifiques
+        Route::post('/{id}/cloturer', [CompteController::class, 'cloturer']);
         
         // Documents associés
         Route::prefix('/{compteId}')->group(function () {
@@ -124,10 +138,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::post('/documents', [DocumentCompteController::class, 'store']);
         });
     });
-    
+
     /*
     |--------------------------------------------------------------------------
-    | Audit et logs
+    | Audit & Logs (permissions)
     |--------------------------------------------------------------------------
     */
     Route::middleware('permission:consulter logs')->group(function () {

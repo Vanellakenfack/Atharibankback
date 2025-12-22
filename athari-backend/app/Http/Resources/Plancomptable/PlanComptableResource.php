@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Resources\Admin;
+namespace App\Http\Resources\Plancomptable;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -17,26 +17,26 @@ class PlanComptableResource extends JsonResource
             'code'    => $this->code,
             'libelle' => strtoupper($this->libelle),
             
-            // On regroupe les informations de classification
+            // Utilisation de ?-> pour éviter de crash si la catégorie est manquante
             'comptabilite' => [
-                'nature_technique' => $this->nature_solde, // ex: CREDIT
-                'type_bilan'       => $this->categorie->type_compte, // ex: PASSIF
-                'classe'           => substr($this->code, 0, 1), // Extrait la classe (ex: 3)
+                'nature_technique' => $this->nature_solde, 
+                'type_bilan'       => $this->categorie?->type_compte ?? 'NON DÉFINI', 
+                'classe'           => substr($this->code, 0, 1),
             ],
 
-            // Informations sur le parent
-            'categorie' => [
+            'categorie' => $this->categorie ? [
                 'id'      => $this->categorie->id,
                 'code'    => $this->categorie->code,
                 'nom'     => $this->categorie->libelle,
-            ],
+            ] : null,
 
             'statut' => [
                 'est_actif' => (bool) $this->est_actif,
                 'label'     => $this->est_actif ? 'Opérationnel' : 'Suspendu',
             ],
 
-            'cree_le' => $this->created_at->format('d/m/Y H:i'),
+            // Sécurité sur le formatage de date au cas où created_at serait null
+            'cree_le' => $this->created_at?->format('d/m/Y H:i'),
         ];
     }
 }

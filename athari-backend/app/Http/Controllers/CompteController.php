@@ -183,7 +183,7 @@ class CompteController extends Controller
             $donneesEtape1 = $validated['etape1'];
             $donneesEtape2 = $validated['etape2'];
             $donneesEtape3 = $validated['etape3'];
-            $donneesEtape4Raw = $validated['etape4'];
+            $donneesEtape4Raw = $validated['etape4'] ?? [];
             
             // Traiter les uploads de documents
             $documentsUploades = [];

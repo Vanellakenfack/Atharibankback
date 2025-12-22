@@ -1,10 +1,10 @@
 <?php
-namespace App\Http\Controllers\Admin;
+namespace App\Http\Controllers\Plancomptable;
 
 use App\Http\Controllers\Controller;
 use App\Models\chapitre\PlanComptable;
-use App\Http\Requests\Admin\StorePlanComptableRequest;
-use App\Http\Resources\Admin\PlanComptableResource;
+use App\Http\Requests\Plancomptable\StorePlanComptableRequest;
+use App\Http\Resources\Plancomptable\PlanComptableResource;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
@@ -36,6 +36,38 @@ class PlanComptableController extends Controller
     /**
      * Affiche les détails d'un compte spécifique.
      */
+
+    /**
+ * Met à jour un compte existant.
+ */
+  public function update(StorePlanComptableRequest $request, $id)
+{
+    $planComptable = PlanComptable::find($id);
+    
+    if (!$planComptable) {
+        return response()->json(['error' => 'Compte non trouvé pour l\'ID ' . $id], 404);
+    }
+
+    $planComptable->update($request->validated());
+    
+    // Debug: vérifiez si l'objet a des données avant de l'envoyer à la ressource
+    // return $planComptable; 
+
+    return new PlanComptableResource($planComptable->load('categorie'));
+}
+
+/**
+ * Suppression définitive (à utiliser avec prudence)
+ */
+public function destroy(PlanComptable $planComptable): JsonResponse
+{
+    $planComptable->delete();
+
+    return response()->json([
+        'status' => 'success',
+        'message' => 'Compte supprimé avec succès.'
+    ]);
+}
     public function show(PlanComptable $planComptable): PlanComptableResource
     {
         return new PlanComptableResource($planComptable->load('categorie'));

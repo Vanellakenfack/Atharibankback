@@ -1,40 +1,42 @@
 <?php
 
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\UserController;
-use App\Http\Controllers\logs\AuditLogController;
 use App\Http\Controllers\AgencyController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\CompteController;
 use App\Http\Controllers\TypeCompteController;
-use App\Http\Controllers\Admin\CategorieComptableController;
-use App\Http\Controllers\Admin\PlanComptableController;
+use App\Http\Controllers\logs\AuditLogController;
+use App\Http\Controllers\Plancomptable\PlanComptableController;
+use App\Http\Controllers\Plancomptable\CategorieComptableController;
 use App\Http\Controllers\DocumentCompteController;
 
 /*
 |--------------------------------------------------------------------------
-| API Routes
+| Routes publiques
 |--------------------------------------------------------------------------
-|
-| Routes d'authentification
-|
 */
-
-// Routes publiques (sans authentification)
 Route::post('/login', [AuthController::class, 'login']);
 
-// Routes protégées par Sanctum
+/*
+|--------------------------------------------------------------------------
+| Routes protégées (auth:sanctum)
+|--------------------------------------------------------------------------
+*/
 Route::middleware('auth:sanctum')->group(function () {
-    
-    // Authentification
-    Route::post('/logout', [AuthController::class, 'logout']);
-    Route::get('/me', [UserController::class, 'me']);
-    
+
     /*
     |--------------------------------------------------------------------------
-    | Gestion des utilisateurs et autorisations
+    | Authentification
+    |--------------------------------------------------------------------------
+    */
+    Route::post('/logout', [AuthController::class, 'logout']);
+    Route::get('/me', [UserController::class, 'me']);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Utilisateurs & rôles
     |--------------------------------------------------------------------------
     */
     Route::prefix('users')->group(function () {
@@ -43,49 +45,49 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{user}/roles', [UserController::class, 'syncRoles']);
     });
     Route::apiResource('users', UserController::class);
-    
+
     /*
     |--------------------------------------------------------------------------
-    | Gestion des agences
+    | Agences
     |--------------------------------------------------------------------------
     */
     Route::apiResource('agencies', AgencyController::class);
-    
+
     /*
     |--------------------------------------------------------------------------
-    | Gestion des clients
+    | Clients
     |--------------------------------------------------------------------------
     */
     Route::prefix('clients')->group(function () {
-        // Création
         Route::post('/physique', [ClientController::class, 'storePhysique']);
         Route::post('/morale', [ClientController::class, 'storeMorale']);
-        
-        // CRUD standard
+
         Route::get('/', [ClientController::class, 'index']);
         Route::get('/{id}', [ClientController::class, 'show']);
         Route::put('/{id}', [ClientController::class, 'update']);
         Route::delete('/{id}', [ClientController::class, 'destroy']);
     });
-    
+
     /*
     |--------------------------------------------------------------------------
-    | Comptabilité - Administration
+    | Plan comptable
     |--------------------------------------------------------------------------
     */
-    Route::prefix('admin/comptabilite')->group(function () {
-        // Catégories comptables (rubriques)
-        Route::get('/categories', [CategorieComptableController::class, 'index']);
-        Route::post('/categories', [CategorieComptableController::class, 'store']);
-        
-        // Plan comptable (comptes de détail)
-        Route::get('/comptes', [PlanComptableController::class, 'index']);
-        Route::post('/comptes', [PlanComptableController::class, 'store']);
-        Route::get('/comptes/{planComptable}', [PlanComptableController::class, 'show']);
-        Route::patch('/comptes/{planComptable}/archive', [PlanComptableController::class, 'archive']);
+    Route::prefix('plan_comptable')->group(function () {
+
+        // Catégories comptables (classes)
+        Route::get('categories', [CategorieComptableController::class, 'index']);
+        Route::post('categories', [CategorieComptableController::class, 'store']);
+
+        // Comptes comptables
+        Route::get('comptes', [PlanComptableController::class, 'index']);
+        Route::post('comptes', [PlanComptableController::class, 'store']);
+        Route::get('comptes/{planComptable}', [PlanComptableController::class, 'show']);
+        Route::put('comptes/{id}', [PlanComptableController::class, 'update']);
+        Route::patch('comptes/{planComptable}/archive', [PlanComptableController::class, 'archive']);
     });
-    
-    /*
+
+       /*
     |--------------------------------------------------------------------------
     | Types de comptes
     |--------------------------------------------------------------------------
@@ -107,8 +109,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{id}', [TypeCompteController::class, 'destroy']);
         Route::patch('/{id}/toggle-actif', [TypeCompteController::class, 'toggleActif']);
     });
-    
-    /*
+
+        /*
     |--------------------------------------------------------------------------
     | Gestion des comptes bancaires
     |--------------------------------------------------------------------------
@@ -136,10 +138,10 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('/documents', [DocumentCompteController::class, 'store']);
         });
     });
-    
+
     /*
     |--------------------------------------------------------------------------
-    | Audit et logs
+    | Audit & Logs (permissions)
     |--------------------------------------------------------------------------
     */
     Route::middleware('permission:consulter logs')->group(function () {

@@ -1,5 +1,5 @@
 <?php
-namespace App\Http\Controllers\Admin;
+namespace App\Http\Controllers\Plancomptable;
 
 use App\Http\Controllers\Controller;
 use App\Models\chapitre\CategorieComptable;

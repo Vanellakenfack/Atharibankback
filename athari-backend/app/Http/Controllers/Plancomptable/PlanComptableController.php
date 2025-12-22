@@ -1,10 +1,10 @@
 <?php
-namespace App\Http\Controllers\Admin;
+namespace App\Http\Controllers\Plancomptable;
 
 use App\Http\Controllers\Controller;
 use App\Models\chapitre\PlanComptable;
-use App\Http\Requests\Admin\StorePlanComptableRequest;
-use App\Http\Resources\Admin\PlanComptableResource;
+use App\Http\Requests\Plancomptable\StorePlanComptableRequest;
+use App\Http\Resources\Plancomptable\PlanComptableResource;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 

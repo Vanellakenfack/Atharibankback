@@ -13,8 +13,8 @@ use App\Http\Controllers\AgencyController;
 
 use App\Http\Controllers\CompteController;
 use App\Http\Controllers\TypesCompteController;
-use App\Http\Controllers\Admin\PlanComptableController;
-use App\Http\Controllers\Admin\CategorieComptableController;
+use App\Http\Controllers\Plancomptable\PlanComptableController;
+use App\Http\Controllers\Plancomptable\CategorieComptableController;
 
 
 // Route publique (non protégée par Sanctum) pour l'authentification

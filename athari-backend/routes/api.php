@@ -75,70 +75,59 @@ Route::middleware('auth:sanctum')->group(function () {
     */
     Route::prefix('plan_comptable')->group(function () {
 
-        // Catégories comptables (classes)
+        // Catégories (classes / rubriques)
         Route::get('categories', [CategorieComptableController::class, 'index']);
         Route::post('categories', [CategorieComptableController::class, 'store']);
+        Route::put('categories/{id}', [CategorieComptableController::class, 'update']);
 
-Route::prefix('plan_comptable')->group(function () {
-    // Routes pour les rubriques (371, 372...)
-    Route::get('categories', [CategorieComptableController::class, 'index']);
-    Route::post('categories', [CategorieComptableController::class, 'store']);
-    Route::put('categories/{id}', [CategorieComptableController::class, 'update']);
-
-    // Routes pour les comptes de détail (37225000...)
-    Route::get('comptes', [PlanComptableController::class, 'index']);
-    Route::post('comptes', [PlanComptableController::class, 'store']);
+        // Comptes comptables (détail)
+        Route::get('comptes', [PlanComptableController::class, 'index']);
+        Route::post('comptes', [PlanComptableController::class, 'store']);
         Route::put('comptes/{id}', [PlanComptableController::class, 'update']);
         Route::patch('comptes/{planComptable}/archive', [PlanComptableController::class, 'archive']);
     });
 
-       /*
+    /*
     |--------------------------------------------------------------------------
     | Types de comptes
     |--------------------------------------------------------------------------
     */
     Route::prefix('types-comptes')->group(function () {
-        // Consultation
         Route::get('/', [TypeCompteController::class, 'index']);
         Route::get('/statistiques', [TypeCompteController::class, 'statistiques']);
         Route::get('/{id}', [TypeCompteController::class, 'show']);
         Route::get('/code/{code}', [TypeCompteController::class, 'showByCode']);
-        
-        // Informations utilitaires
+
         Route::get('/rubriques-mata', [TypeCompteController::class, 'getRubriquesMata']);
         Route::get('/durees-blocage', [TypeCompteController::class, 'getDureesBlocage']);
-        
-        // CRUD
+
         Route::post('/', [TypeCompteController::class, 'store']);
         Route::put('/{id}', [TypeCompteController::class, 'update']);
         Route::delete('/{id}', [TypeCompteController::class, 'destroy']);
         Route::patch('/{id}/toggle-actif', [TypeCompteController::class, 'toggleActif']);
     });
 
-        /*
+    /*
     |--------------------------------------------------------------------------
-    | Gestion des comptes bancaires
+    | Comptes bancaires
     |--------------------------------------------------------------------------
     */
     Route::prefix('comptes')->group(function () {
-        // Initialisation et validation d'ouverture
         Route::get('/init', [CompteController::class, 'initOuverture']);
+
         Route::post('/etape1/valider', [CompteController::class, 'validerEtape1']);
         Route::post('/etape2/valider', [CompteController::class, 'validerEtape2']);
         Route::post('/etape3/valider', [CompteController::class, 'validerEtape3']);
-        
-        // CRUD
+
         Route::get('/', [CompteController::class, 'index']);
         Route::post('/creer', [CompteController::class, 'store']);
         Route::get('/{id}', [CompteController::class, 'show']);
         Route::put('/{id}', [CompteController::class, 'update']);
         Route::delete('/{id}', [CompteController::class, 'destroy']);
-        
-        // Actions spécifiques
+
         Route::post('/{id}/cloturer', [CompteController::class, 'cloturer']);
-        
-        // Documents associés
-        Route::prefix('/{compteId}')->group(function () {
+
+        Route::prefix('{compteId}')->group(function () {
             Route::get('/documents', [DocumentCompteController::class, 'index']);
             Route::post('/documents', [DocumentCompteController::class, 'store']);
         });
@@ -146,7 +135,7 @@ Route::prefix('plan_comptable')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | Audit & Logs (permissions)
+    | Audit & Logs
     |--------------------------------------------------------------------------
     */
     Route::middleware('permission:consulter logs')->group(function () {

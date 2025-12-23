@@ -160,4 +160,33 @@ class Compte extends Model
             'categorie' => $this->planComptable->categorie->libelle ?? null,
         ];
     }
+
+     /**
+     * Relation avec les mouvements des rubriques MATA
+     */
+    public function mouvementsRubriquesMata()
+    {
+        return $this->hasMany(MouvementRubriqueMata::class);
+    }
+    
+    /**
+     * Obtenir le récapitulatif des rubriques MATA
+     */
+    public function getRecapitulatifRubriquesAttribute()
+    {
+        if (!$this->typeCompte->est_mata) {
+            return null;
+        }
+        
+        $service = app(GestionRubriqueMataService::class);
+        return $service->getRecapitulatifRubriques($this);
+    }
+    
+    /**
+     * Obtenir le solde d'une rubrique spécifique
+     */
+    public function getSoldeRubrique($rubrique)
+    {
+        return MouvementRubriqueMata::getSoldeRubrique($this->id, $rubrique);
+    }
 }

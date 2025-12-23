@@ -3,327 +3,344 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Compte\StoreAccountRequest;
-use App\Http\Requests\Compte\UpdateAccountRequest;
-use App\Http\Requests\Compte\ValidateAccountRequest;
-use App\Http\Resources\CompteResource;
-use App\Models\Compte;
-use App\Models\Mandataire;
-use App\Models\DocumentsCompte;
+use App\Http\Requests\Compte\IndexCompteRequest;
+use App\Http\Requests\Compte\ShowCompteRequest;
+use App\Http\Requests\Compte\InitOuvertureCompteRequest;
+use App\Http\Requests\Compte\ValiderEtape1Request;
+use App\Http\Requests\Compte\ValiderEtape2Request;
+use App\Http\Requests\Compte\ValiderEtape3Request;
+use App\Http\Requests\Compte\StoreCompteRequest;
+use App\Http\Requests\Compte\UpdateCompteRequest;
+use App\Http\Requests\Compte\CloturerCompteRequest;
+use App\Http\Requests\Compte\DestroyCompteRequest;
+use App\Http\Requests\Compte\GetComptesClientRequest;
 use App\Services\Compte\CompteService;
+use App\Services\Compte\DocumentService;
+use App\Models\compte\Compte;
+use App\Models\compte\TypeCompte;
+use App\Models\client\Client;
+use App\Models\compte\DocumentCompte;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
-use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 
+/**
+ * Contrôleur API pour la gestion des comptes bancaires
+ * 
+ * Gère le CRUD complet et le processus d'ouverture en 4 étapes
+ */
 class CompteController extends Controller
 {
-    public function __construct(
-        private CompteService $accountService
-    ) {}
+    protected CompteService $compteService;
+    protected DocumentService $documentService;
 
-    /**
-     * Liste des comptes avec filtres
-     */
-    public function index(Request $request): AnonymousResourceCollection
+    public function __construct(CompteService $compteService, DocumentService $documentService)
     {
-        $this->authorize('viewAny', Compte::class);
-
-        $filters = $request->only([
-            'numero_compte',
-            'client_id',
-            'agency_id',
-            'account_type_id',
-            'statut',
-            'statut_validation',
-            'category',
-            'date_debut',
-            'date_fin',
-        ]);
-
-        $accounts = $this->accountService->search($filters, $request->input('per_page', 15));
-
-        return CompteResource::collection($accounts);
+        $this->compteService = $compteService;
+        $this->documentService = $documentService;
     }
 
     /**
-     * Création d'un nouveau compte
+     * GET /api/comptes
+     * Lister tous les comptes avec filtres
      */
-    public function store(StoreAccountRequest $request): JsonResponse
+    public function index(IndexCompteRequest $request): JsonResponse
     {
-        $validated = $request->validated();
+        $query = Compte::with(['client', 'typeCompte', 'planComptable', 'mandataires']);
 
-        try {
-            $account = DB::transaction(function () use ($validated, $request) {
-                // Création du compte
-                $account = $this->accountService->create($validated, $request->user());
-
-                // Ajout des mandataires
-                if (!empty($validated['mandataire_1'])) {
-                    $this->createMandatary($account, $validated['mandataire_1'], 'mandataire_1', $request);
-                }
-
-                if (!empty($validated['mandataire_2'])) {
-                    $this->createMandatary($account, $validated['mandataire_2'], 'mandataire_2', $request);
-                }
-
-                // Upload des documents
-                if (!empty($validated['documents'])) {
-                    foreach ($validated['documents'] as $doc) {
-                        $this->uploadDocument($account, $doc, $request->user()->id);
-                    }
-                }
-
-                return $account;
-            });
-
-            return response()->json([
-                'message' => 'Compte créé avec succès. En attente de validation.',
-                'data' => new CompteResource($account->load([
-                    'client',
-                    'accountType',
-                    'agency',
-                    'creator',
-                    'mandataries',
-                    'documents',
-                ])),
-            ], 201);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Erreur lors de la création du compte.',
-                'error' => $e->getMessage(),
-            ], 500);
-        }
-    }
-
-    /**
-     * Affichage d'un compte
-     */
-    public function show(Compte $account): CompteResource
-    {
-        $this->authorize('view', $account);
-
-        return new CompteResource($account->load([
-            'client.clientPhysique',
-            'client.clientMorale',
-            'accountType',
-            'agency',
-            'creator',
-            'validatorCa',
-            'validatorAj',
-            'mandataries',
-            'documents',
-            'transactions' => fn($q) => $q->limit(20),
-            'commissions' => fn($q) => $q->latest()->limit(10),
-        ]));
-    }
-
-    /**
-     * Mise à jour d'un compte
-     */
-    public function update(UpdateAccountRequest $request, Compte $account): JsonResponse
-    {
-        $this->authorize('update', $account);
-
-        try {
-            $account = $this->accountService->update($account, $request->validated(), $request->user());
-
-            return response()->json([
-                'message' => 'Compte mis à jour avec succès.',
-                'data' => new CompteResource($account),
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Erreur lors de la mise à jour.',
-                'error' => $e->getMessage(),
-            ], 500);
-        }
-    }
-
-    /**
-     * Validation d'un compte (CA ou AJ)
-     */
-    public function validate(ValidateAccountRequest $request, Compte $account): JsonResponse
-    {
-        $action = $request->input('action');
-        $user = $request->user();
-
-        try {
-            $account = match ($action) {
-                'validate_ca' => $this->accountService->validateByChefAgence($account, $user),
-                'validate_aj' => $this->accountService->validateByAssistantJuridique($account, $user),
-                'reject' => $this->accountService->reject($account, $user, $request->input('motif')),
-            };
-
-            $messages = [
-                'validate_ca' => 'Compte validé par le Chef d\'Agence. En attente de validation juridique.',
-                'validate_aj' => 'Compte validé et activé avec succès.',
-                'reject' => 'Compte rejeté.',
-            ];
-
-            return response()->json([
-                'message' => $messages[$action],
-                'data' => new CompteResource($account->fresh()),
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Erreur lors de la validation.',
-                'error' => $e->getMessage(),
-            ], 422);
-        }
-    }
-
-    /**
-     * Mise en opposition
-     */
-    public function opposition(Request $request, Compte $account): JsonResponse
-    {
-        $this->authorize('update', $account);
-
-        $request->validate([
-            'type' => ['required', 'in:debit,credit,total'],
-            'motif' => ['required', 'string', 'max:500'],
-        ]);
-
-        try {
-            $account = $this->accountService->mettreEnOpposition(
-                $account,
-                $request->input('type'),
-                $request->input('motif'),
-                $request->user()
-            );
-
-            return response()->json([
-                'message' => 'Opposition mise en place avec succès.',
-                'data' => new CompteResource($account),
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Erreur lors de la mise en opposition.',
-                'error' => $e->getMessage(),
-            ], 500);
-        }
-    }
-
-    /**
-     * Clôture d'un compte
-     */
-    public function cloturer(Request $request, Compte $account): JsonResponse
-    {
-        $this->authorize('delete', $account);
-
-        $request->validate([
-            'motif' => ['required', 'string', 'max:500'],
-        ]);
-
-        try {
-            $account = $this->accountService->cloturer($account, $request->user(), $request->input('motif'));
-
-            return response()->json([
-                'message' => 'Compte clôturé avec succès.',
-                'data' => new CompteResource($account),
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Impossible de clôturer le compte.',
-                'error' => $e->getMessage(),
-            ], 422);
-        }
-    }
-
-    /**
-     * Liste des comptes en attente de validation
-     */
-    public function enAttenteValidation(Request $request): AnonymousResourceCollection
-    {
-        $user = $request->user();
-
-        $query = Compte::with(['client', 'accountType', 'agency', 'creator']);
-
-        if ($user->hasRole('Chef d\'Agence (CA)')) {
-            $query->where('statut_validation', 'en_attente');
-        } elseif ($user->hasRole('Assistant Juridique (AJ)')) {
-            $query->where('statut_validation', 'valide_ca');
+        if ($request->has('client_id')) {
+            $query->where('client_id', $request->client_id);
         }
 
-        // Filtrer par agence si l'utilisateur n'est pas DG
-        if (!$user->hasRole(['DG', 'Admin']) && $user->agency_id) {
-            $query->where('agency_id', $user->agency_id);
+        if ($request->has('statut')) {
+            $query->where('statut', $request->statut);
         }
 
-        return CompteResource::collection(
-            $query->orderBy('created_at', 'desc')->paginate(15)
-        );
-    }
+        if ($request->has('devise')) {
+            $query->where('devise', $request->devise);
+        }
 
-    /**
-     * Historique des transactions d'un compte
-     */
-    public function transactions(Request $request, Compte $account): JsonResponse
-    {
-        $this->authorize('view', $account);
+        if ($request->has('type_compte_id')) {
+            $query->where('type_compte_id', $request->type_compte_id);
+        }
 
-        $transactions = $account->transactions()
-            ->with(['creator', 'validator'])
-            ->when($request->filled('date_debut'), fn($q) => $q->where('created_at', '>=', $request->date_debut))
-            ->when($request->filled('date_fin'), fn($q) => $q->where('created_at', '<=', $request->date_fin))
-            ->when($request->filled('type'), fn($q) => $q->where('type_transaction', $request->type))
-            ->orderBy('created_at', 'desc')
-            ->paginate($request->input('per_page', 20));
+        $perPage = $request->get('per_page', 15);
+        $comptes = $query->paginate($perPage);
 
         return response()->json([
-            'data' => $transactions,
-            'solde_actuel' => $account->solde,
+            'success' => true,
+            'data' => $comptes,
         ]);
     }
 
     /**
-     * Création d'un mandataire
+     * GET /api/comptes/{id}
+     * Afficher un compte spécifique
      */
-    private function createMandatary(Compte $account, array $data, string $type, Request $request): Mandataire
+    public function show(ShowCompteRequest $request, int $id): JsonResponse
     {
-        $mandataryData = array_merge($data, [
-            'account_id' => $account->id,
-            'type_mandataire' => $type,
+        $compte = Compte::with([
+            'client',
+            'typeCompte',
+            'planComptable',
+            'mandataires',
+            'documents.uploader'
+        ])->findOrFail($id);
+
+        return response()->json([
+            'success' => true,
+            'data' => $compte,
         ]);
-
-        // Upload signature si présente
-        if ($request->hasFile("$type.signature")) {
-            $path = $request->file("$type.signature")->store("mandataries/{$account->id}/signatures", 'public');
-            $mandataryData['signature_path'] = $path;
-        }
-
-        // Upload photo si présente
-        if ($request->hasFile("$type.photo")) {
-            $path = $request->file("$type.photo")->store("mandataries/{$account->id}/photos", 'public');
-            $mandataryData['photo_path'] = $path;
-        }
-
-        return Mandataire::create($mandataryData);
     }
 
     /**
-     * Upload d'un document
+     * POST /api/comptes/init
+     * Initialiser les données pour l'ouverture d'un compte
      */
-    private function uploadDocument(Compte $account, array $data, int $userId): DocumentsCompte
+    public function initOuverture(InitOuvertureCompteRequest $request): JsonResponse
     {
-        $file = $data['fichier'];
-        $path = $file->store("accounts/{$account->id}/documents", 'public');
+        $typesComptes = TypeCompte::actif()->get();
+        $devises = ['FCFA', 'EURO', 'DOLLAR', 'POUND'];
+        $rubriquesMata = TypeCompte::getRubriquesMata();
+        $dureesBlocage = TypeCompte::getDureesBlocage();
+        $typesDocuments = DocumentCompte::TYPES_DOCUMENTS;
 
-        return DocumentsCompte::create([
-            'account_id' => $account->id,
-            'uploaded_by' => $userId,
-            'type_document' => $data['type'],
-            'nom_fichier' => $file->getClientOriginalName(),
-            'chemin_fichier' => $path,
-            'mime_type' => $file->getMimeType(),
-            'taille' => $file->getSize(),
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'types_comptes' => $typesComptes,
+                'devises' => $devises,
+                'rubriques_mata' => $rubriquesMata,
+                'durees_blocage' => $dureesBlocage,
+                'types_documents' => $typesDocuments,
+            ],
+        ]);
+    }
+
+    /**
+     * POST /api/comptes/etape1/valider
+     * Valider l'étape 1
+     */
+    public function validerEtape1(ValiderEtape1Request $request): JsonResponse
+    {
+        $donneesValidees = $request->validated();
+        
+        $numeroCompte = $this->compteService->genererNumeroCompte(
+            $donneesValidees['client_id'],
+            $donneesValidees['code_type_compte']
+        );
+        
+        $client = Client::findOrFail($donneesValidees['client_id']);
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Étape 1 validée avec succès',
+            'data' => [
+                'donnees' => $donneesValidees,
+                'numero_compte_genere' => $numeroCompte,
+                'client' => $client,
+            ],
+        ]);
+    }
+
+    /**
+     * POST /api/comptes/etape2/valider
+     * Valider l'étape 2
+     */
+    public function validerEtape2(ValiderEtape2Request $request): JsonResponse
+    {
+        $donneesValidees = $request->validated();
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Étape 2 validée avec succès',
+            'data' => $donneesValidees,
+        ]);
+    }
+
+    /**
+     * POST /api/comptes/etape3/valider
+     * Valider l'étape 3
+     */
+    public function validerEtape3(ValiderEtape3Request $request): JsonResponse
+    {
+        $donneesValidees = $request->validated();
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Étape 3 validée avec succès',
+            'data' => $donneesValidees,
+        ]);
+    }
+
+    /**
+     * POST /api/comptes/creer
+     * Créer un compte
+     */
+    public function store(StoreCompteRequest $request): JsonResponse
+    {
+        try {
+            $validated = $request->validated();
+            
+            $donneesEtape1 = $validated['etape1'];
+            $donneesEtape2 = $validated['etape2'];
+            $donneesEtape3 = $validated['etape3'];
+            $donneesEtape4Raw = $validated['etape4'] ?? [];
+            
+            // Traiter les uploads de documents
+            $documentsUploades = [];
+            if ($request->hasFile('documents')) {
+                foreach ($request->file('documents') as $index => $fichier) {
+                    $typeDocument = $validated['types_documents'][$index] ?? null;
+                    $description = $validated['descriptions_documents'][$index] ?? null;
+                    
+                    $documentsUploades[] = [
+                        'fichier' => $fichier,
+                        'type_document' => $typeDocument,
+                        'description' => $description,
+                    ];
+                }
+            }
+            
+            // Uploader la signature
+            $signaturePath = null;
+            if ($request->hasFile('signature')) {
+                $signaturePath = $request->file('signature')->store('signatures', 'private');
+            }
+            
+            $donneesEtape4 = [
+                'notice_acceptee' => $donneesEtape4Raw['notice_acceptee'] ?? false,
+                'signature_path' => $signaturePath,
+                'documents' => [],
+            ];
+            
+            // Créer le compte
+            $compte = $this->compteService->creerCompte(
+                $donneesEtape1,
+                $donneesEtape2,
+                $donneesEtape3,
+                $donneesEtape4
+            );
+            
+            // Uploader les documents
+            foreach ($documentsUploades as $docData) {
+                $this->documentService->uploadDocument(
+                    $compte->id,
+                    $docData['fichier'],
+                    $docData['type_document'],
+                    $docData['description'],
+                    auth()->id()
+                );
+            }
+            
+            $compte->load('documents');
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Compte créé avec succès',
+                'data' => $compte,
+            ], 201);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la création du compte',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * PUT /api/comptes/{id}
+     * Mettre à jour un compte
+     */
+    public function update(UpdateCompteRequest $request, int $id): JsonResponse
+    {
+        try {
+            $donnees = $request->validated();
+            $compte = $this->compteService->mettreAJourCompte($id, $donnees);
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Compte mis à jour avec succès',
+                'data' => $compte,
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la mise à jour',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * POST /api/comptes/{id}/cloturer
+     * Clôturer un compte
+     */
+    public function cloturer(CloturerCompteRequest $request, int $id): JsonResponse
+    {
+        try {
+            $motif = $request->input('motif');
+            $compte = $this->compteService->cloturerCompte($id, $motif);
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Compte clôturé avec succès',
+                'data' => $compte,
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la clôture',
+                'error' => $e->getMessage(),
+            ], 400);
+        }
+    }
+
+    /**
+     * DELETE /api/comptes/{id}
+     * Supprimer un compte
+     */
+    public function destroy(DestroyCompteRequest $request, int $id): JsonResponse
+    {
+        try {
+            $compte = Compte::findOrFail($id);
+            
+            if ($compte->solde != 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Impossible de supprimer un compte avec un solde non nul',
+                ], 400);
+            }
+            
+            $compte->delete();
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Compte supprimé avec succès',
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la suppression',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * GET /api/clients/{clientId}/comptes
+     * Obtenir tous les comptes d'un client
+     */
+    public function getComptesClient(GetComptesClientRequest $request, int $clientId): JsonResponse
+    {
+        $comptes = $this->compteService->getComptesClient($clientId);
+        
+        return response()->json([
+            'success' => true,
+            'data' => $comptes,
         ]);
     }
 }

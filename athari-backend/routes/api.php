@@ -84,14 +84,14 @@ Route::middleware('auth:sanctum')->group(function () {
     */
     Route::prefix('plan-comptable')->group(function () {
 
-        // Catégories (classes / rubriques)
+        // Catégories comptables
         Route::get('categories', [CategorieComptableController::class, 'index']);
         Route::post('categories', [CategorieComptableController::class, 'store']);
-        Route::put('categories/{id}', [CategorieComptableController::class, 'update']);
 
-        // Comptes comptables (détail)
+        // Comptes comptables
         Route::get('comptes', [PlanComptableController::class, 'index']);
         Route::post('comptes', [PlanComptableController::class, 'store']);
+        Route::get('comptes/{planComptable}', [PlanComptableController::class, 'show']);
         Route::put('comptes/{id}', [PlanComptableController::class, 'update']);
         Route::patch('comptes/{planComptable}/archive', [PlanComptableController::class, 'archive']);
     });
@@ -104,11 +104,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('types-comptes')->group(function () {
         Route::get('/', [TypeCompteController::class, 'index']);
         Route::get('/statistiques', [TypeCompteController::class, 'statistiques']);
-        Route::get('/{id}', [TypeCompteController::class, 'show']);
-        Route::get('/code/{code}', [TypeCompteController::class, 'showByCode']);
-
         Route::get('/rubriques-mata', [TypeCompteController::class, 'getRubriquesMata']);
         Route::get('/durees-blocage', [TypeCompteController::class, 'getDureesBlocage']);
+        Route::get('/code/{code}', [TypeCompteController::class, 'showByCode']);
+        Route::get('/{id}', [TypeCompteController::class, 'show']);
 
         Route::post('/', [TypeCompteController::class, 'store']);
         Route::put('/{id}', [TypeCompteController::class, 'update']);
@@ -122,21 +121,25 @@ Route::middleware('auth:sanctum')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::prefix('comptes')->group(function () {
-        Route::get('/init', [CompteController::class, 'initOuverture']);
 
+        // Ouverture de compte
+        Route::get('/init', [CompteController::class, 'initOuverture']);
         Route::post('/etape1/valider', [CompteController::class, 'validerEtape1']);
         Route::post('/etape2/valider', [CompteController::class, 'validerEtape2']);
         Route::post('/etape3/valider', [CompteController::class, 'validerEtape3']);
 
+        // CRUD
         Route::get('/', [CompteController::class, 'index']);
         Route::post('/', [CompteController::class, 'store']);
         Route::get('/{id}', [CompteController::class, 'show']);
         Route::put('/{id}', [CompteController::class, 'update']);
         Route::delete('/{id}', [CompteController::class, 'destroy']);
 
+        // Actions spécifiques
         Route::post('/{id}/cloturer', [CompteController::class, 'cloturer']);
 
-        Route::prefix('{compteId}')->group(function () {
+        // Documents
+        Route::prefix('{compte}')->group(function () {
             Route::get('/documents', [DocumentCompteController::class, 'index']);
             Route::post('/documents', [DocumentCompteController::class, 'store']);
         });
@@ -144,7 +147,58 @@ Route::middleware('auth:sanctum')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | Audit & Logs
+    | Frais & commissions
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('frais-commissions')->group(function () {
+        Route::get('/', [FraisCommissionController::class, 'index']);
+        Route::get('/type-compte/{typeCompteId}', [FraisCommissionController::class, 'getByTypeCompte']);
+        Route::post('/simuler', [FraisCommissionController::class, 'simulerFrais']);
+
+        Route::post('/', [FraisCommissionController::class, 'store']);
+        Route::get('/{id}', [FraisCommissionController::class, 'show']);
+        Route::put('/{id}', [FraisCommissionController::class, 'update']);
+        Route::delete('/{id}', [FraisCommissionController::class, 'destroy']);
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Application des frais
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('frais-applications')->group(function () {
+        Route::get('/', [FraisApplicationController::class, 'index']);
+
+        Route::post('/appliquer-ouverture', [FraisApplicationController::class, 'appliquerFraisOuverture']);
+        Route::post('/lancer-commissions-mensuelles', [FraisApplicationController::class, 'lancerCommissionsMensuelles']);
+        Route::post('/lancer-commissions-sms', [FraisApplicationController::class, 'lancerCommissionsSMS']);
+        Route::post('/calculer-interets', [FraisApplicationController::class, 'calculerInterets']);
+
+        Route::put('/{id}/valider', [FraisApplicationController::class, 'validerApplication']);
+        Route::get('/compte/{compte}/en-attente', [FraisApplicationController::class, 'getEnAttente']);
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Rubriques MATA (par compte)
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('comptes/{compte}/rubriques-mata')->group(function () {
+        Route::get('/', [MouvementRubriqueMataController::class, 'index']);
+        Route::get('/recapitulatif', [MouvementRubriqueMataController::class, 'recapitulatif']);
+
+        Route::post('/versement', [MouvementRubriqueMataController::class, 'versement']);
+        Route::post('/retrait', [MouvementRubriqueMataController::class, 'retrait']);
+        Route::post('/transferer', [MouvementRubriqueMataController::class, 'transferer']);
+        Route::post('/repartir', [MouvementRubriqueMataController::class, 'repartir']);
+
+        Route::get('/{rubrique}/historique', [MouvementRubriqueMataController::class, 'historiqueRubrique']);
+        Route::get('/{rubrique}/solde', [MouvementRubriqueMataController::class, 'soldeRubrique']);
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Audit & logs (permissions)
     |--------------------------------------------------------------------------
     */
     Route::middleware('permission:consulter logs')->group(function () {

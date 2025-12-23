@@ -15,8 +15,8 @@ use App\Http\Controllers\CompteController;
 use App\Http\Controllers\TypeCompteController;
 use App\Http\Controllers\DocumentCompteController;
 use App\Http\Controllers\logs\AuditLogController;
-use App\Http\Controllers\Plancomptable\PlanComptableController;
-use App\Http\Controllers\Plancomptable\CategorieComptableController;
+use App\Http\Controllers\Plancomptable\PlanComptableController as PlanComptableNewController;
+use App\Http\Controllers\Plancomptable\CategorieComptableController as CategorieComptableNewController;
 use App\Http\Controllers\frais\FraisCommissionController;
 use App\Http\Controllers\frais\FraisApplicationController;
 use App\Http\Controllers\frais\MouvementRubriqueMataController;
@@ -71,6 +71,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/physique', [ClientController::class, 'storePhysique']);
         Route::post('/morale', [ClientController::class, 'storeMorale']);
 
+        // CRUD standard
         Route::get('/', [ClientController::class, 'index']);
         Route::get('/{id}', [ClientController::class, 'show']);
         Route::put('/{id}', [ClientController::class, 'update']);
@@ -82,18 +83,17 @@ Route::middleware('auth:sanctum')->group(function () {
     | Plan comptable
     |--------------------------------------------------------------------------
     */
-    Route::prefix('plan-comptable')->group(function () {
+    Route::prefix('admin/comptabilite')->group(function () {
+        // Catégories comptables (rubriques)
+        Route::get('/categories', [CategorieComptableNewController::class, 'index']);
+        Route::post('/categories', [CategorieComptableNewController::class, 'store']);
 
-        // Catégories comptables
-        Route::get('categories', [CategorieComptableController::class, 'index']);
-        Route::post('categories', [CategorieComptableController::class, 'store']);
-
-        // Comptes comptables
-        Route::get('comptes', [PlanComptableController::class, 'index']);
-        Route::post('comptes', [PlanComptableController::class, 'store']);
-        Route::get('comptes/{planComptable}', [PlanComptableController::class, 'show']);
-        Route::put('comptes/{id}', [PlanComptableController::class, 'update']);
-        Route::patch('comptes/{planComptable}/archive', [PlanComptableController::class, 'archive']);
+        // Plan comptable (comptes de détail)
+        Route::get('/comptes', [PlanComptableNewController::class, 'index']);
+        Route::post('/comptes', [PlanComptableNewController::class, 'store']);
+        Route::get('/comptes/{planComptable}', [PlanComptableNewController::class, 'show']);
+        Route::put('/comptes/{id}', [PlanComptableNewController::class, 'update']);
+        Route::patch('/comptes/{planComptable}/archive', [PlanComptableNewController::class, 'archive']);
     });
 
     /*
@@ -102,13 +102,17 @@ Route::middleware('auth:sanctum')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::prefix('types-comptes')->group(function () {
+        // Routes de lecture
         Route::get('/', [TypeCompteController::class, 'index']);
         Route::get('/statistiques', [TypeCompteController::class, 'statistiques']);
-        Route::get('/rubriques-mata', [TypeCompteController::class, 'getRubriquesMata']);
-        Route::get('/durees-blocage', [TypeCompteController::class, 'getDureesBlocage']);
         Route::get('/code/{code}', [TypeCompteController::class, 'showByCode']);
         Route::get('/{id}', [TypeCompteController::class, 'show']);
 
+        // Informations utilitaires
+        Route::get('/rubriques-mata', [TypeCompteController::class, 'getRubriquesMata']);
+        Route::get('/durees-blocage', [TypeCompteController::class, 'getDureesBlocage']);
+
+        // CRUD
         Route::post('/', [TypeCompteController::class, 'store']);
         Route::put('/{id}', [TypeCompteController::class, 'update']);
         Route::delete('/{id}', [TypeCompteController::class, 'destroy']);
@@ -120,6 +124,9 @@ Route::middleware('auth:sanctum')->group(function () {
     | Comptes bancaires
     |--------------------------------------------------------------------------
     */
+    // Routes pour les types de comptes
+    Route::get('/types-comptes', [TypeCompteController::class, 'index']);
+
     Route::prefix('comptes')->group(function () {
 
         // Ouverture de compte
@@ -138,8 +145,13 @@ Route::middleware('auth:sanctum')->group(function () {
         // Actions spécifiques
         Route::post('/{id}/cloturer', [CompteController::class, 'cloturer']);
 
+<<<<<<< Updated upstream
         // Documents
         Route::prefix('{compte}')->group(function () {
+=======
+        // Documents associés
+        Route::prefix('/{compteId}')->group(function () {
+>>>>>>> Stashed changes
             Route::get('/documents', [DocumentCompteController::class, 'index']);
             Route::post('/documents', [DocumentCompteController::class, 'store']);
         });
@@ -147,6 +159,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
+<<<<<<< Updated upstream
     | Frais & commissions
     |--------------------------------------------------------------------------
     */
@@ -199,6 +212,16 @@ Route::middleware('auth:sanctum')->group(function () {
     /*
     |--------------------------------------------------------------------------
     | Audit & logs (permissions)
+=======
+    | Plan Comptable - Anciennes routes (à déprécier)
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/plan-comptable/categories', [PlanComptableNewController::class, 'getCategories']);
+    Route::get('/plan-comptable/chapitres', [PlanComptableNewController::class, 'getChapitres']);
+    /*
+    |--------------------------------------------------------------------------
+    | Audit & Logs (permissions)
+>>>>>>> Stashed changes
     |--------------------------------------------------------------------------
     */
     Route::middleware('permission:consulter logs')->group(function () {

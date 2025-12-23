@@ -9,7 +9,7 @@ use Illuminate\Http\JsonResponse;
 
 /**
  * Contrôleur API pour la gestion des types de comptes
- * 
+ *
  * Permet de gérer les différents types de comptes bancaires
  * disponibles dans le système (Compte courant, Épargne, DAT, MATA, etc.)
  */
@@ -18,7 +18,7 @@ class TypeCompteController extends Controller
     /**
      * GET /api/types-comptes
      * Lister tous les types de comptes
-     * 
+     *
      * @param Request $request
      * @return JsonResponse
      */
@@ -78,7 +78,7 @@ class TypeCompteController extends Controller
     /**
      * GET /api/types-comptes/{id}
      * Afficher un type de compte spécifique
-     * 
+     *
      * @param int $id
      * @return JsonResponse
      */
@@ -88,12 +88,12 @@ class TypeCompteController extends Controller
 
         // Ajouter des informations supplémentaires
         $data = $typeCompte->toArray();
-        
+
         // Si c'est un compte MATA, inclure les rubriques disponibles
         if ($typeCompte->est_mata) {
             $data['rubriques_disponibles'] = TypeCompte::getRubriquesMata();
         }
-        
+
         // Si nécessite une durée, inclure les durées disponibles
         if ($typeCompte->necessite_duree) {
             $data['durees_disponibles'] = TypeCompte::getDureesBlocage();
@@ -108,7 +108,7 @@ class TypeCompteController extends Controller
     /**
      * GET /api/types-comptes/code/{code}
      * Obtenir un type de compte par son code
-     * 
+     *
      * @param string $code Code à 2 chiffres
      * @return JsonResponse
      */
@@ -117,11 +117,11 @@ class TypeCompteController extends Controller
         $typeCompte = TypeCompte::where('code', $code)->firstOrFail();
 
         $data = $typeCompte->toArray();
-        
+
         if ($typeCompte->est_mata) {
             $data['rubriques_disponibles'] = TypeCompte::getRubriquesMata();
         }
-        
+
         if ($typeCompte->necessite_duree) {
             $data['durees_disponibles'] = TypeCompte::getDureesBlocage();
         }
@@ -135,7 +135,7 @@ class TypeCompteController extends Controller
     /**
      * POST /api/types-comptes
      * Créer un nouveau type de compte (Administration)
-     * 
+     *
      * @param Request $request
      * @return JsonResponse
      */
@@ -172,7 +172,7 @@ class TypeCompteController extends Controller
     /**
      * PUT /api/types-comptes/{id}
      * Mettre à jour un type de compte (Administration)
-     * 
+     *
      * @param Request $request
      * @param int $id
      * @return JsonResponse
@@ -212,9 +212,9 @@ class TypeCompteController extends Controller
     /**
      * DELETE /api/types-comptes/{id}
      * Supprimer un type de compte (Administration)
-     * 
+     *
      * ATTENTION: Vérifier qu'aucun compte n'utilise ce type avant suppression
-     * 
+     *
      * @param int $id
      * @return JsonResponse
      */
@@ -225,7 +225,7 @@ class TypeCompteController extends Controller
 
             // Vérifier si des comptes utilisent ce type
             $nombreComptes = $typeCompte->comptes()->count();
-            
+
             if ($nombreComptes > 0) {
                 return response()->json([
                     'success' => false,
@@ -252,14 +252,14 @@ class TypeCompteController extends Controller
     /**
      * PATCH /api/types-comptes/{id}/toggle-actif
      * Activer/Désactiver un type de compte
-     * 
+     *
      * @param int $id
      * @return JsonResponse
      */
     public function toggleActif(int $id): JsonResponse
     {
         $typeCompte = TypeCompte::findOrFail($id);
-        
+
         $typeCompte->actif = !$typeCompte->actif;
         $typeCompte->save();
 
@@ -275,7 +275,7 @@ class TypeCompteController extends Controller
     /**
      * GET /api/types-comptes/rubriques-mata
      * Obtenir toutes les rubriques MATA disponibles
-     * 
+     *
      * @return JsonResponse
      */
     public function getRubriquesMata(): JsonResponse
@@ -289,7 +289,7 @@ class TypeCompteController extends Controller
     /**
      * GET /api/types-comptes/durees-blocage
      * Obtenir toutes les durées de blocage disponibles
-     * 
+     *
      * @return JsonResponse
      */
     public function getDureesBlocage(): JsonResponse
@@ -303,7 +303,7 @@ class TypeCompteController extends Controller
     /**
      * GET /api/types-comptes/statistiques
      * Obtenir des statistiques sur les types de comptes
-     * 
+     *
      * @return JsonResponse
      */
     public function statistiques(): JsonResponse

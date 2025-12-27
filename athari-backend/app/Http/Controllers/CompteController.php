@@ -75,14 +75,15 @@ class CompteController extends Controller
      * GET /api/comptes/{id}
      * Afficher un compte spécifique
      */
-    public function show(ShowCompteRequest $request, int $id): JsonResponse
+    public function show(ShowCompteRequest $request,  $id): JsonResponse
     {
         $compte = Compte::with([
             'client',
             'typeCompte',
             'planComptable',
             'mandataires',
-            'documents.uploader'
+            'documents.uploader',
+         'contratsDat.type' 
         ])->findOrFail($id);
 
         return response()->json([

@@ -139,7 +139,11 @@ class Compte extends Model
     {
         return $this->typeCompte->necessite_duree;
     }
-
+   // App\Models\Compte\Compte.php
+        public function contratsDat()
+        {
+            return $this->hasMany(ContratDat::class, 'account_id');
+        }
     /**
      * Obtenir le solde formaté avec devise
      */

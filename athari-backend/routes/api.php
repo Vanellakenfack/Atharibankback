@@ -137,7 +137,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // CRUD
         Route::get('/', [CompteController::class, 'index']);
-        Route::post('/', [CompteController::class, 'store']);
+        Route::post('/creer', [CompteController::class, 'store']);
         Route::get('/{id}', [CompteController::class, 'show']);
         Route::put('/{id}', [CompteController::class, 'update']);
         Route::delete('/{id}', [CompteController::class, 'destroy']);
@@ -145,13 +145,8 @@ Route::middleware('auth:sanctum')->group(function () {
         // Actions spécifiques
         Route::post('/{id}/cloturer', [CompteController::class, 'cloturer']);
 
-<<<<<<< Updated upstream
-        // Documents
-        Route::prefix('{compte}')->group(function () {
-=======
         // Documents associés
-        Route::prefix('/{compteId}')->group(function () {
->>>>>>> Stashed changes
+        Route::prefix('{compteId}')->group(function () {
             Route::get('/documents', [DocumentCompteController::class, 'index']);
             Route::post('/documents', [DocumentCompteController::class, 'store']);
         });
@@ -159,7 +154,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-<<<<<<< Updated upstream
     | Frais & commissions
     |--------------------------------------------------------------------------
     */
@@ -211,17 +205,15 @@ Route::middleware('auth:sanctum')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | Audit & logs (permissions)
-=======
-    | Plan Comptable - Anciennes routes (à déprécier)
+    | Plan Comptable
     |--------------------------------------------------------------------------
     */
-    Route::get('/plan-comptable/categories', [PlanComptableNewController::class, 'getCategories']);
-    Route::get('/plan-comptable/chapitres', [PlanComptableNewController::class, 'getChapitres']);
+    Route::get('/plan-comptable/categories', [\App\Http\Controllers\PlanComptableController::class, 'getCategories']);
+    Route::get('/plan-comptable/chapitres', [\App\Http\Controllers\PlanComptableController::class, 'getChapitres']);
+
     /*
     |--------------------------------------------------------------------------
     | Audit & Logs (permissions)
->>>>>>> Stashed changes
     |--------------------------------------------------------------------------
     */
     Route::middleware('permission:consulter logs')->group(function () {

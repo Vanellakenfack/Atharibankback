@@ -25,35 +25,57 @@ class FraisApplicationController extends Controller
      */
     public function index(Request $request)
     {
-        $query = FraisApplication::with(['compte', 'fraisCommission', 'validateur'])
-            ->orderBy('date_application', 'desc');
-        
-        // Filtres
-        if ($request->has('compte_id')) {
-            $query->where('compte_id', $request->compte_id);
-        }
-        
-        if ($request->has('type_frais')) {
-            $query->where('type_frais', $request->type_frais);
-        }
-        
-        if ($request->has('statut')) {
-            $query->where('statut', $request->statut);
-        }
-        
-        if ($request->has('date_debut') && $request->has('date_fin')) {
-            $query->whereBetween('date_application', [
-                Carbon::parse($request->date_debut),
-                Carbon::parse($request->date_fin)
+        try {
+            // D'abord, vérifions si nous avons des données
+            $query = FraisApplication::query()
+                ->select([
+                    'id',
+                    'compte_id',
+                    'frais_commission_id',
+                    'type_frais',
+                    'montant',
+                    'solde_avant',
+                    'solde_apres',
+                    'date_application',
+                    'statut'
+                ])
+                ->orderBy('date_application', 'desc');
+            
+            // Filtres
+            if ($request->has('compte_id')) {
+                $query->where('compte_id', $request->compte_id);
+            }
+            
+            if ($request->has('type_frais')) {
+                $query->where('type_frais', $request->type_frais);
+            }
+            
+            if ($request->has('statut')) {
+                $query->where('statut', $request->statut);
+            }
+            
+            if ($request->has('date_debut') && $request->has('date_fin')) {
+                $query->whereBetween('date_application', [
+                    Carbon::parse($request->date_debut),
+                    Carbon::parse($request->date_fin)
+                ]);
+            }
+            
+            $fraisApplications = $query->paginate(10);
+            
+            return response()->json([
+                'success' => true,
+                'data' => $fraisApplications
             ]);
+            
+        } catch (\Exception $e) {
+            \Log::error('Erreur lors de la récupération des frais: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des frais',
+                'error' => config('app.debug') ? $e->getMessage() : null
+            ], 500);
         }
-        
-        $fraisApplications = $query->paginate(50);
-        
-        return response()->json([
-            'success' => true,
-            'data' => $fraisApplications
-        ]);
     }
     
     /**

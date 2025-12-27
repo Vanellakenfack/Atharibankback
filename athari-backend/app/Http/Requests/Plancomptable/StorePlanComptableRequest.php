@@ -11,8 +11,24 @@ class StorePlanComptableRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return true;
+        $user = $this->user();
+
+    if (!$user) return false;
+
+    // Utilisation de hasAnyRole (méthode Spatie)
+    return $user->hasAnyRole([
+        'DG', 
+        'Chef d\Agence (CA)', 
+        'Assistant Comptable (AC)',
+        'Admin'
+    ]);
+
+    // Autorisation : Uniquement le Chef d'Agence ('chef_agence') ou le DG ('dg')
+    // Adaptez les chaînes de caractères selon vos noms de rôles en base de données
+    return $user->role === 'Chef d\Agence (CA)' || $user->role === 'DG'|| $user->role === 'Assistant Comptable (AC)';
     }
+
+
 
     /**
      * Get the validation rules that apply to the request.

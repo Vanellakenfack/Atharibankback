@@ -5,7 +5,7 @@ use App\Http\Controllers\Controller;
 use App\Models\chapitre\CategorieComptable;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-
+use App\Http\Requests\Plancomptable\UpdateCategorieRequest;
 class CategorieComptableController extends Controller
 {
     /**
@@ -23,23 +23,12 @@ class CategorieComptableController extends Controller
     /**
  * Met à jour une catégorie.
  */
-public function update(Request $request, CategorieComptable $categorieComptable): JsonResponse
+public function update(UpdateCategorieRequest $request, $id)
 {
-    $validated = $request->validate([
-        // Ici on dit : "Le code doit être unique, mais ignore l'ID de la catégorie qu'on est en train de modifier"
-        'code'        => 'required|unique:categories_comptables,code,' . $categorieComptable->id,
-        'libelle'     => 'required|string',
-        'niveau'      => 'required|integer|in:1,2,9', // Ajout du niveau 9 vu dans votre SQL
-        'type_compte' => 'required|in:ACTIF,PASSIF,CHARGE,PRODUIT',
-        'parent_id'   => 'nullable|exists:categories_comptables,id'
-    ]);
-
-    $categorieComptable->update($validated);
-
-    return response()->json([
-        'status' => 'success',
-        'data'   => $categorieComptable
-    ]);
+    $categorie = CategorieComptable::findOrFail($id);
+    $categorie->update($request->validated());
+    
+    return response()->json(['status' => 'success', 'data' => $categorie]);
 }
     /**
      * Crée une nouvelle catégorie (ex: Classe 7 ou Rubrique 721).

@@ -25,6 +25,7 @@ class FraisApplicationController extends Controller
      */
     public function index(Request $request)
     {
+<<<<<<< HEAD
         try {
             // D'abord, vérifions si nous avons des données
             $query = FraisApplication::query()
@@ -76,6 +77,37 @@ class FraisApplicationController extends Controller
                 'error' => config('app.debug') ? $e->getMessage() : null
             ], 500);
         }
+=======
+        $query = FraisApplication::with(['compte', 'fraisCommission', 'validateur'])
+            ->orderBy('date_application', 'desc');
+        
+        // Filtres
+        if ($request->has('compte_id')) {
+            $query->where('compte_id', $request->compte_id);
+        }
+        
+        if ($request->has('type_frais')) {
+            $query->where('type_frais', $request->type_frais);
+        }
+        
+        if ($request->has('statut')) {
+            $query->where('statut', $request->statut);
+        }
+        
+        if ($request->has('date_debut') && $request->has('date_fin')) {
+            $query->whereBetween('date_application', [
+                Carbon::parse($request->date_debut),
+                Carbon::parse($request->date_fin)
+            ]);
+        }
+        
+        $fraisApplications = $query->paginate(50);
+        
+        return response()->json([
+            'success' => true,
+            'data' => $fraisApplications
+        ]);
+>>>>>>> dev
     }
     
     /**

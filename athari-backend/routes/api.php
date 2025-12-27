@@ -11,12 +11,16 @@ use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\AgencyController;
 use App\Http\Controllers\ClientController;
+use App\Http\Controllers\Compte\DatContratController;
+use App\Http\Controllers\Compte\DatTypeController;
+
 use App\Http\Controllers\CompteController;
 use App\Http\Controllers\TypeCompteController;
 use App\Http\Controllers\DocumentCompteController;
 use App\Http\Controllers\logs\AuditLogController;
-use App\Http\Controllers\Plancomptable\PlanComptableController as PlanComptableNewController;
-use App\Http\Controllers\Plancomptable\CategorieComptableController as CategorieComptableNewController;
+use App\Http\Controllers\Plancomptable\PlanComptableController;
+use App\Http\Controllers\Plancomptable\CategorieComptableController;
+
 use App\Http\Controllers\frais\FraisCommissionController;
 use App\Http\Controllers\frais\FraisApplicationController;
 use App\Http\Controllers\frais\MouvementRubriqueMataController;
@@ -60,7 +64,12 @@ Route::middleware('auth:sanctum')->group(function () {
     | Agences
     |--------------------------------------------------------------------------
     */
-    Route::apiResource('agencies', AgencyController::class);
+   // Route::apiResource('agencies', AgencyController::class);
+
+
+ Route::get('/agencies', [AgencyController::class, 'index']);
+Route::post('/agencies', [AgencyController::class, 'index']); // <-- ERREUR ICI
+
 
     /*
     |--------------------------------------------------------------------------
@@ -83,17 +92,36 @@ Route::middleware('auth:sanctum')->group(function () {
     | Plan comptable
     |--------------------------------------------------------------------------
     */
-    Route::prefix('admin/comptabilite')->group(function () {
-        // Catégories comptables (rubriques)
-        Route::get('/categories', [CategorieComptableNewController::class, 'index']);
-        Route::post('/categories', [CategorieComptableNewController::class, 'store']);
+        Route::prefix('plan-comptable')->group(function () {
 
-        // Plan comptable (comptes de détail)
-        Route::get('/comptes', [PlanComptableNewController::class, 'index']);
-        Route::post('/comptes', [PlanComptableNewController::class, 'store']);
-        Route::get('/comptes/{planComptable}', [PlanComptableNewController::class, 'show']);
-        Route::put('/comptes/{id}', [PlanComptableNewController::class, 'update']);
-        Route::patch('/comptes/{planComptable}/archive', [PlanComptableNewController::class, 'archive']);
+        // Catégories 
+        Route::get('categories', [CategorieComptableController::class, 'index']);
+        Route::post('categories', [CategorieComptableController::class, 'store']);
+
+
+        // Comptes comptables
+
+        Route::get('comptes', [PlanComptableController::class, 'index']);
+        Route::post('comptes', [PlanComptableController::class, 'store']);
+        Route::get('comptes/{planComptable}', [PlanComptableController::class, 'show']);
+        Route::put('comptes/{id}', [PlanComptableController::class, 'update']);
+        Route::patch('comptes/{planComptable}/archive', [PlanComptableController::class, 'archive']);
+    });
+
+        Route::prefix('plan-comptable')->group(function () {
+
+        // Catégories
+        Route::get('categories', [CategorieComptableController::class, 'index']);
+        Route::post('categories', [CategorieComptableController::class, 'store']);
+
+
+        // Comptes comptables
+
+        Route::get('comptes', [PlanComptableController::class, 'index']);
+        Route::post('comptes', [PlanComptableController::class, 'store']);
+        Route::get('comptes/{planComptable}', [PlanComptableController::class, 'show']);
+        Route::put('comptes/{id}', [PlanComptableController::class, 'update']);
+        Route::patch('comptes/{planComptable}/archive', [PlanComptableController::class, 'archive']);
     });
 
     /*
@@ -101,8 +129,7 @@ Route::middleware('auth:sanctum')->group(function () {
     | Types de comptes
     |--------------------------------------------------------------------------
     */
-    Route::prefix('types-comptes')->group(function () {
-        // Routes de lecture
+    Route::prefix('types-comptes')->group(function () {        // Routes de lecture
         Route::get('/', [TypeCompteController::class, 'index']);
         Route::get('/statistiques', [TypeCompteController::class, 'statistiques']);
         Route::get('/code/{code}', [TypeCompteController::class, 'showByCode']);
@@ -113,10 +140,40 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/durees-blocage', [TypeCompteController::class, 'getDureesBlocage']);
 
         // CRUD
+        Route::get('/', [TypeCompteController::class, 'index']);
+        Route::get('/statistiques', [TypeCompteController::class, 'statistiques']);
+        Route::get('/rubriques-mata', [TypeCompteController::class, 'getRubriquesMata']);
+        Route::get('/durees-blocage', [TypeCompteController::class, 'getDureesBlocage']);
+        Route::get('/code/{code}', [TypeCompteController::class, 'showByCode']);
+        Route::get('/{id}', [TypeCompteController::class, 'show']);
+
+
         Route::post('/', [TypeCompteController::class, 'store']);
         Route::put('/{id}', [TypeCompteController::class, 'update']);
         Route::delete('/{id}', [TypeCompteController::class, 'destroy']);
         Route::patch('/{id}/toggle-actif', [TypeCompteController::class, 'toggleActif']);
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Gestion des DAT (Dépôts à Terme)
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('dat')->group(function () {
+        // Liste des contrats pour le tableau
+        Route::get('/contracts', [DatContratController::class, 'index']);
+
+        // Liste des types (offres) pour la modale
+        Route::get('/types', [DatTypeController::class, 'index']);
+        Route::post('/types', [DatTypeController::class, 'store']);
+
+        // Action de souscription
+        Route::post('/subscribe', [DatContratController::class, 'store']);
+        Route::post('/simulate', [DatContratController::class, 'simulate']);
+
+        // Actions individuelles
+        Route::get('/{id}', [DatContratController::class, 'show']);
+        Route::post('/{id}/cloturer', [DatContratController::class, 'cloturer']);
     });
 
     /*
@@ -129,7 +186,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::prefix('comptes')->group(function () {
 
+
+
+
         // Ouverture de compte
+
         Route::get('/init', [CompteController::class, 'initOuverture']);
         Route::post('/etape1/valider', [CompteController::class, 'validerEtape1']);
         Route::post('/etape2/valider', [CompteController::class, 'validerEtape2']);
@@ -137,16 +198,22 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // CRUD
         Route::get('/', [CompteController::class, 'index']);
-        Route::post('/creer', [CompteController::class, 'store']);
+        Route::post('/', [CompteController::class, 'store']);
         Route::get('/{id}', [CompteController::class, 'show']);
         Route::put('/{id}', [CompteController::class, 'update']);
         Route::delete('/{id}', [CompteController::class, 'destroy']);
 
+
         // Actions spécifiques
+
         Route::post('/{id}/cloturer', [CompteController::class, 'cloturer']);
+
 
         // Documents associés
         Route::prefix('{compteId}')->group(function () {
+
+        // Documents
+        Route::prefix('{compte}')->group(function () {
             Route::get('/documents', [DocumentCompteController::class, 'index']);
             Route::post('/documents', [DocumentCompteController::class, 'store']);
         });
@@ -214,9 +281,11 @@ Route::middleware('auth:sanctum')->group(function () {
     /*
     |--------------------------------------------------------------------------
     | Audit & Logs (permissions)
+
     |--------------------------------------------------------------------------
     */
     Route::middleware('permission:consulter logs')->group(function () {
         Route::get('/audit/logs', [AuditLogController::class, 'index']);
     });
+});
 });

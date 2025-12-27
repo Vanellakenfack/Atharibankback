@@ -1,0 +1,174 @@
+ Architecture en 3 Parties Simples
+ 
+1. LA CONFIGURATION (Le "Cahier des Charges")
+text
+ParamétrageFrais = Recette de cuisine pour chaque type de frais
+Type de frais : Ouverture, SMS, Retrait, Tenue de compte, etc.
+
+Quand appliquer : À l'ouverture, mensuellement, à chaque retrait
+
+Combien prélever : Montant fixe ou calculé
+
+Où envier l'argent : Quel compte comptable créditer
+
+Exemple concret pour un Compte Courant Particulier :
+
+text
+Frais d'ouverture : 3500 FCFA → Compte 72000000
+Frais mensuel : 2000 FCFA → Compte 72000000  
+Frais SMS : 200 FCFA → Compte 72000004
+2. L'APPLICATION (Le "Robot Caissier")
+text
+FraisApplique = Ticket de caisse pour chaque prélèvement
+Le système agit comme un caissier automatique qui :
+
+Vérifie la date : Est-ce le 31 du mois ? → Oui, on applique les frais mensuels
+
+Vérifie le solde : Le client a assez d'argent ?
+
+✅ Oui → Débite immédiatement
+
+❌ Non → Met en attente (compte 47120000)
+
+Écrit dans la comptabilité : Crée les écritures comptables automatiquement
+
+3. LA SURVEILLANCE (Le "Contrôleur")
+text
+CalculFraisService = Superviseur qui vérifie tout
+Tous les jours à minuit, un "robot" vérifie :
+
+📅 Est-ce la fin du mois ? → Applique les frais mensuels
+
+💰 Y a-t-il des frais en attente ? → Tente de les prélever
+
+📱 Doit-on prélever les SMS ? → Oui, même sans mouvement
+
+🔧 Comment Ça Marche au Quotidien
+SCÉNARIO 1 : Ouverture d'un Compte Courant Particulier
+text
+1. Client ouvre compte → Système voit "Type Compte 01"
+2. Cherche les frais d'ouverture pour ce type → Trouve 3500 FCFA
+3. Crée un "ticket" (FraisApplique) de 3500 FCFA
+4. Si solde ≥ 3500 → Débite immédiatement
+5. Sinon → Met en attente dans compte 47120000
+SCÉNARIO 2 : Fin du Mois (31 Janvier à 23h59)
+text
+1. Système vérifie tous les comptes actifs
+2. Pour chaque compte, applique :
+   - Frais de tenue de compte (2000 FCFA)
+   - Frais SMS (200 FCFA)
+3. Pour comptes collecte journalière :
+   - Calcule total des versements du mois
+   - Si ≥ 50.000 → 1000 FCFA
+   - Si < 50.000 → 300 FCFA
+SCÉNARIO 3 : Client Fait un Retrait
+text
+1. Client veut retirer 10.000 FCFA
+2. Système vérifie : Frais de retrait = 200 FCFA
+3. Total nécessaire : 10.200 FCFA
+4. Si solde ≥ 10.200 → Autorise retrait + prélève 200 FCFA
+5. Sinon → Bloque l'opération "Solde insuffisant"
+SCÉNARIO 4 : Compte MATA BOOST BLOQUE
+text
+À l'ouverture :
+1. Prélève 500 FCFA (frais carnet) → Compte 72100000
+
+À l'échéance (retrait normal) :
+1. Prélève 1500 FCFA (frais déblocage)
+
+Retrait anticipé (avec autorisation) :
+1. Prélève 1500 FCFA + 3% du solde (pénalité)
+🎪 Les "Personnages" du Système
+📋 Le Plan Comptable
+C'est le dictionnaire des comptes. Chaque numéro a une signification :
+
+72000004 = "Commission SMS"
+
+47120000 = "Produits à recevoir" (compte d'attente)
+
+37122000 = "Compte Courant Particulier"
+
+⚙️ Le Paramétrage
+C'est le règlement intérieur. Il dit :
+
+"Les comptes courants particuliers payent 2000 FCFA par mois"
+
+"Les frais SMS se prélèvent même sans mouvement"
+
+"Les retraits coûtent 200 FCFA"
+
+🧾 Le Frais Appliqué
+C'est le reçu de caisse. Il contient :
+
+Date du prélèvement
+
+Montant
+
+Compte débité/crédité
+
+Statut (prélevé/en attente)
+
+🤖 Le Service de Calcul
+C'est le caissier automatique. Il :
+
+Vérifie les dates
+
+Calcule les montants
+
+Applique les règles
+
+Gère les exceptions
+
+📊 Exemple Concret : Mme Diallo
+Mme Diallo a un Compte Courant Particulier :
+
+text
+1er février : Ouvre compte → -3500 FCFA (frais ouverture)
+Tous les mois le 28/29/30/31 : 
+   - Frais tenue compte : -2000 FCFA
+   - Frais SMS : -200 FCFA
+À chaque retrait : -200 FCFA
+Si elle a un Compte Collecte Journalière :
+
+text
+Janvier : Collecte totale = 45.000 FCFA
+31 janvier : Frais = 300 FCFA (car < 50.000)
+
+Février : Collecte totale = 75.000 FCFA  
+28 février : Frais = 1000 FCFA (car ≥ 50.000)
+🛡️ Les Sécurités
+1. Vérification du Solde
+php
+if ($solde >= $frais) {
+    // Débite immédiatement
+} else {
+    // Met en compte d'attente
+}
+2. Blocage des Opérations
+php
+if ($solde < ($retrait + $frais_retrait)) {
+    return "Solde insuffisant pour couvrir frais";
+}
+3. Validation Humaine
+Certaines opérations (déblocage anticipé) nécessitent l'approbation du DG ou de l'assistant comptable.
+
+🔄 Le Cycle Mensuel en Image
+text
+DÉBUT DU MOIS
+    ↓
+OPÉRATIONS CLIENTS
+    ↓
+FIN DU MOIS (31/30/28/29)
+    ↓
+CALCUL DES FRAIS
+    ├── Tenue de compte
+    ├── SMS
+    └── Collecte (si applicable)
+    ↓
+APPLICATION
+    ├── Si solde suffisant → Débit immédiat
+    └── Si solde insuffisant → Compte d'attente
+    ↓
+COMPTABILISATION
+    ↓
+DÉBUT MOIS SUIVANT

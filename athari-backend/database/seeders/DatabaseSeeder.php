@@ -23,6 +23,10 @@ class DatabaseSeeder extends Seeder
             UserSeeder::class,
             TypesComptesSeeder::class,
             FraisCommissionSeeder::class,
+<<<<<<< HEAD
+=======
+            DatTypeSeeder::class,
+>>>>>>> dev
         ]);
     }
 }

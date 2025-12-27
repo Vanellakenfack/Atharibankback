@@ -13,14 +13,17 @@ class PlanComptableController extends Controller
     /**
      * Liste tous les comptes avec leur catégorie parente.
      */
-    public function index(): AnonymousResourceCollection
-    {
-        // On utilise 'with' pour éviter le problème N+1 (performance)
-        $comptes = PlanComptable::with('categorie')->get();
-        
-        return PlanComptableResource::collection($comptes);
-    }
-
+       // PlanComptableController.php
+public function index(): AnonymousResourceCollection
+{
+    // On retire paginate() pour get()
+    // On trie par code pour que le plan soit lisible
+    $comptes = PlanComptable::with('categorie')
+        ->orderBy('code', 'asc')
+        ->get(); 
+    
+    return PlanComptableResource::collection($comptes);
+}
     /**
      * Enregistre un nouveau chapitre comptable.
      */

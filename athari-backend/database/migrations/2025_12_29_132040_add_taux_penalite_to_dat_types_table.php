@@ -6,20 +6,26 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-
-    public function up(): void
+    /**
+     * Run the migrations.
+     */
+       public function up(): void
 {
     Schema::table('dat_types', function (Blueprint $table) {
-        // On ajoute les colonnes d'ID pour lier au Plan Comptable
-       
+        // Ajout de la colonne manquante
+        $table->decimal('taux_penalite', 5, 4)->default(0)->after('taux_interet');
     });
 }
 
 public function down(): void
 {
     Schema::table('dat_types', function (Blueprint $table) {
-        $table->dropForeign(['plan_comptable_penalite_id']);
-        $table->dropColumn(['plan_comptable_penalite_id']);
+        $table->dropColumn('taux_penalite');
     });
 }
+
+    /**
+     * Reverse the migrations.
+     */
+   
 };

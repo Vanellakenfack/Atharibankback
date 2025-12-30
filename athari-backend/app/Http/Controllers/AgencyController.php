@@ -34,9 +34,11 @@ class AgencyController extends Controller
         return new AgencyResource($agency);
     }
 
-    public function destroy(Agency $agency): JsonResponse
-    {
-        $agency->delete();
-        return response()->json(['message' => 'Agence supprimée'], 204);
-    }
+    // App\Http\Controllers\AgencyController.php
+public function destroy($id): JsonResponse
+{
+    $agency = Agency::findOrFail($id); // Cherche par ID, renvoie 404 si inexistant
+    $agency->delete();
+    return response()->json(['message' => 'Agence supprimée'], 204);
+}
 }

@@ -65,9 +65,13 @@ Route::middleware('auth:sanctum')->group(function () {
     */
    // Route::apiResource('agencies', AgencyController::class);
 
+  
+    Route::get('/agencies', [AgencyController::class, 'index']);
+    Route::post('/agencies', [AgencyController::class, 'store']); 
+    Route::delete('/agencies/{id}', [AgencyController::class, 'destroy']); 
+  Route::get('/agencies/{id}', [AgencyController::class, 'show']);
 
- Route::get('/agencies', [AgencyController::class, 'index']);
-Route::post('/agencies', [AgencyController::class, 'index']); // <-- ERREUR ICI
+
 
 
     /*
@@ -133,10 +137,13 @@ Route::post('/agencies', [AgencyController::class, 'index']); // <-- ERREUR ICI
     Route::prefix('dat')->group(function () {
         // Liste des contrats pour le tableau
         Route::get('/contracts', [DatContratController::class, 'index']); 
-        
+        Route::post('contracts', [DatContratController::class, 'store']); // Route pour créer
+
+       Route::post('{id}/valider', [DatContratController::class, 'valider']);
         // Liste des types (offres) pour la modale
         Route::get('/types', [DatTypeController::class, 'index']); 
         Route::post('/types', [DatTypeController::class, 'store']);
+        Route::put('/types/{id}', [DatTypeController::class, 'update']);
         
         // Action de souscription
         Route::post('/subscribe', [DatContratController::class, 'store']); 

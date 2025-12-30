@@ -45,9 +45,28 @@ class AuthController extends Controller
             ->withProperty('user_agent', $request->header('User-Agent')) // Ajoute l'agent utilisateur
             ->log("Connexion réussie depuis l'appareil : " . $request->device_name, 'auth.login'); 
         // -----------------------------
+            // --- Dans votre méthode login() ---
+
+$user = Auth::user();
+
+// Force la lecture directe en base de données via la relation Eloquent
+// On évite getRoleNames() qui s'appuie sur le cache et les guards
+$role = $user->roles()->first()?->name; // Récupération via la relation directe
+
+$abilities = [];
+
+// Le switch fonctionnera maintenant car $role contiendra "DG" ou "Admin"
+switch ($role) {
+    case 'DG':
+    case 'Admin':
+        $abilities = ['*'];
+        break;
+    // ... reste de vos cases ...
+    default:
+        $abilities = ['read:only'];
+}
 
         // Récupération du rôle principal de l'utilisateur (assumant l'utilisation de spatie/laravel-permission)
-        $role = $user->getRoleNames()->first();
         $abilities = [];
 
         // --- 2. DÉFINITION DES CAPACITÉS (ABILITIES) BASÉE SUR LE RÔLE ACL ---

@@ -190,11 +190,19 @@ class ClientController extends Controller
                     'data'       => $client->load($type === 'physique' ? 'physique' : 'morale')
                 ], 201);
             });
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur : ' . $e->getMessage()
-            ], 500);
-        }
+                    } catch (\Exception $e) {
+                // Si l'erreur est un doublon SQL (Code 23000)
+                if ($e->getCode() == 23000 || str_contains($e->getMessage(), 'Duplicate entry')) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Ce numéro de client a déjà été attribué. Veuillez réessayer.'
+                    ], 422);
+                }
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Erreur technique : ' . $e->getMessage()
+                ], 500);
+            }
     }
 }

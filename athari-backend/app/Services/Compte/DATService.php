@@ -13,146 +13,183 @@ use Exception;
 class DATService
 {
     /**
-     * INITIALISATION ET ACTIVATION DU CONTRAT
+     * ÉTAPE 1 : CRÉATION EN ATTENTE (Saisie)
+     * Remplace l'activation immédiate pour permettre la validation par le CA/DG.
      */
-    public function initialiserEtActiver($accountId, $datTypeId, $montant, $modeVersement = 'CAPITALISATION')
+    public function creerContratEnAttente(array $data)
     {
-        return DB::transaction(function () use ($accountId, $datTypeId, $montant, $modeVersement) {
-            $type = DatType::findOrFail($datTypeId);
-            $compte = Compte::findOrFail($accountId);
+        return DB::transaction(function () use ($data) {
+            $type = DatType::findOrFail($data['dat_type_id']);
 
-            if ($compte->solde < $montant) {
-                throw new Exception("Solde insuffisant pour ouvrir ce DAT.");
+            return ContratDat::create([
+                'numero_ordre'             => $this->genererNumeroOrdre(),
+                'statut'                   => 'EN_ATTENTE', // Statut pour le workflow de validation
+                'dat_type_id'              => $data['dat_type_id'],
+                'account_id'               => $data['account_id'],
+                'client_source_account_id' => $data['client_source_account_id'],
+                'destination_interet_id'   => $data['destination_interet_id'] ?? $data['client_source_account_id'],
+                'destination_capital_id'   => $data['destination_capital_id'] ?? $data['client_source_account_id'],
+                'montant_initial'          => $data['montant'],
+                'montant_actuel'           => $data['montant'],
+                'taux_interet_annuel'      => $type->taux_interet,
+                'taux_penalite_anticipe'   => $type->taux_penalite ?? 0,
+                'duree_mois'               => $type->duree_mois,
+                'periodicite'              => $data['periodicite'] ?? 'E',
+                'mode_versement'           => $data['mode_versement'] ?? 'CAPITALISATION',
+                'is_blocked'               => true,
+                'nb_tranches_actuel'       => 1,
+                'is_precompte'             => $data['is_precompte'] ?? false,
+                'is_jours_reels'           => $data['is_jours_reels'] ?? true,
+                'date_valeur'     => $data['date_valeur'], // <--- AJOUTER CETTE LIGNE
+
+                'date_execution'       => $data['date_execution'], // <--- AJOUTER CECI
+                'date_maturite'    => $data['date_maturite'],  //
+            ]);
+        });
+    }
+
+    /**
+     * ÉTAPE 2 : VALIDATION ET ACTIVATION COMPTABLE
+     * Appelée par le contrôleur (méthode valider) après approbation du CA/DG/CC.
+     */
+    public function validerEtActiver(ContratDat $contrat)
+    {
+        return DB::transaction(function () use ($contrat) {
+            $compteSource = Compte::findOrFail($contrat->client_source_account_id);
+            $compteDatInterne = Compte::findOrFail($contrat->account_id);
+
+            if ($compteSource->solde < $contrat->montant_initial) {
+                throw new Exception("Solde insuffisant sur le compte client pour activer ce DAT.");
             }
 
-            $contrat = ContratDat::create([
-                'account_id'              => $accountId,
-                'dat_type_id'             => $datTypeId,
-                'taux_interet_annuel'     => $type->taux_interet,
-                'taux_penalite_anticipe'  => $type->taux_penalite ?? 0.10,
-                'duree_mois'              => $type->duree_mois,
-                'capital_initial'         => $montant,
-                'montant_actuel'          => $montant,
-                'mode_versement'          => $modeVersement,
-                'is_blocked'              => true,
-                'date_ouverture'          => now(),
-                'date_scellage'           => now(),
-                'date_maturite_prevue'    => now()->addMonths($type->duree_mois),
-                // Utilisation des IDs vers la table plan_comptable
-                'plan_comptable_interet_id'  => $type->plan_comptable_interet_id,
-                'plan_comptable_penalite_id' => $type->plan_comptable_penalite_id,
+            // 1. Mouvements Comptables
+            $compteSource->decrement('solde', $contrat->montant_initial);
+            $compteDatInterne->increment('solde', $contrat->montant_initial);
+
+            $this->enregistrerMouvement($compteSource->id, $contrat->montant_initial, 'DEBIT', "Activation DAT {$contrat->numero_ordre}");
+            $this->enregistrerMouvement($compteDatInterne->id, $contrat->montant_initial, 'CREDIT', "Dépôt initial DAT {$contrat->numero_ordre}");
+
+            // 2. Mise à jour des dates et statut
+            $contrat->update([
+                'statut'         => 'ACTIF',
+                'date_execution' => now(),
+                'date_valeur'    => now(),
+                'date_maturite'  => now()->addMonths($contrat->duree_mois),
             ]);
-
-            $compte->decrement('solde', $montant);
-
-            $this->enregistrerMouvement($accountId, $montant, 'DEBIT', "Souscription DAT #{$contrat->id}");
 
             return $contrat;
         });
     }
 
     /**
-     * CALCULS DE SORTIE
+     * INITIALISATION ET ACTIVATION (Ancienne méthode conservée pour compatibilité)
+     */
+    public function initialiserEtActiver(array $data)
+    {
+        $contrat = $this->creerContratEnAttente($data);
+        return $this->validerEtActiver($contrat);
+    }
+
+    /**
+     * AJOUTER UN VERSEMENT (FONCTION DÉPOSER)
+     */
+    public function ajouterVersement(ContratDat $contrat, $montant)
+    {
+        return DB::transaction(function () use ($contrat, $montant) {
+            $compteSource = Compte::findOrFail($contrat->client_source_account_id);
+            $compteDatInterne = Compte::findOrFail($contrat->account_id);
+
+            if ($compteSource->solde < $montant) {
+                throw new Exception("Solde insuffisant pour ce versement supplémentaire.");
+            }
+
+            $compteSource->decrement('solde', $montant);
+            $compteDatInterne->increment('solde', $montant);
+
+            $this->enregistrerMouvement($compteSource->id, $montant, 'DEBIT', "Versement sup. DAT {$contrat->numero_ordre}");
+            $this->enregistrerMouvement($compteDatInterne->id, $montant, 'CREDIT', "Tranche DAT {$contrat->numero_ordre}");
+
+            $contrat->increment('montant_actuel', $montant);
+            $contrat->increment('nb_tranches_actuel');
+
+            return $contrat;
+        });
+    }
+
+    /**
+     * CALCUL DE SORTIE
      */
     public function calculerDetailsSortie(ContratDat $contrat)
     {
-        // Charger les libellés du plan comptable pour les mouvements
-        $contrat->load(['compteInteret', 'comptePenalite']);
-
-        $baseCalcul = $contrat->montant_actuel;
         $maintenant = now();
-        $dateOuverture = Carbon::parse($contrat->date_ouverture);
+        $dateMaturite = Carbon::parse($contrat->date_maturite);
+        $estAnticipe = $maintenant->lt($dateMaturite);
         
-        $joursPasses = $dateOuverture->diffInDays($maintenant);
-        $interetsGagnes = ($baseCalcul * $contrat->taux_interet_annuel * $joursPasses) / 360;
+        $joursPasses = Carbon::parse($contrat->date_valeur)->diffInDays($maintenant);
+        $interetsCourus = ($contrat->montant_actuel * ($contrat->taux_interet_annuel / 100) * $joursPasses) / 365;
 
-        $estAnticipe = $maintenant->lt(Carbon::parse($contrat->date_maturite_prevue));
-        $montantPenalite = $estAnticipe ? ($contrat->capital_initial * $contrat->taux_penalite_anticipe) : 0;
+        $penalite = 0;
+        if ($estAnticipe) {
+            $penalite = $contrat->montant_actuel * ($contrat->taux_penalite_anticipe / 100);
+        }
 
         return [
-            'capital_initial' => $contrat->capital_initial,
-            'capital_actuel'  => $baseCalcul,
-            'interets'        => round($interetsGagnes, 0),
-            'penalite'        => round($montantPenalite, 0),
-            'net_a_payer'     => round(($baseCalcul + $interetsGagnes) - $montantPenalite, 0),
-            'est_anticipe'    => $estAnticipe,
-            // Récupération des libellés depuis la relation plan_comptable
-            'libelle_int'     => $contrat->compteInteret->libelle ?? "Intérêts DAT",
-            'libelle_pen'     => $contrat->comptePenalite->libelle ?? "Pénalités DAT"
+            'capital_actuel'  => (float)$contrat->montant_actuel,
+            'interets_courus' => round($interetsCourus, 0),
+            'penalite'        => round($penalite, 0),
+            'net_a_payer'     => round(($contrat->montant_actuel + $interetsCourus) - $penalite, 0),
+            'est_anticipe'    => $estAnticipe
         ];
     }
 
     /**
-     * CLÔTURE FINALE DU CONTRAT
+     * CLÔTURE DÉFINITIVE
      */
     public function cloturerContrat(ContratDat $contrat)
     {
-        $details = $this->calculerDetailsSortie($contrat);
-
-        return DB::transaction(function () use ($contrat, $details) {
-            $contrat->compte->increment('solde', $details['net_a_payer']);
-
-            $this->enregistrerMouvement($contrat->account_id, $details['capital_actuel'], 'CREDIT', "Remboursement Capital DAT #{$contrat->id}");
+        return DB::transaction(function () use ($contrat) {
+            $details = $this->calculerDetailsSortie($contrat);
             
-            if ($details['interets'] > 0) {
-                $this->enregistrerMouvement($contrat->account_id, $details['interets'], 'CREDIT', $details['libelle_int']);
+            $compteDatInterne = Compte::findOrFail($contrat->account_id);
+            $compteDestCap = Compte::findOrFail($contrat->destination_capital_id);
+            $compteDestInt = Compte::findOrFail($contrat->destination_interet_id);
+
+            $compteDatInterne->decrement('solde', $contrat->montant_actuel);
+            
+            $montantCapitalNet = $details['capital_actuel'] - $details['penalite'];
+            $compteDestCap->increment('solde', $montantCapitalNet);
+            
+            if ($details['interets_courus'] > 0) {
+                $compteDestInt->increment('solde', $details['interets_courus']);
             }
 
-            if ($details['penalite'] > 0) {
-                $this->enregistrerMouvement($contrat->account_id, $details['penalite'], 'DEBIT', $details['libelle_pen']);
-            }
+            $this->enregistrerMouvement($compteDatInterne->id, $contrat->montant_actuel, 'DEBIT', "Fermeture DAT {$contrat->numero_ordre}");
+            $this->enregistrerMouvement($compteDestCap->id, $montantCapitalNet, 'CREDIT', "Retour Capital DAT");
 
             $contrat->update([
-                'statut' => 'TERMINE',
+                'statut' => $details['est_anticipe'] ? 'ANTICIPE' : 'CLOTURE',
                 'is_blocked' => false,
-                'date_cloture' => now()
+                'date_cloture_reelle' => now()
             ]);
 
             return $details;
         });
     }
 
-    /**
-     * ENREGISTREMENT MOUVEMENT
-     */
     private function enregistrerMouvement($accountId, $montant, $sens, $libelle)
     {
         return MouvementComptable::create([
-            'account_id' => $accountId,
-            'montant' => $montant,
-            'sens' => $sens,
-            'libelle' => $libelle,
+            'account_id'     => $accountId,
+            'montant'        => $montant,
+            'sens'           => $sens,
+            'libelle'        => $libelle,
             'date_operation' => now()
         ]);
     }
 
-    /**
-     * VERSEMENT COMPLÉMENTAIRE
-     */
-    public function ajouterVersement(ContratDat $contrat, $montant, $dureeMois)
+    private function genererNumeroOrdre()
     {
-        return DB::transaction(function () use ($contrat, $montant, $dureeMois) {
-            $compte = $contrat->compte;
-
-            if ($contrat->statut !== 'ACTIF' && $contrat->statut !== 'EN_ATTENTE') {
-                throw new Exception("État du contrat invalide.");
-            }
-
-            $contrat->increment('montant_actuel', $montant);
-            $contrat->increment('nb_tranches_actuel');
-            
-            if ($contrat->nb_tranches_actuel == 1) {
-                $contrat->date_scellage = now();
-                $contrat->date_maturite_prevue = now()->addMonths($dureeMois);
-                $contrat->statut = 'ACTIF';
-            }
-
-            $contrat->save();
-            $compte->decrement('solde', $montant);
-
-            $this->enregistrerMouvement($contrat->account_id, $montant, 'DEBIT', "Versement tranche DAT #{$contrat->id}");
-
-            return $contrat;
-        });
+        $count = ContratDat::whereYear('created_at', date('Y'))->count() + 1;
+        return "DAT-" . date('Y') . "-" . str_pad($count, 5, '0', STR_PAD_LEFT);
     }
 }

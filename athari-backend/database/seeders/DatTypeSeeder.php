@@ -9,55 +9,75 @@ class DatTypeSeeder extends Seeder
 {
     public function run(): void
     {
-        DB::table('dat_types')->insert([
+        // 1. RECHERCHE DES COMPTES RÉELS DANS VOTRE SQL IMPORTÉ
+        
+        // On cherche le compte de dépôt (Classe 25)
+        $compteChapitre = DB::table('plan_comptable')
+            ->where('code', 'like', '25%')
+            ->first();
+
+        // On cherche le compte de charge d'intérêts (Classe 6)
+        $compteInteret = DB::table('plan_comptable')
+            ->where('code', 'like', '612%') // Spécifique aux intérêts DAT dans votre SQL
+            ->first();
+
+        // On cherche le compte de pénalités/produits (Classe 721)
+        $comptePenalite = DB::table('plan_comptable')
+            ->where('code', 'like', '721%')
+            ->first();
+
+        // SÉCURITÉ : Vérifier si les comptes existent avant de continuer
+        if (!$compteChapitre || !$compteInteret || !$comptePenalite) {
+            $this->command->error("Erreur : Les comptes nécessaires (25, 612 ou 721) sont introuvables dans la table plan_comptable.");
+            return;
+        }
+
+        // 2. DÉFINITION DES OFFRES DAT
+        $typesDat = [
             [
-                'libelle' => 'DAT 9 MOIS',
-                'taux_interet' => 0.0450, // 4,50%
-                'duree_mois' => 9,
-                'taux_penalite' => 0.10, // 10%
-                'code_comptable_interet' => '61200001 INTERET DAT 9 MOIS',
-                'code_comptable_penalite' => '720610001 PENALITE DE DEBLOCAGE DAT 9 MOIS',
+                'libelle' => 'DAT 6 MOIS',
+                'taux_interet' => 0.0450,
+                'duree_mois' => 6,
+                'periodicite' => 'E',
             ],
             [
-                'libelle' => 'DAT 15 MOIS',
-                'taux_interet' => 0.0500, // 5% (basé sur le minimum de la plage 5%-5,5%)
-                'duree_mois' => 15,
-                'taux_penalite' => 0.10,
-                'code_comptable_interet' => '61200002 INTERET DAT 15 MOIS',
-                'code_comptable_penalite' => '720610002 PENALITE DE DEBLOCAGE DAT 15 MOIS',
+                'libelle' => 'DAT 12 MOIS',
+                'taux_interet' => 0.0600,
+                'duree_mois' => 12,
+                'periodicite' => 'E',
             ],
             [
                 'libelle' => 'DAT 24 MOIS',
-                'taux_interet' => 0.0600, // 6%
+                'taux_interet' => 0.0750,
                 'duree_mois' => 24,
-                'taux_penalite' => 0.10,
-                'code_comptable_interet' => '61200003 INTERET DAT 24 MOIS',
-                'code_comptable_penalite' => '720610003 PENALITE DE DEBLOCAGE DAT 24 MOIS',
+                'periodicite' => 'E',
             ],
             [
-                'libelle' => 'DAT TRÉSO+',
-                'taux_interet' => 0.0300, // 3%
+                'libelle' => 'DAT ÉPARGNE+',
+                'taux_interet' => 0.0350,
                 'duree_mois' => 3,
-                'taux_penalite' => 0.10,
-                'code_comptable_interet' => '61200004 INTERET DAT TRESO+ 3MOIS',
-                'code_comptable_penalite' => '720610004 PENALITE DE DEBLOCAGE DAT TRESO+ 3 MOIS',
-            ],
-            [
-                'libelle' => 'DAT SOLIDAIRE',
-                'taux_interet' => 0.0400, // 4%
-                'duree_mois' => 6,
-                'taux_penalite' => 0.10,
-                'code_comptable_interet' => '61200005 INTERET DAT SOLIDAIRE 6MOIS',
-                'code_comptable_penalite' => '720610005 PENALITE DE DEBLOCAGE DAT SOLIDAIRE 6 MOIS',
-            ],
-            [
-                'libelle' => 'DAT ÉCHELONNÉ',
-                'taux_interet' => 0.0300, // 3%
-                'duree_mois' => 12,
-                'taux_penalite' => 0.10,
-                'code_comptable_interet' => '61200006 INTERET DAT ECHELONNE 12 MOIS',
-                'code_comptable_penalite' => '720610006 PENALITE DE DEBLOCAGE DAT ECHELONNE',
-            ],
-        ]);
+                'periodicite' => 'M', // Mensuel
+            ]
+        ];
+
+        // 3. INSERTION DANS LA TABLE DAT_TYPES
+        foreach ($typesDat as $type) {
+            DB::table('dat_types')->updateOrInsert(
+                ['libelle' => $type['libelle']], // Si le libellé existe déjà, on met à jour
+                [
+                    'taux_interet' => $type['taux_interet'],
+                    'duree_mois' => $type['duree_mois'],
+                    'periodicite_defaut' => $type['periodicite'],
+                    'plan_comptable_chapitre_id' => $compteChapitre->id,
+                    'plan_comptable_interet_id' => $compteInteret->id,
+                    'plan_comptable_penalite_id' => $comptePenalite->id,
+                    'is_active' => true,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]
+            );
+        }
+
+        $this->command->info('Types de DAT créés avec succès en utilisant votre plan comptable !');
     }
 }

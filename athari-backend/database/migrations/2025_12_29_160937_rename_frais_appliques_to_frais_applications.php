@@ -11,10 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('dat_contracts', function (Blueprint $table) {
-               if (!Schema::hasColumn('dat_contracts', 'statut')) {
-            $table->string('statut')->default('EN_ATTENTE')->after('id');
-        }
+        Schema::table('frais_appliques', function (Blueprint $table) {
+            //
         });
     }
 
@@ -23,7 +21,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('dat_contracts', function (Blueprint $table) {
+        Schema::table('frais_appliques', function (Blueprint $table) {
             //
         });
     }

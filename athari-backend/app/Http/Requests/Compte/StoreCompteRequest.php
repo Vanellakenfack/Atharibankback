@@ -22,9 +22,6 @@ class StoreCompteRequest extends FormRequest
             'etape1.type_compte_id' => 'required|exists:types_comptes,id',
             'etape1.code_type_compte' => 'required|string|size:2',
             'etape1.devise' => 'required|in:FCFA,EURO,DOLLAR,POUND',
-            'etape1.gestionnaire_nom' => 'required|string|max:255',
-            'etape1.gestionnaire_prenom' => 'required|string|max:255',
-            'etape1.gestionnaire_code' => 'required|string|max:20',
             'etape1.rubriques_mata' => 'nullable|array',
             'etape1.rubriques_mata.*' => 'in:SANTE,BUSINESS,FETE,FOURNITURE,IMMO,SCOLARITE',
             'etape1.duree_blocage_mois' => 'nullable|integer|between:3,12',
@@ -32,6 +29,10 @@ class StoreCompteRequest extends FormRequest
             // Étape 2: Plan comptable (MODIFICATION)
             'etape2.plan_comptable_id' => 'required|exists:plan_comptable,id',
             'etape2.categorie_id' => 'nullable|exists:categories_comptables,id',
+            'etape2.gestionnaire_nom' => 'nullable|string|max:255',
+            'etape2.gestionnaire_prenom' => 'nullable|string|max:255',
+            'etape2.gestionnaire_code' => 'nullable|string|max:20',
+
 
             // Étape 3: Mandataires
             'etape3.mandataire_1.sexe' => 'required|in:masculin,feminin',

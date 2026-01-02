@@ -30,7 +30,8 @@ class DocumentService
         UploadedFile $fichier,
         string $typeDocument,
         ?string $description = null,
-        int $uploadedBy
+    ?int $uploadedBy = null ,
+
     ): DocumentCompte {
         // Valider la taille
         if ($fichier->getSize() > DocumentCompte::TAILLE_MAX) {

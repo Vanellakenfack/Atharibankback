@@ -25,9 +25,7 @@ return new class extends Migration
             $table->enum('devise', ['FCFA', 'EURO', 'DOLLAR', 'POUND'])->default('FCFA')->comment('Devise du compte');
             
             // Informations gestionnaire
-            $table->string('gestionnaire_nom')->comment('Nom du gestionnaire');
-            $table->string('gestionnaire_prenom')->comment('Prénom du gestionnaire');
-            $table->string('gestionnaire_code', 20)->comment('Code identifiant du gestionnaire');
+            $table->string('code_gestionnaire', 20)->comment('Code identifiant du gestionnaire');
             
             // Spécificités MATA (6 rubriques)
             $table->json('rubriques_mata')->nullable()->comment('Pour comptes MATA: SANTÉ, BUSINESS, FETE, FOURNITURE, IMMO, SCOLARITÉ');
@@ -48,7 +46,7 @@ return new class extends Migration
             $table->timestamp('date_ouverture')->useCurrent()->comment('Date d\'ouverture du compte');
             $table->timestamp('date_cloture')->nullable()->comment('Date de clôture du compte');
             $table->text('observations')->nullable()->comment('Observations diverses');
-            
+    
             $table->timestamps();
             $table->softDeletes();
             

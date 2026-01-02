@@ -79,15 +79,14 @@ class CompteController extends Controller
      * GET /api/comptes/{id}
      * Afficher un compte spécifique
      */
-    public function show(ShowCompteRequest $request,  $id): JsonResponse
+    public function show(ShowCompteRequest $request, int $id): JsonResponse
     {
         $compte = Compte::with([
             'client',
             'typeCompte',
             'planComptable',
             'mandataires',
-            'documents.uploader',
-         'contratsDat.type' 
+            'documents.uploader'
         ])->findOrFail($id);
 
         return response()->json([
@@ -283,12 +282,13 @@ class CompteController extends Controller
     public function store(StoreCompteRequest $request): JsonResponse
     {
         try {
-            $validated = $request->validated();
+           $data = $request->all();
+           // dd($validated['etape1']);
 
-            $donneesEtape1 = $validated['etape1'];
-            $donneesEtape2 = $validated['etape2'];
-            $donneesEtape3 = $validated['etape3'];
-            $donneesEtape4Raw = $validated['etape4'] ?? [];
+            $donneesEtape1 = $data['etape1'] ?? null;
+        $donneesEtape2 = $data['etape2'] ?? null;
+        $donneesEtape3 = $data['etape3'] ?? null;
+        $donneesEtape4Raw = $data['etape4'] ?? [];
 
             // Traiter les uploads de documents de manière plus robuste
             $documentsUploades = [];
@@ -464,6 +464,100 @@ class CompteController extends Controller
         return response()->json([
             'success' => true,
             'data' => $comptes,
+        ]);
+    }
+
+    /**
+ * GET /api/comptes/{id}/parametres-type-compte
+ * Récupérer les paramètres du type de compte pour un compte spécifique
+ */
+    public function getParametresTypeCompte(int $id): JsonResponse
+    {
+        $compte = Compte::with(['typeCompte'])->findOrFail($id);
+
+        if (!$compte->typeCompte) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Type de compte non trouvé',
+            ], 404);
+        }
+
+        $typeCompte = TypeCompte::with([
+            'chapitreDebit',
+            'chapitreCredit',
+            'chapitreFraisOuverture',
+            'chapitreFraisCarnet',
+            'chapitreCommissionRetrait',
+            'chapitreCommissionSms',
+            'chapitreInteretCredit',
+            'chapitrePenalite',
+        ])->findOrFail($compte->type_compte_id);
+
+        // Construire la réponse avec tous les paramètres
+        $parametres = [
+            'type_compte' => [
+                'id' => $typeCompte->id,
+                'code' => $typeCompte->code,
+                'libelle' => $typeCompte->libelle,
+                'description' => $typeCompte->description,
+                'est_mata' => $typeCompte->est_mata,
+                'a_vue' => $typeCompte->a_vue,
+                'necessite_duree' => $typeCompte->necessite_duree,
+            ],
+
+            'frais_et_commissions' => [
+                'frais_ouverture' => [
+                    'actif' => $typeCompte->frais_ouverture_actif,
+                    'montant' => $typeCompte->frais_ouverture,
+                    'chapitre' => $typeCompte->chapitreFraisOuverture,
+                ],
+                'frais_carnet' => [
+                    'actif' => $typeCompte->frais_carnet_actif,
+                    'montant' => $typeCompte->frais_carnet,
+                    'chapitre' => $typeCompte->chapitreFraisCarnet,
+                ],
+                'commission_mensuelle' => [
+                    'actif' => $typeCompte->commission_mensuelle_actif,
+                    'seuil' => $typeCompte->seuil_commission,
+                    'taux_superieur' => $typeCompte->commission_si_superieur,
+                    'taux_inferieur' => $typeCompte->commission_si_inferieur,
+                ],
+                'commission_retrait' => [
+                    'actif' => $typeCompte->commission_retrait_actif,
+                    'montant' => $typeCompte->commission_retrait,
+                    'chapitre' => $typeCompte->chapitreCommissionRetrait,
+                ],
+                'commission_sms' => [
+                    'actif' => $typeCompte->commission_sms_actif,
+                    'montant' => $typeCompte->commission_sms,
+                    'chapitre' => $typeCompte->chapitreCommissionSms,
+                ],
+            ],
+
+            'interets' => [
+                'actif' => $typeCompte->interets_actifs,
+                'taux_annuel' => $typeCompte->taux_interet_annuel,
+                'frequence_calcul' => $typeCompte->frequence_calcul_interet,
+                'heure_calcul' => $typeCompte->heure_calcul_interet,
+                'chapitre' => $typeCompte->chapitreInteretCredit,
+            ],
+
+            'penalites' => [
+                'actif' => $typeCompte->penalite_actif,
+                'taux_retrait_anticipe' => $typeCompte->penalite_retrait_anticipe,
+                'chapitre' => $typeCompte->chapitrePenalite,
+            ],
+
+            'chapitres_comptables' => [
+                'debit' => $typeCompte->chapitreDebit,
+                'credit' => $typeCompte->chapitreCredit,
+                'minimum_compte' => $typeCompte->chapitreMinimumCompte,
+            ],
+        ];
+
+        return response()->json([
+            'success' => true,
+            'data' => $parametres,
         ]);
     }
 }

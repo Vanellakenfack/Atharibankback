@@ -19,7 +19,6 @@ class CompteService
      * Générer un numéro de compte unique
      *
      * Format: AAA-CCCCCC-TT-O-K
-     * - AAA: Code agence (3 chiffres) - récupéré du client
      * - CCCCCC: Numéro client (6 chiffres)
      * - TT: Code type compte (2 chiffres)
      * - O: Numéro ordinal (nombre de comptes de même type)
@@ -31,20 +30,13 @@ class CompteService
      */
     public function genererNumeroCompte(int $clientId, string $codeTypeCompte): string
     {
-        $client = Client::with('agency')->findOrFail($clientId);
+        $client = Client::findOrFail($clientId);
+        $numeroClient = $client->num_client;
 
-        // Récupérer le numéro de client et le formater si nécessaire
-        $numeroClient = $client->num_client ?? str_pad($client->id, 6, '0', STR_PAD_LEFT);
-
-        // Récupérer le code agence (3 premiers caractères du numéro d'agence)
-        $codeAgence = $client->agency ?
-            str_pad(substr($client->agency->code_agence ?? '001', 0, 3), 3, '0', STR_PAD_LEFT) :
-            '001';
-
-        // Prendre les 6 premiers caractères du numéro client
-        $numClient = str_pad(substr($numeroClient, 0, 6), 6, '0', STR_PAD_LEFT);
-
-        // Si le numéro de client est trop court, on le complète avec des zéros
+        // Vérifier que le numéro client est exactement de 9 chiffres
+        if (!preg_match('/^\d{9}$/', $numeroClient)) {
+            throw new \Exception("Numéro client invalide pour la génération de compte : doit être exactement 9 chiffres.");
+        }
 
         $nombreComptesMemetype = Compte::where('client_id', $clientId)
             ->whereHas('typeCompte', function ($query) use ($codeTypeCompte) {
@@ -54,12 +46,13 @@ class CompteService
 
         $numeroOrdinal = $nombreComptesMemetype + 1;
 
-        $numeroSansCle = $codeAgence . $numClient . str_pad($codeTypeCompte, 2, '0', STR_PAD_LEFT) . $numeroOrdinal;
+        $numeroSansCle = $numeroClient . str_pad($codeTypeCompte, 2, '0', STR_PAD_LEFT) . $numeroOrdinal;
 
         $cle = $this->genererCleControle($numeroSansCle);
 
         return $numeroSansCle . $cle;
     }
+
 
     /**
      * Générer une clé de contrôle (lettre majuscule)
@@ -96,10 +89,12 @@ class CompteService
                 $donneesEtape1['client_id'],
                 $donneesEtape1['code_type_compte']
             );
-
-            // Vérifier que le plan comptable est fourni et existe
-            if (empty($donneesEtape2['plan_comptable_id'])) {
-                throw new \InvalidArgumentException('Le plan comptable est obligatoire');
+            $typeCompte = TypeCompte::findOrFail($donneesEtape1['type_compte_id']);
+            // 🔹 2. Vérification sécurité
+            if (!$typeCompte->chapitre_defaut_id) {
+                throw new \Exception(
+                    "Aucun plan comptable par défaut défini pour le type de compte {$typeCompte->libelle}"
+                );
             }
 
             // Créer le compte avec plan_comptable_id
@@ -107,16 +102,16 @@ class CompteService
                 'numero_compte' => $numeroCompte,
                 'client_id' => $donneesEtape1['client_id'],
                 'type_compte_id' => $donneesEtape1['type_compte_id'],
-                'plan_comptable_id' => $donneesEtape2['plan_comptable_id'],
+            'plan_comptable_id'  => $donneesEtape2['plan_comptable_id'],
                 'devise' => $donneesEtape1['devise'],
-                'gestionnaire_nom' => $donneesEtape1['gestionnaire_nom'],
-                'gestionnaire_prenom' => $donneesEtape1['gestionnaire_prenom'],
-                'gestionnaire_code' => $donneesEtape1['gestionnaire_code'],
+               'gestionnaire_nom' => $donneesEtape2['gestionnaire_nom'] ?? 'Inconnu',
+               'gestionnaire_prenom' => $donneesEtape2['gestionnaire_prenom'] ?? 'Inconnu',
+              'gestionnaire_code' => $donneesEtape2['gestionnaire_code'] ?? 'N/A',
                 'rubriques_mata' => $donneesEtape1['rubriques_mata'] ?? null,
                 'duree_blocage_mois' => $donneesEtape1['duree_blocage_mois'] ?? null,
                 'statut' => 'actif',
-                'solde' => 0,
-                'notice_acceptee' => $donneesEtape4['notice_acceptee'],
+                'solde' => $donneesEtape2['solde'],
+               'notice_acceptee' => $donneesEtape4['notice_acceptee'],
                 'date_acceptation_notice' => now(),
                 'signature_path' => $donneesEtape4['signature_path'] ?? null,
                 'date_ouverture' => now(),
@@ -163,12 +158,14 @@ class CompteService
             'type_compte_id' => 'required|exists:types_comptes,id',
             'code_type_compte' => 'required|string|size:2',
             'devise' => 'required|in:FCFA,EURO,DOLLAR,POUND',
-            'gestionnaire_nom' => 'required|string|max:255',
-            'gestionnaire_prenom' => 'required|string|max:255',
-            'gestionnaire_code' => 'required|string|max:20',
+            'gestionnaire_nom' => 'nullable|string|max:255',
+            'gestionnaire_prenom' => 'nullable|string|max:255',
+            'gestionnaire_code' => 'nullable|string|max:20',
             'rubriques_mata' => 'nullable|array',
             'rubriques_mata.*' => 'in:SANTE,BUSINESS,FETE,FOURNITURE,IMMO,SCOLARITE',
             'duree_blocage_mois' => 'nullable|integer|between:3,12',
+            'solde' => 'nullable|integer|min:0',
+
         ])->validate();
     }
 

@@ -160,7 +160,7 @@ class DatContratController extends Controller implements HasMiddleware
 
         try {
             $type = DatType::findOrFail($request->dat_type_id);
-            $gain_brut = ($request->montant * ($type->taux_interet / 100) * $type->duree_mois) / 12;
+            $gain_brut = ($request->montant * ($type->taux_interet ) * $type->duree_mois) / 12;
 
             return response()->json([
                 'success' => true,

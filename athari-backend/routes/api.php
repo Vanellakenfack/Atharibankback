@@ -22,6 +22,8 @@ use App\Http\Controllers\frais\FraisApplicationController;
 use App\Http\Controllers\frais\MouvementRubriqueMataController;
 use App\Http\Controllers\Compte\DatContratController;
 use App\Http\Controllers\Compte\DatTypeController;
+    use App\Http\Controllers\DashboardController;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -270,4 +272,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('permission:consulter logs')->group(function () {
         Route::get('/audit/logs', [AuditLogController::class, 'index']);
     });
+
+    /**dashbord */
+
+
+// Ajoutez cette ligne dans votre fichier routes/api.php
+Route::get('/dashboard/stats', [DashboardController::class, 'getStats']);
 });

@@ -176,16 +176,25 @@ class DATService
         });
     }
 
-    private function enregistrerMouvement($accountId, $montant, $sens, $libelle)
-    {
-        return MouvementComptable::create([
-            'account_id'     => $accountId,
-            'montant'        => $montant,
-            'sens'           => $sens,
-            'libelle'        => $libelle,
-            'date_operation' => now()
-        ]);
+   private function enregistrerMouvement($accountId, $montant, $sens, $libelle)
+{
+    // Important : On s'assure que $accountId n'est pas nul
+    if (!$accountId) {
+        throw new \Exception("ID de compte manquant");
     }
+
+    return MouvementComptable::create([
+        'compte_id'         => $accountId,        // Vérifiez que c'est bien l'ID (ex: 4)
+        'date_mouvement'    => now(),
+        'libelle_mouvement' => $libelle,
+        'montant_debit'     => ($sens === 'DEBIT') ? $montant : 0,
+        'montant_credit'    => ($sens === 'CREDIT') ? $montant : 0,
+        'compte_debit_id'   => 500,                // Doit exister dans plan_comptable
+        'compte_credit_id'  => 500,               // Doit exister dans plan_comptable
+        'journal'           => 'BANQUE',
+        'statut'            => 'COMPTABILISE',
+    ]);
+}
 
     private function genererNumeroOrdre()
     {

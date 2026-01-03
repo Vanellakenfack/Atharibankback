@@ -310,4 +310,249 @@ class UserController extends Controller
             'permissions' => $user->getAllPermissions()->pluck('name'),
         ]);
     }
+
+    /**
+ * Crée un nouveau rôle.
+ */
+public function storeRole(Request $request)
+{
+    // Vérification des permissions
+    if (!$request->user()->can('gerer roles et permissions')) {
+        return response()->json(['message' => 'Action non autorisée'], 403);
+    }
+
+    $validated = $request->validate([
+        'name' => ['required', 'string', 'max:255', 'unique:roles,name'],
+        'permissions' => ['sometimes', 'array'],
+        'permissions.*' => ['string', 'exists:permissions,name'],
+    ], [
+        'name.required' => 'Le nom du rôle est obligatoire.',
+        'name.unique' => 'Ce nom de rôle existe déjà.',
+    ]);
+
+    $role = Role::create(['name' => $validated['name'], 'guard_name' => 'web']);
+
+    // Assigner les permissions si fournies
+    if (isset($validated['permissions'])) {
+        $role->syncPermissions($validated['permissions']);
+    }
+
+    return response()->json([
+        'message' => 'Rôle créé avec succès',
+        'role' => [
+            'id' => $role->id,
+            'name' => $role->name,
+            'permissions' => $role->permissions->pluck('name'),
+            'created_at' => $role->created_at->format('Y-m-d H:i:s'),
+            'updated_at' => $role->updated_at->format('Y-m-d H:i:s'),
+        ],
+    ], 201);
+}
+
+/**
+ * Met à jour un rôle existant.
+ */
+public function updateRole(Request $request, Role $role)
+{
+    // Vérification des permissions
+    if (!$request->user()->can('gerer roles et permissions')) {
+        return response()->json(['message' => 'Action non autorisée'], 403);
+    }
+
+    // Empêcher la modification des rôles systèmes (si nécessaire)
+    $systemRoles = ['DG', 'Admin'];
+    if (in_array($role->name, $systemRoles)) {
+        return response()->json([
+            'message' => 'Ce rôle système ne peut pas être modifié'
+        ], 403);
+    }
+
+    $validated = $request->validate([
+        'name' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('roles')->ignore($role->id)],
+        'permissions' => ['sometimes', 'array'],
+        'permissions.*' => ['string', 'exists:permissions,name'],
+    ], [
+        'name.required' => 'Le nom du rôle est obligatoire.',
+        'name.unique' => 'Ce nom de rôle existe déjà.',
+    ]);
+
+    if (isset($validated['name'])) {
+        $role->name = $validated['name'];
+        $role->save();
+    }
+
+    // Synchroniser les permissions si fournies
+    if (isset($validated['permissions'])) {
+        $role->syncPermissions($validated['permissions']);
+    }
+
+    $role->load('permissions');
+
+    return response()->json([
+        'message' => 'Rôle mis à jour avec succès',
+        'role' => [
+            'id' => $role->id,
+            'name' => $role->name,
+            'permissions' => $role->permissions->pluck('name'),
+            'created_at' => $role->created_at->format('Y-m-d H:i:s'),
+            'updated_at' => $role->updated_at->format('Y-m-d H:i:s'),
+        ],
+    ]);
+}
+
+/**
+ * Supprime un rôle.
+ */
+public function destroyRole(Request $request, Role $role)
+{
+    // Vérification des permissions
+    if (!$request->user()->can('gerer roles et permissions')) {
+        return response()->json(['message' => 'Action non autorisée'], 403);
+    }
+
+    // Empêcher la suppression des rôles systèmes
+    $systemRoles = ['DG', 'Admin'];
+    if (in_array($role->name, $systemRoles)) {
+        return response()->json([
+            'message' => 'Ce rôle système ne peut pas être supprimé'
+        ], 403);
+    }
+
+    // Vérifier si des utilisateurs utilisent ce rôle
+    $userCount = $role->users()->count();
+    if ($userCount > 0) {
+        return response()->json([
+            'message' => "Ce rôle est utilisé par $userCount utilisateur(s). Réassignez-les avant de supprimer le rôle.",
+        ], 400);
+    }
+
+    $role->delete();
+
+    return response()->json([
+        'message' => 'Rôle supprimé avec succès'
+    ]);
+}
+
+/**
+ * Synchronise les permissions d'un rôle.
+ */
+public function syncRolePermissions(Request $request, Role $role)
+{
+    if (!$request->user()->can('gerer roles et permissions')) {
+        return response()->json(['message' => 'Action non autorisée'], 403);
+    }
+
+    $validated = $request->validate([
+        'permissions' => ['required', 'array'],
+        'permissions.*' => ['string', 'exists:permissions,name'],
+    ]);
+
+    $role->syncPermissions($validated['permissions']);
+
+    return response()->json([
+        'message' => 'Permissions synchronisées avec succès',
+        'permissions' => $role->permissions->pluck('name'),
+    ]);
+}
+
+/**
+ * Crée une nouvelle permission.
+ */
+public function storePermission(Request $request)
+{
+    // Vérification des permissions
+    if (!$request->user()->can('gerer roles et permissions')) {
+        return response()->json(['message' => 'Action non autorisée'], 403);
+    }
+
+    $validated = $request->validate([
+        'name' => ['required', 'string', 'max:255', 'unique:permissions,name'],
+        'description' => ['nullable', 'string', 'max:500'],
+    ], [
+        'name.required' => 'Le nom de la permission est obligatoire.',
+        'name.unique' => 'Cette permission existe déjà.',
+    ]);
+
+    $permission = Permission::create([
+        'name' => $validated['name'],
+        'guard_name' => 'web',
+        'description' => $validated['description'] ?? null,
+    ]);
+
+    return response()->json([
+        'message' => 'Permission créée avec succès',
+        'permission' => [
+            'id' => $permission->id,
+            'name' => $permission->name,
+            'description' => $permission->description,
+            'created_at' => $permission->created_at->format('Y-m-d H:i:s'),
+            'updated_at' => $permission->updated_at->format('Y-m-d H:i:s'),
+        ],
+    ], 201);
+}
+
+/**
+ * Met à jour une permission existante.
+ */
+public function updatePermission(Request $request, Permission $permission)
+{
+    // Vérification des permissions
+    if (!$request->user()->can('gerer roles et permissions')) {
+        return response()->json(['message' => 'Action non autorisée'], 403);
+    }
+
+    $validated = $request->validate([
+        'name' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('permissions')->ignore($permission->id)],
+        'description' => ['nullable', 'string', 'max:500'],
+    ], [
+        'name.required' => 'Le nom de la permission est obligatoire.',
+        'name.unique' => 'Cette permission existe déjà.',
+    ]);
+
+    if (isset($validated['name'])) {
+        $permission->name = $validated['name'];
+    }
+    
+    if (isset($validated['description'])) {
+        $permission->description = $validated['description'];
+    }
+    
+    $permission->save();
+
+    return response()->json([
+        'message' => 'Permission mise à jour avec succès',
+        'permission' => [
+            'id' => $permission->id,
+            'name' => $permission->name,
+            'description' => $permission->description,
+            'created_at' => $permission->created_at->format('Y-m-d H:i:s'),
+            'updated_at' => $permission->updated_at->format('Y-m-d H:i:s'),
+        ],
+    ]);
+}
+
+/**
+ * Supprime une permission.
+ */
+public function destroyPermission(Request $request, Permission $permission)
+{
+    // Vérification des permissions
+    if (!$request->user()->can('gerer roles et permissions')) {
+        return response()->json(['message' => 'Action non autorisée'], 403);
+    }
+
+    // Vérifier si la permission est utilisée par des rôles
+    $roleCount = $permission->roles()->count();
+    if ($roleCount > 0) {
+        return response()->json([
+            'message' => "Cette permission est utilisée par $roleCount rôle(s). Retirez-la d'abord des rôles.",
+        ], 400);
+    }
+
+    $permission->delete();
+
+    return response()->json([
+        'message' => 'Permission supprimée avec succès'
+    ]);
+}
 }

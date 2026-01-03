@@ -17,14 +17,13 @@ class CompteService
 {
     /**
      * Générer un numéro de compte unique
-     * 
+     *
      * Format: AAA-CCCCCC-TT-O-K
-     * - AAA: Code agence (3 chiffres) - récupéré du client
      * - CCCCCC: Numéro client (6 chiffres)
      * - TT: Code type compte (2 chiffres)
      * - O: Numéro ordinal (nombre de comptes de même type)
      * - K: Clé de contrôle (lettre majuscule)
-     * 
+     *
      * @param int $clientId ID du client
      * @param string $codeTypeCompte Code du type de compte (2 chiffres)
      * @return string Numéro de compte généré
@@ -32,32 +31,32 @@ class CompteService
     public function genererNumeroCompte(int $clientId, string $codeTypeCompte): string
     {
         $client = Client::findOrFail($clientId);
-        
-        $numeroClient = $client->numero_client;
-        $codeAgence = substr($numeroClient, 0, 3);
-        $numClient = substr($numeroClient, 3, 6);
-        if (strlen($numeroClient) < 9) {
-            throw new \Exception("Numéro client invalide pour la génération de compte");
+        $numeroClient = $client->num_client;
+
+        // Vérifier que le numéro client est exactement de 9 chiffres
+        if (!preg_match('/^\d{9}$/', $numeroClient)) {
+            throw new \Exception("Numéro client invalide pour la génération de compte : doit être exactement 9 chiffres.");
         }
-        
+
         $nombreComptesMemetype = Compte::where('client_id', $clientId)
             ->whereHas('typeCompte', function ($query) use ($codeTypeCompte) {
                 $query->where('code', $codeTypeCompte);
             })
             ->count();
-        
+
         $numeroOrdinal = $nombreComptesMemetype + 1;
-        
-        $numeroSansCle = $codeAgence . $numClient . str_pad($codeTypeCompte, 2, '0', STR_PAD_LEFT) . $numeroOrdinal;
-        
+
+        $numeroSansCle = $numeroClient . str_pad($codeTypeCompte, 2, '0', STR_PAD_LEFT) . $numeroOrdinal;
+
         $cle = $this->genererCleControle($numeroSansCle);
-        
+
         return $numeroSansCle . $cle;
     }
 
+
     /**
      * Générer une clé de contrôle (lettre majuscule)
-     * 
+     *
      * @param string $numeroSansCle Numéro de compte sans la clé
      * @return string Lettre majuscule
      */
@@ -71,46 +70,53 @@ class CompteService
 
     /**
      * Créer un nouveau compte bancaire (processus complet en 4 étapes)
-     * 
+     *
      * @param array $donneesEtape1 Données de l'étape 1
      * @param array $donneesEtape2 Données de l'étape 2
      * @param array $donneesEtape3 Données de l'étape 3
      * @param array $donneesEtape4 Données de l'étape 4
      * @return Compte Compte créé
      */
-public function creerCompte(
+    public function creerCompte(
         array $donneesEtape1,
         array $donneesEtape2,
         array $donneesEtape3,
         array $donneesEtape4
     ): Compte {
         return DB::transaction(function () use ($donneesEtape1, $donneesEtape2, $donneesEtape3, $donneesEtape4) {
-            
+
             $numeroCompte = $this->genererNumeroCompte(
                 $donneesEtape1['client_id'],
                 $donneesEtape1['code_type_compte']
             );
-            
+            $typeCompte = TypeCompte::findOrFail($donneesEtape1['type_compte_id']);
+            // 🔹 2. Vérification sécurité
+            if (!$typeCompte->chapitre_defaut_id) {
+                throw new \Exception(
+                    "Aucun plan comptable par défaut défini pour le type de compte {$typeCompte->libelle}"
+                );
+            }
+
             // Créer le compte avec plan_comptable_id
             $compte = Compte::create([
                 'numero_compte' => $numeroCompte,
                 'client_id' => $donneesEtape1['client_id'],
                 'type_compte_id' => $donneesEtape1['type_compte_id'],
-                'plan_comptable_id' => 'required|exists:plan_comptables,id', // MODIFICATION
+            'plan_comptable_id'  => $donneesEtape2['plan_comptable_id'],
                 'devise' => $donneesEtape1['devise'],
-                'gestionnaire_nom' => $donneesEtape1['gestionnaire_nom'],
-                'gestionnaire_prenom' => $donneesEtape1['gestionnaire_prenom'],
-                'gestionnaire_code' => $donneesEtape1['gestionnaire_code'],
+               'gestionnaire_nom' => $donneesEtape2['gestionnaire_nom'] ?? 'Inconnu',
+               'gestionnaire_prenom' => $donneesEtape2['gestionnaire_prenom'] ?? 'Inconnu',
+              'gestionnaire_code' => $donneesEtape2['gestionnaire_code'] ?? 'N/A',
                 'rubriques_mata' => $donneesEtape1['rubriques_mata'] ?? null,
                 'duree_blocage_mois' => $donneesEtape1['duree_blocage_mois'] ?? null,
                 'statut' => 'actif',
-                'solde' => 0,
-                'notice_acceptee' => $donneesEtape4['notice_acceptee'],
+                'solde' => $donneesEtape2['solde'],
+               'notice_acceptee' => $donneesEtape4['notice_acceptee'],
                 'date_acceptation_notice' => now(),
                 'signature_path' => $donneesEtape4['signature_path'] ?? null,
                 'date_ouverture' => now(),
             ]);
-            
+
             // Créer les mandataires
             if (isset($donneesEtape3['mandataire_1'])) {
                 $compte->mandataires()->create(array_merge(
@@ -118,21 +124,21 @@ public function creerCompte(
                     ['ordre' => 1]
                 ));
             }
-            
+
             if (isset($donneesEtape3['mandataire_2'])) {
                 $compte->mandataires()->create(array_merge(
                     $donneesEtape3['mandataire_2'],
                     ['ordre' => 2]
                 ));
             }
-            
+
             // Enregistrer les documents
             if (isset($donneesEtape4['documents'])) {
                 foreach ($donneesEtape4['documents'] as $document) {
                     $compte->documents()->create($document);
                 }
             }
-            
+
             return $compte->load(['client', 'typeCompte', 'planComptable.categorie', 'mandataires', 'documents']);
         });
     }
@@ -140,7 +146,7 @@ public function creerCompte(
 
     /**
      * Valider les données de l'étape 1
-     * 
+     *
      * @param array $donnees Données à valider
      * @return array Données validées
      * @throws \Illuminate\Validation\ValidationException
@@ -152,18 +158,20 @@ public function creerCompte(
             'type_compte_id' => 'required|exists:types_comptes,id',
             'code_type_compte' => 'required|string|size:2',
             'devise' => 'required|in:FCFA,EURO,DOLLAR,POUND',
-            'gestionnaire_nom' => 'required|string|max:255',
-            'gestionnaire_prenom' => 'required|string|max:255',
-            'gestionnaire_code' => 'required|string|max:20',
+            'gestionnaire_nom' => 'nullable|string|max:255',
+            'gestionnaire_prenom' => 'nullable|string|max:255',
+            'gestionnaire_code' => 'nullable|string|max:20',
             'rubriques_mata' => 'nullable|array',
             'rubriques_mata.*' => 'in:SANTE,BUSINESS,FETE,FOURNITURE,IMMO,SCOLARITE',
             'duree_blocage_mois' => 'nullable|integer|between:3,12',
+            'solde' => 'nullable|integer|min:0',
+
         ])->validate();
     }
 
     /**
      * Valider les données de l'étape 2
-     * 
+     *
      * @param array $donnees Données à valider
      * @return array Données validées
      */
@@ -177,7 +185,7 @@ public function creerCompte(
 
     /**
      * Valider les données de l'étape 3 (mandataires)
-     * 
+     *
      * @param array $donnees Données à valider
      * @return array Données validées
      */
@@ -202,7 +210,7 @@ public function creerCompte(
             'mandataire_1.lieu_naissance_conjoint' => 'required_if:mandataire_1.situation_familiale,marie|nullable|string|max:255',
             'mandataire_1.cni_conjoint' => 'required_if:mandataire_1.situation_familiale,marie|nullable|string|max:50',
             'mandataire_1.signature_path' => 'nullable|string',
-            
+
             // Mandataire 2 (optionnel)
             'mandataire_2.sexe' => 'nullable|in:masculin,feminin',
             'mandataire_2.nom' => 'nullable|string|max:255',
@@ -228,7 +236,7 @@ public function creerCompte(
 
     /**
      * Valider les données de l'étape 4 (documents et validation)
-     * 
+     *
      * @param array $donnees Données à valider
      * @return array Données validées
      */
@@ -260,7 +268,7 @@ public function creerCompte(
 
     /**
      * Mettre à jour un compte
-     * 
+     *
      * @param int $compteId ID du compte
      * @param array $donnees Données à mettre à jour
      * @return Compte Compte mis à jour
@@ -268,15 +276,15 @@ public function creerCompte(
     public function mettreAJourCompte(int $compteId, array $donnees): Compte
     {
         $compte = Compte::findOrFail($compteId);
-        
+
         $compte->update($donnees);
-        
+
         return $compte->fresh();
     }
 
     /**
      * Clôturer un compte
-     * 
+     *
      * @param int $compteId ID du compte
      * @param string|null $motif Motif de clôture
      * @return Compte Compte clôturé
@@ -284,18 +292,18 @@ public function creerCompte(
     public function cloturerCompte(int $compteId, ?string $motif = null): Compte
     {
         $compte = Compte::findOrFail($compteId);
-        
+
         // Vérifier que le solde est à zéro
         if ($compte->solde != 0) {
             throw new \Exception('Le compte doit avoir un solde de 0 pour être clôturé.');
         }
-        
+
         $compte->update([
             'statut' => 'cloture',
             'date_cloture' => now(),
             'observations' => $motif,
         ]);
-        
+
         return $compte;
     }
 

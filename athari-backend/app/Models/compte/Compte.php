@@ -3,6 +3,10 @@
 namespace App\Models\compte;
 use App\Models\chapitre\PlanComptable;
 use App\Models\client\Client;
+use App\Models\frais\MouvementRubriqueMata;
+use App\Services\Frais\GestionRubriqueMataService;
+
+
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -19,9 +23,9 @@ class Compte extends Model
         'type_compte_id',
         'plan_comptable_id', // MODIFICATION: Remplace chapitre_comptable_id
         'devise',
-        'gestionnaire_nom',
-        'gestionnaire_prenom',
         'gestionnaire_code',
+        'gestionnaire_nom',    // DOIT ÊTRE PRÉSENT
+       'gestionnaire_prenom', // DOIT ÊTRE PRÉSENT
         'rubriques_mata',
         'duree_blocage_mois',
         'statut',
@@ -117,10 +121,10 @@ class Compte extends Model
     {
         // Format: XXX-XXXXXX-XX-X-X (Agence-Client-Type-Ordre-Clé)
         $num = $this->numero_compte;
-        return substr($num, 0, 3) . '-' . 
-               substr($num, 3, 6) . '-' . 
-               substr($num, 9, 2) . '-' . 
-               substr($num, 11, 1) . '-' . 
+        return substr($num, 0, 3) . '-' .
+               substr($num, 3, 6) . '-' .
+               substr($num, 9, 2) . '-' .
+               substr($num, 11, 1) . '-' .
                substr($num, 12, 1);
     }
 
@@ -139,11 +143,7 @@ class Compte extends Model
     {
         return $this->typeCompte->necessite_duree;
     }
-   // App\Models\Compte\Compte.php
-        public function contratsDat()
-        {
-            return $this->hasMany(ContratDat::class, 'account_id');
-        }
+
     /**
      * Obtenir le solde formaté avec devise
      */
@@ -172,7 +172,7 @@ class Compte extends Model
     {
         return $this->hasMany(MouvementRubriqueMata::class);
     }
-    
+
     /**
      * Obtenir le récapitulatif des rubriques MATA
      */
@@ -181,11 +181,11 @@ class Compte extends Model
         if (!$this->typeCompte->est_mata) {
             return null;
         }
-        
+
         $service = app(GestionRubriqueMataService::class);
         return $service->getRecapitulatifRubriques($this);
     }
-    
+
     /**
      * Obtenir le solde d'une rubrique spécifique
      */

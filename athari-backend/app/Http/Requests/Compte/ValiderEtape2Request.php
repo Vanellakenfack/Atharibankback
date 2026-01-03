@@ -23,7 +23,7 @@ class ValiderEtape2Request extends FormRequest
     public function rules(): array
     {
         return [
-            'chapitre_comptable_id' => 'required|exists:chapitres_comptables,id',
+            'plan_comptable_id' => 'required|exists:plan_comptable,id',
         ];
     }
 

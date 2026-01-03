@@ -14,8 +14,10 @@ return new class extends Migration
     $table->id();
     $table->string('libelle'); 
     $table->decimal('taux_interet', 5, 4); 
+        $table->decimal('taux_penalite', 5, 4)->default(0)->after('taux_interet');
+
     $table->integer('duree_mois'); 
-    $table->foreignId('plan_comptable_chapitre_id')->constrained('plan_comptable');
+    $table->foreignId('plan_comptable_chapitre_id');
     
     // --- LIAISONS COMPTABLES (Le Cœur du Système) ---
     // 1. Le Chapitre : Définit la famille comptable (ex: Chapitre 25 pour les dépôts)

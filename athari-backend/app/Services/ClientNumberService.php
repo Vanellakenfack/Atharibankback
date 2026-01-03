@@ -2,28 +2,27 @@
 
 namespace App\Services;
 
-use App\Models\client\Client;
-use App\Models\Agency;
+use App\Models\Client\Client;
+use Illuminate\Support\Facades\DB;
 
 class ClientNumberService
 {
-    /**
-     * Génère un numéro de client unique sur 9 chiffres
-     * Format: [Code Agence (3)] + [Incrément (6)]
-     */
-    public function generate(int $agencyId): string
+    public static function generate($agencyId)
     {
-        // 1. Récupérer le code de l'agence (ex: 001)
-        $agency = Agency::findOrFail($agencyId);
-        $agencyCode = str_pad($agency->code, 3, '0', STR_PAD_LEFT);
-
-        // 2. Compter le nombre de clients existants dans cette agence pour l'incrément
-        // On ajoute 1 pour le nouveau client
-        $count = Client::where('agency_id', $agencyId)->count() + 1;
+        // 1. Récupérer le CODE réel de l'agence (ex: "001") via son ID
+        $agency = DB::table('agencies')->where('id', $agencyId)->first();
         
-        // 3. Formater l'incrément sur 6 chiffres (ex: 000042)
-        $increment = str_pad($count, 6, '0', STR_PAD_LEFT);
+        // Sécurité : si l'agence n'est pas trouvée, on peut gérer une erreur ou un code par défaut
+        $agencyCode = $agency ? $agency->code : str_pad($agencyId, 3, '0', STR_PAD_LEFT);
 
+        // 2. Compter les clients de cette agence pour l'incrément 
+        $count = Client::where('agency_id', $agencyId)->count();
+        $nextNumber = $count + 1;
+
+        // 3. Formater l'incrément sur 6 chiffres 
+        $increment = str_pad($nextNumber, 6, '0', STR_PAD_LEFT);
+
+        // Résultat : CodeAgence (3 chars) + Incrément (6 chars)
         return $agencyCode . $increment;
     }
 }

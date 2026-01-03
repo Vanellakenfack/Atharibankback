@@ -1,24 +1,3 @@
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 <?php
 
 use Illuminate\Database\Migrations\Migration;
@@ -29,72 +8,85 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // 🔐 Sécurité : éviter double création
+        if (Schema::hasTable('frais_applications')) {
+            return;
+        }
+
         Schema::create('frais_applications', function (Blueprint $table) {
+            $table->engine = 'InnoDB';
+
             $table->id();
-            
-            // Références
-            $table->foreignId('compte_id')->constrained('comptes')->onDelete('cascade');
-            $table->foreignId('frais_commission_id')->constrained('frais_commissions')->onDelete('cascade');
-            
-            // Type de frais
+
+            // === RÉFÉRENCES ===
+            $table->foreignId('compte_id')
+                ->constrained('comptes')
+                ->cascadeOnDelete();
+
+            $table->foreignId('type_compte_id')
+                ->constrained('types_comptes')
+                ->cascadeOnDelete();
+
+
+            // === TYPE DE FRAIS ===
             $table->enum('type_frais', [
-                'ouverture',
-                'tenue_compte',
-                'commission_mouvement',
-                'commission_retrait',
-                'commission_sms',
-                'deblocage',
-                'cloture_anticipe',
-                'penalite',
-                'interet',
-                'minimum_compte'
+                'OUVERTURE',
+                'CARNET',
+                'RENOUVELLEMENT',
+                'PERTE_CARNET',
+                'COMMISSION_MENSUELLE',
+                'COMMISSION_RETRAIT',
+                'COMMISSION_SMS',
+                'INTERET_CREDITEUR',
+                'FRAIS_DEBLOCAGE',
+                'PENALITE_RETRAIT',
+                'CLOTURE_ANTICIPE',
+                'MINIMUM_COMPTE'
             ]);
-            
-            // Informations sur l'opération
-            $table->decimal('montant', 15, 2);
-            $table->decimal('solde_avant', 15, 2)->comment('Solde du compte avant application');
-            $table->decimal('solde_apres', 15, 2)->comment('Solde du compte après application');
-            
-            // Pour les frais spécifiques à MATA
-            $table->string('rubrique_mata')->nullable()->comment('Rubrique MATA concernée');
-            $table->decimal('versement_rubrique', 15, 2)->nullable()->comment('Montant du versement sur la rubrique');
-            
-            // Pour les intérêts
-            $table->date('date_debut_periode')->nullable();
-            $table->date('date_fin_periode')->nullable();
-            
-            // Pour les commissions mensuelles
-            $table->decimal('total_versements_mois', 15, 2)->nullable()->comment('Total des versements du mois');
-            $table->integer('nombre_retraits_mois')->nullable()->comment('Nombre de retraits du mois');
-            
-            // Comptes comptables impactés
-            $table->string('compte_debit')->nullable()->comment('Compte débité (client)');
-            $table->string('compte_credit')->nullable()->comment('Compte crédité (produit/attente)');
-            
-            // Statut
-            $table->enum('statut', ['applique', 'en_attente', 'annule', 'reporte'])->default('applique');
-            $table->boolean('est_automatique')->default(true);
-            
-            // Validation
-            $table->foreignId('valide_par')->nullable()->constrained('users');
-            $table->timestamp('valide_le')->nullable();
-            
-            // Métadonnées
+
+            // === MONTANTS ===
+            $table->decimal('montant_base', 15, 2)->nullable();
+            $table->decimal('taux_applique', 5, 2)->nullable();
+            $table->decimal('montant_frais', 15, 2);
+
+            // === COMPTABILITÉ ===
+            $table->foreignId('chapitre_debit_id')
+                ->constrained('plan_comptable')
+                ->restrictOnDelete();
+
+            $table->foreignId('chapitre_credit_id')
+                ->constrained('plan_comptable')
+                ->restrictOnDelete();
+
+            $table->string('numero_piece', 50)->nullable();
+
+            // === STATUT ===
+            $table->enum('statut', ['EN_ATTENTE', 'APPLIQUE', 'ANNULE'])
+                ->default('APPLIQUE');
+
             $table->date('date_application');
-            $table->timestamp('date_effet')->nullable();
-            $table->text('description')->nullable();
-            $table->json('metadata')->nullable();
-            
+            $table->date('date_valeur');
+
+            // === CONTEXTE ===
+            $table->string('periode_reference', 20)->nullable();
+            $table->json('details')->nullable();
+
+            // === AUDIT ===
+            $table->foreignId('applique_par')
+                ->nullable()
+                ->constrained('users')
+                ->nullOnDelete();
+
             $table->timestamps();
-            $table->softDeletes();
-            
-            // Index
-            $table->index('compte_id');
-            $table->index('type_frais');
-            $table->index('date_application');
-            $table->index(['compte_id', 'type_frais', 'statut']);
-            $table->index('rubrique_mata');
+
+            // === INDEX ===
+            $table->index(['compte_id', 'date_application']);
+            $table->index(['type_frais', 'date_application']);
+            $table->index('periode_reference');
+            $table->index('statut');
         });
+
+        
     }
 
     public function down(): void

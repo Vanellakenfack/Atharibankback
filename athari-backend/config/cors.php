@@ -12,30 +12,27 @@ return [
     |
     */
 
-    'paths' => ['api/*', 'sanctum/csrf-cookie'],
-
+    'paths' => [
+        'api/*',
+        'sanctum/csrf-cookie',
+        'login',
+        'logout',
+        'frais-commissions',
+        'frais-applications',
+        'types-comptes',
+        'comptes/*'
+    ],
     'allowed_methods' => ['*'],
-
     'allowed_origins' => [
-        'http://localhost:3000',
-        'http://localhost:5173',      // Vite dev server (frontend)
-        'http://127.0.0.1:3000',
-        'http://127.0.0.1:5173',      // Frontend local
-        env('FRONTEND_URL', 'http://localhost:3000'),
-        env('APP_URL', 'http://localhost:8000'),
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
     ],
-
-    'allowed_origins_patterns' => [
-        // Vous pouvez ajouter des patterns regex si nécessaire
-        // '#^https://.*\.example\.com$#',
-    ],
-
-    'allowed_headers' => ['*'],
-
-    'exposed_headers' => [],
-
+    'allowed_origins_patterns' => [],
+    'allowed_headers' => ['*', 'Authorization', 'Content-Type', 'X-Requested-With', 'X-CSRF-TOKEN'],
+    'exposed_headers' => ['*'],
     'max_age' => 0,
-
     'supports_credentials' => true,
+
+
 
 ];

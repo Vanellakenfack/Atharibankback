@@ -13,17 +13,20 @@ class PlanComptableController extends Controller
     /**
      * Liste tous les comptes avec leur catégorie parente.
      */
-       // PlanComptableController.php
-public function index(): AnonymousResourceCollection
+       public function index(): AnonymousResourceCollection
 {
-    // On retire paginate() pour get()
-    // On trie par code pour que le plan soit lisible
+    // On récupère le nombre de lignes souhaité (défaut: 10)
+    $perPage = request()->query('per_page', 10);
+
+    // On remplace get() par paginate()
     $comptes = PlanComptable::with('categorie')
-        ->orderBy('code', 'asc')
-        ->get(); 
+        ->orderBy('code') // Optionnel: trier par numéro de compte
+        ->paginate($perPage);
     
+    // Resource::collection gère automatiquement l'objet LengthAwarePaginator de Laravel
     return PlanComptableResource::collection($comptes);
 }
+
     /**
      * Enregistre un nouveau chapitre comptable.
      */

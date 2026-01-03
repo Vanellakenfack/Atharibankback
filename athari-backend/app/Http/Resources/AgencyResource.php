@@ -13,14 +13,13 @@ class AgencyResource extends JsonResource
      * @return array<string, mixed>
      */
     public function toArray(Request $request): array
-{
-    return [
-        'id'          => $this->id,
-        'code'        => strtoupper($this->code),
+    {
+        return [
+        'id' => $this->id,
+        'code' => strtoupper($this->code),
         'agency_name' => $this->name,
-        'initials'    => $this->short_name,
-        // Utilisation de l'opérateur nullsafe (?->) pour éviter le crash
-        'created_at'  => $this->created_at?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s'),
+        'initials' => $this->short_name,
+        'created_at' => $this->created_at ? $this->created_at->format('d/m/Y') : 'N/A',
     ];
-}
+    }
 }

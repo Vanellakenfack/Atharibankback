@@ -33,12 +33,18 @@ return new class extends Migration
     $table->enum('periodicite', ['M', 'T', 'S', 'A', 'E'])->default('E');
     $table->boolean('is_jours_reels')->default(true); 
     $table->boolean('is_precompte')->default(false); 
+       $table->enum('mode_versement', ['CAPITALISATION', 'VERSEMENT_PERIODIQUE']);
+
 
     // --- DATES ---
     $table->date('date_execution'); 
     $table->date('date_valeur');    
     $table->date('date_maturite');  
     $table->timestamp('date_scellage')->nullable();
+        $table->decimal('montant_actuel', 15, 2)->after('montant_initial');
+             $table->decimal('montant_actuel', 15, 2)->after('montant_initial');
+           $table->date('date_cloture_reelle')->nullable()->after('date_maturite');
+
 
     $table->decimal('interets_cumules', 15, 2)->default(0);
     $table->boolean('is_blocked')->default(true);

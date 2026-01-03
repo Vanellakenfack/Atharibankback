@@ -4,65 +4,49 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\compte\TypeCompte;
+use App\Models\chapitre\PlanComptable;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Validator;
 
-/**
- * Contrôleur API pour la gestion des types de comptes
- * 
- * Permet de gérer les différents types de comptes bancaires
- * disponibles dans le système (Compte courant, Épargne, DAT, MATA, etc.)
- */
 class TypeCompteController extends Controller
 {
     /**
      * GET /api/types-comptes
-     * Lister tous les types de comptes
-     * 
-     * @param Request $request
-     * @return JsonResponse
      */
     public function index(Request $request): JsonResponse
     {
-        $query = TypeCompte::query();
+        $query = TypeCompte::with([
+            'chapitreDefaut',
+            'chapitreFraisOuverture',
+            'chapitreCommissionRetrait',
+            'chapitreCommissionSms',
+            'chapitreInteretCredit',
+        ]);
 
-        // Filtre: Types actifs uniquement (par défaut)
+        // Filtres
         if ($request->has('actif')) {
             $query->where('actif', filter_var($request->actif, FILTER_VALIDATE_BOOLEAN));
-        } else {
-            $query->actif(); // Par défaut, seulement les actifs
         }
 
-        // Filtre: Comptes MATA uniquement
-        if ($request->has('mata') && filter_var($request->mata, FILTER_VALIDATE_BOOLEAN)) {
-            $query->mata();
+        if ($request->has('est_mata')) {
+            $query->where('est_mata', filter_var($request->est_mata, FILTER_VALIDATE_BOOLEAN));
         }
 
-        // Filtre: Comptes islamiques uniquement
-        if ($request->has('islamique') && filter_var($request->islamique, FILTER_VALIDATE_BOOLEAN)) {
-            $query->where('est_islamique', true);
+        if ($request->has('a_vue')) {
+            $query->where('a_vue', filter_var($request->est_mata, FILTER_VALIDATE_BOOLEAN));
         }
 
-        // Filtre: Comptes nécessitant une durée
-        if ($request->has('necessite_duree') && filter_var($request->necessite_duree, FILTER_VALIDATE_BOOLEAN)) {
-            $query->where('necessite_duree', true);
-        }
 
-        // Recherche par code ou libellé
         if ($request->has('search')) {
             $search = $request->search;
-            $query->where(function ($q) use ($search) {
+            $query->where(function($q) use ($search) {
                 $q->where('code', 'like', "%{$search}%")
                   ->orWhere('libelle', 'like', "%{$search}%");
             });
         }
 
-        // Tri
-        $sortBy = $request->get('sort_by', 'code');
-        $sortOrder = $request->get('sort_order', 'asc');
-        $query->orderBy($sortBy, $sortOrder);
-
-        // Pagination ou tout
+        // Pagination
         if ($request->has('per_page')) {
             $typesComptes = $query->paginate($request->per_page);
         } else {
@@ -77,51 +61,31 @@ class TypeCompteController extends Controller
 
     /**
      * GET /api/types-comptes/{id}
-     * Afficher un type de compte spécifique
-     * 
-     * @param int $id
-     * @return JsonResponse
      */
-    public function show(int $id): JsonResponse
+    public function show($id): JsonResponse
     {
-        $typeCompte = TypeCompte::findOrFail($id);
+        $typeCompte = TypeCompte::with([
+            'chapitreDefaut',
+            'chapitreFraisOuverture',
+            'chapitreFraisCarnet',
+            'chapitreRenouvellement',
+            'chapitrePerte',
+            'chapitreCommissionRetrait',
+            'chapitreCommissionSms',
+            'chapitreInteretCredit',
+            'chapitreFraisDeblocage',
+            'chapitrePenalite',
+            'chapitreClotureAnticipe',
+            'compteAttenteProduits',
+        ])->findOrFail($id);
 
-        // Ajouter des informations supplémentaires
         $data = $typeCompte->toArray();
-        
-        // Si c'est un compte MATA, inclure les rubriques disponibles
+
+        // Informations supplémentaires
         if ($typeCompte->est_mata) {
             $data['rubriques_disponibles'] = TypeCompte::getRubriquesMata();
         }
-        
-        // Si nécessite une durée, inclure les durées disponibles
-        if ($typeCompte->necessite_duree) {
-            $data['durees_disponibles'] = TypeCompte::getDureesBlocage();
-        }
 
-        return response()->json([
-            'success' => true,
-            'data' => $data,
-        ]);
-    }
-
-    /**
-     * GET /api/types-comptes/code/{code}
-     * Obtenir un type de compte par son code
-     * 
-     * @param string $code Code à 2 chiffres
-     * @return JsonResponse
-     */
-    public function showByCode(string $code): JsonResponse
-    {
-        $typeCompte = TypeCompte::where('code', $code)->firstOrFail();
-
-        $data = $typeCompte->toArray();
-        
-        if ($typeCompte->est_mata) {
-            $data['rubriques_disponibles'] = TypeCompte::getRubriquesMata();
-        }
-        
         if ($typeCompte->necessite_duree) {
             $data['durees_disponibles'] = TypeCompte::getDureesBlocage();
         }
@@ -134,89 +98,154 @@ class TypeCompteController extends Controller
 
     /**
      * POST /api/types-comptes
-     * Créer un nouveau type de compte (Administration)
-     * 
-     * @param Request $request
-     * @return JsonResponse
      */
     public function store(Request $request): JsonResponse
     {
-        try {
-            $validated = $request->validate([
-                'code' => 'required|string|size:2|unique:types_comptes,code',
-                'libelle' => 'required|string|max:255',
-                'description' => 'nullable|string',
-                'est_mata' => 'boolean',
-                'necessite_duree' => 'boolean',
-                'est_islamique' => 'boolean',
-                'actif' => 'boolean',
-            ]);
+        $validator = Validator::make($request->all(), [
+            'code' => 'required|string|max:10|unique:types_comptes,code',
+            'libelle' => 'required|string|max:255',
+            'description' => 'nullable|string',
 
-            $typeCompte = TypeCompte::create($validated);
+            // Caractéristiques
+            'est_mata' => 'boolean',
+            'necessite_duree' => 'boolean',
+            'a_vue' => 'boolean',
+            'actif' => 'boolean',
+
+            // Chapitres principaux
+            'chapitre_defaut_id' => 'nullable|exists:plan_comptable,id',
+
+            // Frais ouverture
+            'frais_ouverture' => 'nullable|numeric|min:0',
+            'frais_ouverture_actif' => 'boolean',
+            'chapitre_frais_ouverture_id' => 'nullable|exists:plan_comptable,id',
+
+            // Frais carnet
+            'frais_carnet' => 'nullable|numeric|min:0',
+            'frais_carnet_actif' => 'boolean',
+            'chapitre_frais_carnet_id' => 'nullable|exists:plan_comptable,id',
+            'frais_renouvellement_carnet'=> 'nullable|numeric|min:0',
+
+            // Commission mensuelle
+            'commission_mensuelle_actif' => 'boolean',
+            'seuil_commission' => 'nullable|numeric|min:0',
+            'commission_si_superieur' => 'nullable|numeric|min:0',
+            'commission_si_inferieur' => 'nullable|numeric|min:0',
+            'chapitre_commission_mensuelle_id' => 'nullable|exists:plan_comptable,id',
+
+            // Commission retrait
+            'commission_retrait' => 'nullable|numeric|min:0',
+            'commission_retrait_actif' => 'boolean',
+            'chapitre_commission_retrait_id' => 'nullable|exists:plan_comptable,id',
+
+            // Commission SMS
+            'commission_sms' => 'nullable|numeric|min:0',
+            'commission_sms_actif' => 'boolean',
+            'chapitre_commission_sms_id' => 'nullable|exists:plan_comptable,id',
+
+            // Intérêts
+            'taux_interet_annuel' => 'nullable|numeric|min:0|max:100',
+            'interets_actifs' => 'boolean',
+            'frequence_calcul_interet' => 'nullable|in:JOURNALIER,MENSUEL,ANNUEL',
+            'heure_calcul_interet' => 'nullable|date_format:H:i',
+            'chapitre_interet_credit_id' => 'nullable|exists:plan_comptable,id',
+
+            // Pénalités
+            'penalite_retrait_anticipe' => 'nullable|numeric|min:0|max:100',
+            'penalite_actif' => 'boolean',
+            'chapitre_penalite_id' => 'nullable|exists:plan_comptable,id',
+
+            // Minimum compte
+            'minimum_compte' => 'nullable|numeric|min:0',
+            'minimum_compte_actif' => 'boolean',
+
+            // Compte attente
+            'compte_attente_produits_id' => 'nullable|exists:plan_comptable,id',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur de validation',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        try {
+            $typeCompte = TypeCompte::create($request->all());
 
             return response()->json([
                 'success' => true,
                 'message' => 'Type de compte créé avec succès',
-                'data' => $typeCompte,
+                'data' => $typeCompte->load([
+                    'chapitreDefaut',
+                    'chapitreFraisOuverture',
+                ]),
             ], 201);
 
-        } catch (\Illuminate\Validation\ValidationException $e) {
+        } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur de validation',
-                'errors' => $e->errors(),
-            ], 422);
+                'message' => 'Erreur lors de la création: ' . $e->getMessage(),
+            ], 500);
         }
     }
 
     /**
      * PUT /api/types-comptes/{id}
-     * Mettre à jour un type de compte (Administration)
-     * 
-     * @param Request $request
-     * @param int $id
-     * @return JsonResponse
      */
-    public function update(Request $request, int $id): JsonResponse
+    public function update(Request $request, $id): JsonResponse
     {
+        $typeCompte = TypeCompte::findOrFail($id);
+
+        $validator = Validator::make($request->all(), [
+'code' => 'sometimes|string|max:10|unique:types_comptes,code,' . $id . ',id',            'libelle' => 'sometimes|string|max:255',
+            'description' => 'nullable|string',
+
+            'est_mata' => 'sometimes|boolean',
+            'necessite_duree' => 'sometimes|boolean',
+            'a_vue' => 'sometimes|boolean',
+            'actif' => 'sometimes|boolean',
+
+            'frais_ouverture' => 'nullable|numeric|min:0',
+            'commission_mensuelle_actif' => 'sometimes|boolean',
+            'seuil_commission' => 'nullable|numeric|min:0',
+            'taux_interet_annuel' => 'nullable|numeric|min:0|max:100',
+            'penalite_retrait_anticipe' => 'nullable|numeric|min:0|max:100',
+
+            // Tous les autres champs...
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur de validation',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
         try {
-            $typeCompte = TypeCompte::findOrFail($id);
-
-            $validated = $request->validate([
-                'code' => 'sometimes|string|size:2|unique:types_comptes,code,' . $id,
-                'libelle' => 'sometimes|string|max:255',
-                'description' => 'nullable|string',
-                'est_mata' => 'sometimes|boolean',
-                'necessite_duree' => 'sometimes|boolean',
-                'est_islamique' => 'sometimes|boolean',
-                'actif' => 'sometimes|boolean',
-            ]);
-
-            $typeCompte->update($validated);
+            $typeCompte->update($request->all());
 
             return response()->json([
                 'success' => true,
                 'message' => 'Type de compte mis à jour avec succès',
-                'data' => $typeCompte->fresh(),
+                'data' => $typeCompte->fresh()->load([
+                    'chapitreDefaut',
+                    'chapitreFraisOuverture',
+                ]),
             ]);
 
-        } catch (\Illuminate\Validation\ValidationException $e) {
+        } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur de validation',
-                'errors' => $e->errors(),
-            ], 422);
+                'message' => 'Erreur lors de la mise à jour: ' . $e->getMessage(),
+            ], 500);
         }
     }
 
     /**
      * DELETE /api/types-comptes/{id}
-     * Supprimer un type de compte (Administration)
-     * 
-     * ATTENTION: Vérifier qu'aucun compte n'utilise ce type avant suppression
-     * 
-     * @param int $id
-     * @return JsonResponse
      */
     public function destroy(int $id): JsonResponse
     {
@@ -224,12 +253,12 @@ class TypeCompteController extends Controller
             $typeCompte = TypeCompte::findOrFail($id);
 
             // Vérifier si des comptes utilisent ce type
-            $nombreComptes = $typeCompte->comptes()->count();
-            
-            if ($nombreComptes > 0) {
+            $comptesUtilisant = $typeCompte->comptes()->count();
+
+            if ($comptesUtilisant > 0) {
                 return response()->json([
                     'success' => false,
-                    'message' => "Impossible de supprimer ce type de compte. {$nombreComptes} compte(s) l'utilisent actuellement.",
+                    'message' => "Impossible de supprimer: {$comptesUtilisant} compte(s) utilisent ce type",
                 ], 400);
             }
 
@@ -243,89 +272,121 @@ class TypeCompteController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la suppression',
-                'error' => $e->getMessage(),
+                'message' => 'Erreur lors de la suppression: ' . $e->getMessage(),
             ], 500);
         }
     }
 
     /**
-     * PATCH /api/types-comptes/{id}/toggle-actif
-     * Activer/Désactiver un type de compte
-     * 
-     * @param int $id
-     * @return JsonResponse
+     * GET /api/types-comptes/{id}/simuler-frais
      */
-    public function toggleActif(int $id): JsonResponse
+    public function simulerFrais(Request $request, int $id): JsonResponse
     {
         $typeCompte = TypeCompte::findOrFail($id);
-        
-        $typeCompte->actif = !$typeCompte->actif;
-        $typeCompte->save();
 
-        $statut = $typeCompte->actif ? 'activé' : 'désactivé';
-
-        return response()->json([
-            'success' => true,
-            'message' => "Type de compte {$statut} avec succès",
-            'data' => $typeCompte,
+        $validator = Validator::make($request->all(), [
+            'type_operation' => 'required|in:ouverture,commission_mensuelle,retrait,deblocage',
+            'montant' => 'nullable|numeric|min:0',
+            'total_versements' => 'nullable|numeric|min:0',
+            'est_anticipe' => 'boolean',
         ]);
-    }
 
-    /**
-     * GET /api/types-comptes/rubriques-mata
-     * Obtenir toutes les rubriques MATA disponibles
-     * 
-     * @return JsonResponse
-     */
-    public function getRubriquesMata(): JsonResponse
-    {
-        return response()->json([
-            'success' => true,
-            'data' => TypeCompte::getRubriquesMata(),
-        ]);
-    }
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors(),
+            ], 422);
+        }
 
-    /**
-     * GET /api/types-comptes/durees-blocage
-     * Obtenir toutes les durées de blocage disponibles
-     * 
-     * @return JsonResponse
-     */
-    public function getDureesBlocage(): JsonResponse
-    {
-        return response()->json([
-            'success' => true,
-            'data' => TypeCompte::getDureesBlocage(),
-        ]);
-    }
-
-    /**
-     * GET /api/types-comptes/statistiques
-     * Obtenir des statistiques sur les types de comptes
-     * 
-     * @return JsonResponse
-     */
-    public function statistiques(): JsonResponse
-    {
-        $stats = [
-            'total' => TypeCompte::count(),
-            'actifs' => TypeCompte::actif()->count(),
-            'inactifs' => TypeCompte::where('actif', false)->count(),
-            'mata' => TypeCompte::mata()->count(),
-            'islamiques' => TypeCompte::where('est_islamique', true)->count(),
-            'avec_duree' => TypeCompte::where('necessite_duree', true)->count(),
-            'par_type' => [
-                'collecte_journaliere' => TypeCompte::where('libelle', 'like', '%collecte journalière%')->count(),
-                'epargne' => TypeCompte::where('libelle', 'like', '%épargne%')->count(),
-                'courant' => TypeCompte::where('libelle', 'like', '%courant%')->count(),
-                'dat' => TypeCompte::where('libelle', 'like', '%DAT%')->count(),
-            ],
+        $simulation = [
+            'type_operation' => $request->type_operation,
+            'frais_applicables' => [],
         ];
 
+        switch ($request->type_operation) {
+            case 'ouverture':
+                if ($typeCompte->frais_ouverture_actif) {
+                    $simulation['frais_applicables'][] = [
+                        'type' => 'frais_ouverture',
+                        'montant' => $typeCompte->frais_ouverture,
+                        'chapitre' => $typeCompte->chapitreFraisOuverture->libelle ?? null,
+                    ];
+                }
+                break;
+
+            case 'commission_mensuelle':
+                if ($typeCompte->commission_mensuelle_actif && $request->has('total_versements')) {
+                    $montant = $typeCompte->calculerCommissionMensuelle($request->total_versements);
+                    $simulation['frais_applicables'][] = [
+                        'type' => 'commission_mensuelle',
+                        'montant' => $montant,
+                        'total_versements' => $request->total_versements,
+                        'seuil' => $typeCompte->seuil_commission,
+                    ];
+                }
+                break;
+
+            case 'retrait':
+                if ($typeCompte->commission_retrait_actif) {
+                    $simulation['frais_applicables'][] = [
+                        'type' => 'commission_retrait',
+                        'montant' => $typeCompte->commission_retrait,
+                    ];
+                }
+
+                if ($request->est_anticipe && $typeCompte->penalite_actif && $request->has('montant')) {
+                    $penalite = $typeCompte->calculerPenaliteRetrait($request->montant);
+                    $simulation['frais_applicables'][] = [
+                        'type' => 'penalite_retrait',
+                        'montant' => $penalite,
+                        'taux' => $typeCompte->penalite_retrait_anticipe . '%',
+                    ];
+                }
+                break;
+        }
+
+        $totalFrais = array_sum(array_column($simulation['frais_applicables'], 'montant'));
+        $simulation['total_frais'] = $totalFrais;
+
         return response()->json([
             'success' => true,
-            'data' => $stats,
+            'data' => $simulation,
+        ]);
+    }
+
+    /**
+     * GET /api/chapitres-comptables/disponibles
+     */
+    public function getChapitresDisponibles(Request $request): JsonResponse
+    {
+        $query = PlanComptable::where('est_actif', true);
+
+        if ($request->has('nature')) {
+            $nature = strtoupper($request->nature);
+            if ($nature === 'DEBIT_OR_MIXTE') {
+                $query->whereIn('nature_solde', ['DEBIT', 'MIXTE']);
+            } elseif ($nature === 'CREDIT_OR_MIXTE') {
+                $query->whereIn('nature_solde', ['CREDIT', 'MIXTE']);
+            } elseif (in_array($nature, ['DEBIT', 'CREDIT', 'MIXTE'])) {
+                $query->where('nature_solde', $nature);
+            }
+        }
+
+        if ($request->has('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('code', 'like', "%{$search}%")
+                  ->orWhere('libelle', 'like', "%{$search}%");
+            });
+        }
+
+        $chapitres = $request->has('per_page')
+            ? $query->paginate($request->per_page)
+            : $query->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $chapitres,
         ]);
     }
 }

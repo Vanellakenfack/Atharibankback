@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Storage;
 
 /**
  * Modèle représentant un document associé à un compte
- * 
+ *
  * @property int $id
  * @property int $compte_id ID du compte
  * @property string $type_document Type de document
@@ -23,6 +23,13 @@ use Illuminate\Support\Facades\Storage;
 class DocumentCompte extends Model
 {
     use HasFactory;
+
+    /**
+     * The table associated with the model.
+     *
+     * @var string
+     */
+    protected $table = 'documents_compte';
 
     protected $fillable = [
         'compte_id',
@@ -81,7 +88,7 @@ class DocumentCompte extends Model
     public function getTailleFormateeAttribute(): string
     {
         $taille = $this->taille_octets;
-        
+
         if ($taille < 1024) {
             return $taille . ' octets';
         } elseif ($taille < 1048576) {

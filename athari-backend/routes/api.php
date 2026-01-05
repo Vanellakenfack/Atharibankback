@@ -188,6 +188,9 @@ Route::middleware('auth:sanctum')->group(function () {
     */
     Route::prefix('comptes')->group(function () {
 
+         //journal ouverture de compte
+       Route::get('/journal-ouverture', [CompteController::class, 'getJournalOuvertures']);
+              Route::get('/cloture journe', [CompteController::class, 'clotureJourneeOuvertures']);
 
         // Ouverture de compte
         Route::get('/init', [CompteController::class, 'initOuverture']);
@@ -211,6 +214,8 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/documents', [DocumentCompteController::class, 'index']);
             Route::post('/documents', [DocumentCompteController::class, 'store']);
         });
+
+       
     });
 
     /*
@@ -278,4 +283,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
 // Ajoutez cette ligne dans votre fichier routes/api.php
 Route::get('/dashboard/stats', [DashboardController::class, 'getStats']);
+
+
+
+
+
 });

@@ -110,8 +110,7 @@ class CompteService
                 'rubriques_mata' => $donneesEtape1['rubriques_mata'] ?? null,
                 'duree_blocage_mois' => $donneesEtape1['duree_blocage_mois'] ?? null,
                 'statut' => 'actif',
-                'solde' => $donneesEtape2['solde'],
-               'notice_acceptee' => $donneesEtape4['notice_acceptee'],
+                'solde' => $donneesEtape2['solde'] ?? 0, // <--- AJOUTEZ LE ?? 0 ICI               'notice_acceptee' => $donneesEtape4['notice_acceptee'],
                 'date_acceptation_notice' => now(),
                 'signature_path' => $donneesEtape4['signature_path'] ?? null,
                 'date_ouverture' => now(),
@@ -316,4 +315,179 @@ class CompteService
             ->with(['typeCompte', 'planComptable.categorie', 'mandataires'])
             ->get();
     }
+
+
+    /**
+ * Récupère l'ID d'un chapitre à partir de son code brut
+ */
+private function getIdParCode(string $code)
+    {
+        $chapitre = \App\Models\chapitre\PlanComptable::where('code', $code)->first();
+        if (!$chapitre) {
+            throw new \Exception("Le code comptable [ $code ] n'existe pas dans le plan.");
+        }
+        return $chapitre->id;
+    }
+
+   
+public function traiterOuvertureComptable(Compte $compte, float $montantDepot)
+{
+    $type = $compte->typeCompte;
+
+    // 1. Calcul du total des frais + minimum
+    $fraisTotal = 0;
+    if ($type->frais_ouverture_actif) $fraisTotal += $type->frais_ouverture;
+    //if ($type->commission_sms_actif) $fraisTotal += $type->commission_sms;
+    if ($type->frais_carnet_actif)   $fraisTotal += $type->frais_carnet;
+
+    // On récupère le minimum obligatoire
+    $minimumCompte = $type->minimum_compte_actif ? $type->minimum_compte : 0;
+
+    return DB::transaction(function () use ($compte, $type, $montantDepot, $fraisTotal, $minimumCompte) {
+        
+        // --- ÉTAPE 1 : DÉPÔT (0 ou plus) ---
+        if ($montantDepot > 0) {
+            $this->enregistrerEcriture(
+                $compte,
+                $montantDepot,
+                "Dépôt initial ouverture",
+                $this->getIdParCode('57100000'), 
+                $type->chapitre_defaut_id,
+                'CAISSE'
+            );
+        }
+
+        // --- ÉTAPE 2 : DÉDUCTION DES FRAIS ---
+
+
+                // Frais d'ouverture
+        if ($type->frais_ouverture_actif && $type->frais_ouverture > 0) {
+            $this->enregistrerEcriture(
+                $compte,
+                $type->frais_ouverture,
+                "Déduction Frais d'ouverture",
+                $type->chapitre_defaut_id,          // Débit : Client
+                $type->chapitre_frais_ouverture_id, // Crédit : Banque
+                'BANQUE'
+            );
+        }
+
+     
+
+        // Frais de carnet
+        if ( $type->frais_carnet_actif && $type->frais_carnet > 0) {
+            $this->enregistrerEcriture(
+                $compte,
+                $type->frais_carnet,
+                "Déduction Frais de carnet",
+                $type->chapitre_defaut_id,
+                $type->chapitre_frais_ouverture_id,
+                'BANQUE'
+            );
+        }
+
+
+
+ 
+        // --- ÉTAPE 3 : MISE À JOUR DU SOLDE (Incluant le minimum) ---
+        // Le solde devient : Dépôt - Frais - MinimumObligatoire
+        $soldeFinal = $montantDepot - ($fraisTotal + $minimumCompte);
+        
+        $compte->update([
+            'solde' => $soldeFinal 
+        ]);
+
+        return $compte->fresh();
+    });
+}
+
+private function enregistrerEcriture($compte, $montant, $libelle, $debitId, $creditId, $journal = 'BANQUE')
+{
+    return \App\Models\compte\MouvementComptable::create([
+        'compte_id'         => $compte->id,
+        'date_mouvement'    => now(),
+        'libelle_mouvement' => $libelle,
+        'montant_debit'     => $montant,
+        'montant_credit'    => $montant,
+        'compte_debit_id'   => $debitId,
+        'compte_credit_id'  => $creditId,
+        'journal'           => $journal, 
+        'statut'            => 'COMPTABILISE',
+        'reference'         => 'OP-' . strtoupper(Str::random(8)) 
+    ]);
+}
+
+/**
+ * Récupère le journal des écritures d'ouverture
+ */
+/**
+ * Récupère le journal détaillé des ouvertures de comptes
+ */
+   public function journalOuvertures($dateDebut = null, $dateFin = null, $codeAgence = null)
+{
+    $query = \App\Models\Compte\MouvementComptable::with([
+        'compte.client.agency',
+        'compte.typeCompte', 
+        'compteDebit', 
+        'compteCredit'
+    ]);
+
+    // 1. Filtre par Date (obligatoire)
+    $query->whereHas('compte', function($q) use ($dateDebut, $dateFin) {
+        $q->whereDate('date_ouverture', '>=', $dateDebut)
+          ->whereDate('date_ouverture', '<=', $dateFin);
+    });
+
+    // 2. Filtre par Agence (Strict)
+    if ($codeAgence) {
+        $query->whereHas('compte.client.agency', function($q) use ($codeAgence) {
+            $q->where('code', $codeAgence);
+        });
+    }
+
+    $resultats = $query->get();
+
+    // 3. Tri final
+    return $resultats->sortBy(function ($mvt) {
+        return ($mvt->compte->client->agency->code ?? 'ZZZ') . $mvt->created_at;
+    })->values();
+}
+/**
+ * Résumé statistique des ouvertures pour une clôture de journée
+ */
+public function resumeClotureOuvertures($date = null, $codeAgence = null)
+{
+    $date = $date ?? now()->toDateString();
+
+    $query = \App\Models\compte\MouvementComptable::with(['compte.typeCompte', 'compte.client.agency'])
+        ->whereDate('date_mouvement', $date);
+
+    // Ajout du filtre strict par code agence
+    if (!empty($codeAgence)) {
+        $query->whereHas('compte.client.agency', function($q) use ($codeAgence) {
+            $q->where('code', $codeAgence);
+        });
+    }
+
+    return $query->get()
+        ->groupBy(function($mvt) {
+            return $mvt->compte->typeCompte->libelle ?? 'Non défini';
+        })
+        ->map(function ($mouvements, $typeLibelle) {
+            // On compte les comptes uniques (un dépôt initial = un compte)
+            $nbComptes = $mouvements->where('libelle_mouvement', 'LIKE', 'Dépôt initial%')->count();
+            
+            return [
+                'type_compte'    => $typeLibelle,
+                'nombre_comptes' => $nbComptes,
+                'total_depots'   => (float) $mouvements->where('libelle_mouvement', 'LIKE', 'Dépôt initial%')->sum('montant_debit'),
+                'total_frais'    => (float) $mouvements->where('libelle_mouvement', 'LIKE', 'Déduction Frais%')->sum('montant_debit'),
+            ];
+        })->values();
+}
+
+/**
+ * Vérifie si le dépôt couvre les frais + le minimum obligatoire
+ */
+
 }

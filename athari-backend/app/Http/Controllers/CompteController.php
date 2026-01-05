@@ -23,6 +23,8 @@ use App\Models\compte\DocumentCompte;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Http\Request;
+
 
 /**
  * Contrôleur API pour la gestion des comptes bancaires
@@ -79,7 +81,7 @@ class CompteController extends Controller
      * GET /api/comptes/{id}
      * Afficher un compte spécifique
      */
-    public function show(ShowCompteRequest $request, int $id): JsonResponse
+    public function show(ShowCompteRequest $request,  $id): JsonResponse
     {
         $compte = Compte::with([
             'client',
@@ -279,30 +281,25 @@ class CompteController extends Controller
      * POST /api/comptes/creer
      * Créer un compte
      */
-    public function store(StoreCompteRequest $request): JsonResponse
-    {
-        try {
-           $data = $request->all();
-           // dd($validated['etape1']);
+public function store(StoreCompteRequest $request): JsonResponse
+{
+    try {
+        $data = $request->all();
 
-            $donneesEtape1 = $data['etape1'] ?? null;
+        $donneesEtape1 = $data['etape1'] ?? null;
         $donneesEtape2 = $data['etape2'] ?? null;
         $donneesEtape3 = $data['etape3'] ?? null;
         $donneesEtape4Raw = $data['etape4'] ?? [];
 
-            // Traiter les uploads de documents de manière plus robuste
-            $documentsUploades = [];
-            if ($request->hasFile('documents')) {
-                $documents = $request->file('documents');
-                $typesDocuments = $validated['types_documents'] ?? [];
-                $descriptions = $validated['descriptions_documents'] ?? [];
+        // 1. Traitement des fichiers (Signature et Documents)
+        $documentsUploades = [];
+        if ($request->hasFile('documents')) {
+            $documents = $request->file('documents');
+            $typesDocuments = $data['types_documents'] ?? [];
+            $descriptions = $data['descriptions_documents'] ?? [];
 
-                foreach ($documents as $index => $fichier) {
-                    if (!$fichier->isValid()) {
-                        Log::warning('Fichier invalide reçu', ['index' => $index, 'name' => $fichier->getClientOriginalName()]);
-                        continue;
-                    }
-
+            foreach ($documents as $index => $fichier) {
+                if ($fichier->isValid()) {
                     $documentsUploades[] = [
                         'fichier' => $fichier,
                         'type_document' => $typesDocuments[$index] ?? 'document',
@@ -310,25 +307,26 @@ class CompteController extends Controller
                     ];
                 }
             }
+        }
 
-            // Vérifier qu'au moins un document valide a été fourni
-            if (empty($documentsUploades)) {
-                throw new \Exception('Aucun document valide fourni. Veuillez télécharger au moins un document.');
-            }
+        if (empty($documentsUploades)) {
+            throw new \Exception('Au moins un document valide est requis.');
+        }
 
-            // Uploader la signature
-            $signaturePath = null;
-            if ($request->hasFile('signature')) {
-                $signaturePath = $request->file('signature')->store('signatures', 'private');
-            }
+        $signaturePath = $request->hasFile('signature') 
+            ? $request->file('signature')->store('signatures', 'private') 
+            : null;
 
-            $donneesEtape4 = [
-                'notice_acceptee' => $donneesEtape4Raw['notice_acceptee'] ?? false,
-                'signature_path' => $signaturePath,
-                'documents' => [],
-            ];
+        $donneesEtape4 = [
+            'notice_acceptee' => $donneesEtape4Raw['notice_acceptee'] ?? false,
+            'signature_path' => $signaturePath,
+            'documents' => [],
+        ];
 
-            // Créer le compte
+        // 2. Utilisation d'une transaction globale pour lier Création + Comptabilité
+        return DB::transaction(function () use ($donneesEtape1, $donneesEtape2, $donneesEtape3, $donneesEtape4, $documentsUploades) {
+            
+            // ÉTAPE A : Créer le compte
             $compte = $this->compteService->creerCompte(
                 $donneesEtape1,
                 $donneesEtape2,
@@ -336,7 +334,7 @@ class CompteController extends Controller
                 $donneesEtape4
             );
 
-            // Uploader les documents
+            // ÉTAPE B : Upload des documents
             foreach ($documentsUploades as $docData) {
                 $this->documentService->uploadDocument(
                     $compte->id,
@@ -347,29 +345,28 @@ class CompteController extends Controller
                 );
             }
 
-            $compte->load('documents');
+            // ÉTAPE C : TRAITEMENT COMPTABLE (Dépôt + Frais + Minimum)
+            // On récupère le montant de dépôt saisi à l'étape 2
+            $montantInitial = floatval($donneesEtape2['solde'] ?? 0);
+            
+            // Cette ligne va créer les écritures et mettre à jour le solde final
+            $this->compteService->traiterOuvertureComptable($compte, $montantInitial);
 
             return response()->json([
                 'success' => true,
-                'message' => 'Compte créé avec succès',
-                'data' => $compte,
+                'message' => 'Compte créé et mouvements comptables enregistrés avec succès',
+                'data' => $compte->fresh(['documents', 'typeCompte']),
             ], 201);
+        });
 
-        } catch (\Exception $e) {
-            // Log l'erreur complète pour le débogage
-            Log::error('Erreur lors de la création du compte: ' . $e->getMessage(), [
-                'exception' => $e,
-                'trace' => $e->getTraceAsString(),
-                'request_data' => $request->except(['documents', 'signature']) // Exclure les fichiers du log
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors de la création du compte: ' . $e->getMessage(),
-                'error' => config('app.debug') ? $e->getMessage() : 'Une erreur est survenue',
-            ], 500);
-        }
+    } catch (\Exception $e) {
+        Log::error('Erreur création compte : ' . $e->getMessage());
+        return response()->json([
+            'success' => false,
+            'message' => $e->getMessage(),
+        ], 500);
     }
+}
 
     /**
      * PUT /api/comptes/{id}
@@ -560,4 +557,68 @@ class CompteController extends Controller
             'data' => $parametres,
         ]);
     }
+
+   public function getJournalOuvertures(Request $request)
+{
+    $dateDebut = $request->input('date_debut', now()->toDateString());
+    $dateFin = $request->input('date_fin', now()->toDateString());
+    $codeAgence = $request->input('code_agence');
+
+    // Appel au service
+    $mouvements = $this->compteService->journalOuvertures($dateDebut, $dateFin,$codeAgence);
+
+    // Transformation pour un affichage "plat" (Flat Array)
+  $journalFormate = $mouvements->map(function ($mvt) {
+    return [
+        'agence'            => $mvt->compte->client->agency?->code ?? 'N/A', // Affichage du code
+        'date_ouverture'    => $mvt->compte->date_ouverture->format('d/m/Y H:i'),
+        'numero_client'     => $mvt->compte->client->num_client,
+        'numero_compte'     => $mvt->compte->numero_compte,
+        'type_compte'       => $mvt->compte->typeCompte->libelle,
+        'intitule_mouvement'=> $mvt->libelle_mouvement,
+        'code_debit'        => $mvt->compteDebit?->code,
+        'code_credit'       => $mvt->compteCredit?->code,
+        'montant_debit'     => $mvt->montant_debit,
+        'montant_credit'    => $mvt->montant_credit,
+        'journal'           => $mvt->journal
+    ];
+});
+    return response()->json([
+        'statut' => 'success',
+        'metadata' => [
+            'total_operations' => $journalFormate->count(),
+            'periode' => "Du $dateDebut au $dateFin",
+            'genere_le' => now()->format('d/m/Y H:i')
+        ],
+        'donnees' => $journalFormate
+    ]);
+}
+public function clotureJourneeOuvertures(Request $request)
+{
+    $date = $request->query('date', now()->toDateString());
+    // On récupère le code agence pour filtrer les calculs
+    $codeAgence = $request->query('code_agence'); 
+    
+    // On passe le code au service
+    $resume = $this->compteService->resumeClotureOuvertures($date, $codeAgence);
+    
+    // Calcul du grand total global (uniquement sur l'agence filtrée)
+    $totalGlobalDepots = $resume->sum('total_depots');
+    $totalGlobalFrais = $resume->sum('total_frais');
+
+    return response()->json([
+        'statut' => 'success',
+        'metadata' => [
+            'date_cloture' => $date,
+            'agence' => $codeAgence ?? 'Toutes les agences',
+        ],
+        'resume_par_produit' => $resume,
+        'synthese_financiere' => [
+            'total_cash_entre' => $totalGlobalDepots,
+            'total_revenu_banque' => $totalGlobalFrais,
+            // Le cash physique en caisse est la somme des dépôts initiaux
+            'net_a_reverser_en_coffre' => $totalGlobalDepots 
+        ]
+    ]);
+}
 }

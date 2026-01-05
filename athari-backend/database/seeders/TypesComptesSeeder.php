@@ -203,7 +203,7 @@ class TypesComptesSeeder extends Seeder
                 'necessite_duree' => false,
                 'actif' => true,
                 'frais_ouverture' => 5000,
-                'frais_ouverture_actif' => false, // Selon document: "Supprimé les frais d'ouverture de compte"
+                'frais_ouverture_actif' => true, // Selon document: "Supprimé les frais d'ouverture de compte"
                 'frais_carnet' => 1000,
                 'frais_carnet_actif' => true,
                 'frais_perte_carnet' => 2000,
@@ -296,7 +296,7 @@ class TypesComptesSeeder extends Seeder
                 'necessite_duree' => false,
                 'actif' => true,
                 'frais_ouverture' => 3000,
-                'frais_ouverture_actif' => false,
+                'frais_ouverture_actif' => true,
                 'commission_mensuelle_actif' => true,
                 'seuil_commission' => 30000,
                 'commission_si_superieur' => 500,

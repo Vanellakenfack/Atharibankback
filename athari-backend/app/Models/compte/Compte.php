@@ -47,6 +47,8 @@ class Compte extends Model
         'date_cloture' => 'datetime',
     ];
 
+    
+
     /**
      * Relation: Compte appartient à un client
      */
@@ -193,4 +195,5 @@ class Compte extends Model
     {
         return MouvementRubriqueMata::getSoldeRubrique($this->id, $rubrique);
     }
+    
 }

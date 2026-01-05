@@ -190,7 +190,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
          //journal ouverture de compte
        Route::get('/journal-ouverture', [CompteController::class, 'getJournalOuvertures']);
-              Route::get('/cloture journe', [CompteController::class, 'clotureJourneeOuvertures']);
+       Route::get('/cloture journe', [CompteController::class, 'clotureJourneeOuvertures']);
 
         // Ouverture de compte
         Route::get('/init', [CompteController::class, 'initOuverture']);

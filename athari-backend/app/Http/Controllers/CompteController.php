@@ -25,6 +25,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 
+use Barryvdh\DomPDF\Facade\Pdf;
 
 /**
  * Contrôleur API pour la gestion des comptes bancaires
@@ -81,21 +82,24 @@ class CompteController extends Controller
      * GET /api/comptes/{id}
      * Afficher un compte spécifique
      */
-    public function show(ShowCompteRequest $request,  $id): JsonResponse
-    {
-        $compte = Compte::with([
-            'client',
-            'typeCompte',
-            'planComptable',
-            'mandataires',
-            'documents.uploader'
-        ])->findOrFail($id);
+    public function show(ShowCompteRequest $request, $id): JsonResponse
+{
+    $compte = Compte::with([
+        'client.physique', // <--- IMPORTANT : charge la table clients_physiques
+        'client.morale',   // <--- IMPORTANT : charge la table clients_morales
+        'typeCompte',
+        'planComptable',
+        'mandataires'
+    ])->findOrFail($id);
 
-        return response()->json([
-            'success' => true,
-            'data' => $compte,
-        ]);
-    }
+    // Pour être sûr que React reçoive le nom même si 'appends' ne fonctionne pas
+    $compte->client->makeVisible('nom_complet'); 
+
+    return response()->json([
+        'success' => true,
+        'data' => $compte,
+    ]);
+}
 
     /**
      * POST /api/comptes/init
@@ -558,35 +562,36 @@ public function store(StoreCompteRequest $request): JsonResponse
         ]);
     }
 
-   public function getJournalOuvertures(Request $request)
+public function getJournalOuvertures(Request $request)
 {
     $dateDebut = $request->input('date_debut', now()->toDateString());
     $dateFin = $request->input('date_fin', now()->toDateString());
     $codeAgence = $request->input('code_agence');
 
-    // Appel au service
-    $mouvements = $this->compteService->journalOuvertures($dateDebut, $dateFin,$codeAgence);
+    // Récupère une collection de COMPTES (et non de mouvements)
+    $comptes = $this->compteService->journalOuvertures($dateDebut, $dateFin, $codeAgence);
 
-    // Transformation pour un affichage "plat" (Flat Array)
-  $journalFormate = $mouvements->map(function ($mvt) {
-    return [
-        'agence'            => $mvt->compte->client->agency?->code ?? 'N/A', // Affichage du code
-        'date_ouverture'    => $mvt->compte->date_ouverture->format('d/m/Y H:i'),
-        'numero_client'     => $mvt->compte->client->num_client,
-        'numero_compte'     => $mvt->compte->numero_compte,
-        'type_compte'       => $mvt->compte->typeCompte->libelle,
-        'intitule_mouvement'=> $mvt->libelle_mouvement,
-        'code_debit'        => $mvt->compteDebit?->code,
-        'code_credit'       => $mvt->compteCredit?->code,
-        'montant_debit'     => $mvt->montant_debit,
-        'montant_credit'    => $mvt->montant_credit,
-        'journal'           => $mvt->journal
-    ];
-});
+    $journalFormate = $comptes->map(function ($compte) {
+        // On récupère le premier mouvement de dépôt s'il existe (chargé via eager loading)
+        $mvtInitial = $compte->mouvements->first();
+
+        return [
+            'agence'            => $compte->client->agency?->code ?? 'N/A',
+            'date_ouverture'    => $compte->date_ouverture ? $compte->date_ouverture->format('d/m/Y H:i') : 'N/A',
+            'numero_client'     => $compte->client->num_client ?? 'N/A',
+            'nom_client' => $compte->client->nom_complet, 
+            'numero_compte'     => $compte->numero_compte,
+            'type_compte'       => $compte->typeCompte->libelle ?? 'N/A',
+            'intitule_mouvement'=> $mvtInitial->libelle_mouvement ?? 'Aucun dépôt initial',
+            'montant_debit'     => $mvtInitial->montant_debit ?? 0,
+            'montant_credit'    => $mvtInitial->montant_credit ?? 0,
+        ];
+    });
+
     return response()->json([
         'statut' => 'success',
         'metadata' => [
-            'total_operations' => $journalFormate->count(),
+            'total_comptes' => $journalFormate->count(),
             'periode' => "Du $dateDebut au $dateFin",
             'genere_le' => now()->format('d/m/Y H:i')
         ],
@@ -620,5 +625,28 @@ public function clotureJourneeOuvertures(Request $request)
             'net_a_reverser_en_coffre' => $totalGlobalDepots 
         ]
     ]);
+}
+
+
+
+public function exporterJournalPdf(Request $request)
+{
+    $dateDebut  = $request->input('date_debut');
+    $dateFin    = $request->input('date_fin');
+    $codeAgence = $request->input('code_agence');
+
+    $comptes = $this->compteService->journalOuvertures($dateDebut, $dateFin, $codeAgence);
+
+    $pdf = Pdf::loadView('pdf.journal', [
+        'donnees'     => $comptes,
+        'date_debut'  => $dateDebut,
+        'date_fin'    => $dateFin,
+        'code_agence' => $codeAgence
+    ])->setPaper('a4', 'landscape');
+
+    // On s'assure que le nom du fichier est propre
+    $fileName = "journal_ouvertures_" . ($codeAgence ?? 'global') . ".pdf";
+
+    return $pdf->download($fileName);
 }
 }

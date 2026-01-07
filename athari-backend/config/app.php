@@ -123,6 +123,7 @@ return [
     */
 
     'aliases' => Facade::defaultAliases()->merge([
+        'Pdf' => Barryvdh\DomPDF\Facade\Pdf::class,
         // 'Alias' => App\Facades\Example::class,
     ])->toArray(),
 

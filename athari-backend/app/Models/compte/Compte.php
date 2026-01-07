@@ -195,5 +195,10 @@ class Compte extends Model
     {
         return MouvementRubriqueMata::getSoldeRubrique($this->id, $rubrique);
     }
-    
+    public function mouvements()
+    {
+        // Un compte possède plusieurs mouvements
+        // 'compte_id' est la clé étrangère dans la table mouvements_comptables
+        return $this->hasMany(MouvementComptable::class, 'compte_id');
+    }
 }

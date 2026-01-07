@@ -138,6 +138,12 @@ class CompteService
                 }
             }
 
+            // On récupère le montant du dépôt initial envoyé par React (étape 2)
+        $montantInitial = (float) ($donneesEtape2['solde'] ?? 0);
+        
+        // On appelle la fonction qui va générer les écritures de mouvement
+        $this->traiterOuvertureComptable($compte, $montantInitial);
+
             return $compte->load(['client', 'typeCompte', 'planComptable.categorie', 'mandataires', 'documents']);
         });
     }
@@ -417,42 +423,41 @@ private function enregistrerEcriture($compte, $montant, $libelle, $debitId, $cre
     ]);
 }
 
-/**
- * Récupère le journal des écritures d'ouverture
- */
-/**
- * Récupère le journal détaillé des ouvertures de comptes
+
+ 
+ /* Récupère le journal détaillé des ouvertures de comptes
  */
    public function journalOuvertures($dateDebut = null, $dateFin = null, $codeAgence = null)
 {
-    $query = \App\Models\Compte\MouvementComptable::with([
-        'compte.client.agency',
-        'compte.typeCompte', 
-        'compteDebit', 
-        'compteCredit'
+    // On part de la table Compte pour ne perdre aucune ouverture
+    $query = \App\Models\Compte\Compte::with([
+        'client.physique', // Charge les infos physiques
+        'client.morale',
+        'client.agency',
+        'typeCompte',
+        'mouvements' => function($q) {
+            // On ne récupère que le mouvement de dépôt s'il existe
+            $q->where('libelle_mouvement', 'LIKE', 'Dépôt initial%');
+        }
     ]);
 
-    // 1. Filtre par Date (obligatoire)
-    $query->whereHas('compte', function($q) use ($dateDebut, $dateFin) {
-        $q->whereDate('date_ouverture', '>=', $dateDebut)
+    
+    $query->whereDate('date_ouverture', '>=', $dateDebut)
           ->whereDate('date_ouverture', '<=', $dateFin);
-    });
 
-    // 2. Filtre par Agence (Strict)
+
     if ($codeAgence) {
-        $query->whereHas('compte.client.agency', function($q) use ($codeAgence) {
+        $query->whereHas('client.agency', function($q) use ($codeAgence) {
             $q->where('code', $codeAgence);
         });
     }
 
-    $resultats = $query->get();
-
-    // 3. Tri final
-    return $resultats->sortBy(function ($mvt) {
-        return ($mvt->compte->client->agency->code ?? 'ZZZ') . $mvt->created_at;
+    return $query->get()->sortBy(function($compte) {
+        return ($compte->client->agency->code ?? '999') . 
+               ($compte->typeCompte->libelle ?? 'ZZZ') . 
+               $compte->date_ouverture;
     })->values();
-}
-/**
+}/**
  * Résumé statistique des ouvertures pour une clôture de journée
  */
 public function resumeClotureOuvertures($date = null, $codeAgence = null)

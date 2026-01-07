@@ -243,33 +243,35 @@ class UserController extends Controller
      * Récupère tous les rôles disponibles.
      */
     public function getRoles(Request $request)
-    {
-        if (!$request->user()->can('gerer utilisateurs')) {
-            return response()->json(['message' => 'Action non autorisée'], 403);
+        {
+            if (!$request->user()->can('gerer utilisateurs')) {
+                return response()->json(['message' => 'Action non autorisée'], 403);
+            }
+
+            // On ajoute with('permissions') pour voir les permissions de chaque rôle
+            $roles = Role::with('permissions:id,name')
+                ->orderBy('name')
+                ->get();
+
+            return response()->json($roles);
         }
-
-        $roles = Role::select('id', 'name')
-            ->orderBy('name')
-            ->get();
-
-        return response()->json($roles);
-    }
 
     /**
      * Récupère toutes les permissions disponibles.
      */
-    public function getPermissions(Request $request)
-    {
-        if (!$request->user()->can('gerer roles et permissions')) {
-            return response()->json(['message' => 'Action non autorisée'], 403);
-        }
-
-        $permissions = Permission::select('id', 'name')
-            ->orderBy('name')
-            ->get();
-
-        return response()->json($permissions);
+  public function getPermissions(Request $request)
+{
+    if (!$request->user()->can('gerer roles et permissions')) {
+        return response()->json(['message' => 'Action non autorisée'], 403);
     }
+
+    // On ajoute with('roles') pour voir quels rôles utilisent cette permission
+    $permissions = Permission::with('roles:id,name')
+        ->orderBy('name')
+        ->get();
+
+    return response()->json($permissions);
+}
 
     /**
      * Synchronise les rôles d'un utilisateur.

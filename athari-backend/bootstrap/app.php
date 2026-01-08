@@ -26,17 +26,9 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
             'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
             'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
+            'verifier.caisse' => \App\Http\Middleware\VerifierCaisseOuverte::class,
         ]);
-        // --------------------------------------------------
-        
-        // Vous pouvez aussi ajouter d'autres middlewares globaux ici si nécessaire
-        // $middleware->web(append: [
-        //    // \App\Http\Middleware\TrimStrings::class,
-        // ]);
-
-        // $middleware->api(append: [
-        //    // \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
-        // ]);
+    
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

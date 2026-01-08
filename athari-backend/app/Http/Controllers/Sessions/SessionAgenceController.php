@@ -92,45 +92,57 @@ class SessionAgenceController extends Controller
     $request->validate([
         'guichet_session_id' => 'required',
         'code_caisse' => 'required',
-        'billetage' => 'required|array', // [10000 => 5, 5000 => 10...]
+        'billetage' => 'required|array', 
         'solde_saisi' => 'required|numeric'
     ]);
 
-    // 1. Récupérer le solde de clôture de la veille (Solde Informatique)
-    $soldeInformatique = $this->sessionService->getDernierSoldeFermeture($request->code_caisse);
+    // 1. Récupérer le solde de clôture (Solde Informatique)
+    $soldeInformatique = (float) $this->sessionService->getDernierSoldeFermeture($request->code_caisse);
 
-    // 2. Calculer le montant total du billetage envoyé
+    // 2. Calculer le montant total du billetage avec forçage de type
     $montantBillete = 0;
     foreach ($request->billetage as $coupure => $quantite) {
-        $montantBillete += ($coupure * $quantite);
+        $montantBillete += ((int)$coupure * (int)$quantite);
     }
 
-    // 3. Vérification de l'Ajustage (La règle d'or de votre manuel)
-    if ($montantBillete !== (float)$request->solde_saisi) {
-        return response()->json(['message' => 'Le billetage n’est pas correct. Reprendre le billetage.'], 422);
+    $soldeSaisi = (float) $request->solde_saisi;
+
+    // 3. Vérification de l'Ajustage (La règle d'or)
+    // On compare les montants castés en float pour éviter les erreurs de type
+    if (abs($montantBillete - $soldeSaisi) > 0.01) {
+        return response()->json([
+            'message' => 'Le billetage n’est pas correct. Reprendre le billetage.',
+            'debug' => [
+                'calcul_billetage' => $montantBillete,
+                'solde_saisi' => $soldeSaisi
+            ]
+        ], 422);
     }
 
-    if ($montantBillete !== $soldeInformatique) {
-        return response()->json(['message' => 'Erreur : Le solde saisi est différent du solde informatique.'], 422);
+    if (abs($soldeSaisi - $soldeInformatique) > 0.01) {
+        return response()->json([
+            'message' => 'Erreur : Le solde saisi est différent du solde informatique.',
+            'debug' => [
+                'solde_saisi' => $soldeSaisi,
+                'attendu_systeme' => $soldeInformatique
+            ]
+        ], 422);
     }
 
     // 4. Si tout est OK, on procède à l'ouverture
-   try {
-        // CORRECTION ICI : On passe les 4 arguments attendus au lieu d'un seul tableau
+    try {
         $caisse = $this->sessionService->ouvrirCaisseSession(
-            $request->guichet_session_id,     // Arg 1
-            auth()->id(),                     // Arg 2
-            $montantBillete,                  // Arg 3
-            $request->billetage               // Arg 4
+            $request->guichet_session_id,
+            auth()->id(),
+            $request->code_caisse,        // Argument 3 : CELUI QUI MANQUAIT !
+            $soldeSaisi,
+            $request->billetage
         );
 
         return response()->json([
             'statut' => 'success',
-            'message' => 'La caisse est ouverte', 
-            'data' => [
-                'caisse_id' => $caisse->id,
-                'statut' => 'OU'
-            ]
+            'message' => 'La caisse est ouverte',
+            'data' => ['caisse_id' => $caisse->id, 'statut' => 'OU']
         ]);
     } catch (Exception $e) {
         return response()->json(['message' => $e->getMessage()], 422);

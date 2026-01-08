@@ -103,10 +103,8 @@ class SessionBancaireService
      * ÉTAPE 4 : OUVERTURE DE LA CAISSE
      * Responsabilise le caissier et valide le solde initial.
      */
-   public function ouvrirCaisseSession($guichetSessionId, $caissierId, $soldeOuvertureSaisi, array $detailsBilletage)
-{
-    return DB::transaction(function () use ($guichetSessionId, $caissierId, $soldeOuvertureSaisi, $detailsBilletage) {
-        
+public function ouvrirCaisseSession($guichetSessionId, $caissierId, $codeCaisse, $soldeOuvertureSaisi, array $detailsBilletage){
+return DB::transaction(function () use ($guichetSessionId, $caissierId, $codeCaisse, $soldeOuvertureSaisi, $detailsBilletage) {        
         // 1. Vérification du Guichet (Condition obligatoire du manuel)
         $guichet = GuichetSession::findOrFail($guichetSessionId);
         if ($guichet->statut !== 'OU') {
@@ -142,6 +140,7 @@ class SessionBancaireService
         return CaisseSession::create([
             'guichet_session_id' => $guichetSessionId,
             'caissier_id'        => $caissierId,
+            'code_caisse'        => $codeCaisse, // <--- AJOUT INDISPENSABLE ICI
             'solde_ouverture'    => $soldeOuvertureSaisi,
             'solde_informatique' => $soldeInformatique, // On garde une trace des deux
             'billetage_json'     => json_encode($detailsBilletage), // Stockage du détail F4
@@ -275,13 +274,11 @@ public function reouvrirCaisseSession($caisseSessionId)
  */
 public function getDernierSoldeFermeture($codeCaisse)
 {
-    // On cherche la dernière session fermée (FE) pour ce code de caisse
     $derniereSession = CaisseSession::where('code_caisse', $codeCaisse)
-        ->where('statut', 'FE')
+        ->where('statut', 'FE') // Uniquement les sessions clôturées
         ->orderBy('id', 'desc')
         ->first();
 
-    // Si c'est une nouvelle caisse (pas d'historique), le solde est 0
     return $derniereSession ? (float) $derniereSession->solde_fermeture : 0.00;
 }
 

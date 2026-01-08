@@ -22,7 +22,8 @@ use App\Http\Controllers\frais\FraisApplicationController;
 use App\Http\Controllers\frais\MouvementRubriqueMataController;
 use App\Http\Controllers\Compte\DatContratController;
 use App\Http\Controllers\Compte\DatTypeController;
-    use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\Sessions\SessionAgenceController;
 
 
 /*
@@ -286,7 +287,38 @@ Route::middleware('auth:sanctum')->group(function () {
 Route::get('/dashboard/stats', [DashboardController::class, 'getStats']);
 
 
+Route::prefix('sessions')->group(function () {
+        
+        // Sécurité pour l'Agence
+        Route::post('/ouvrir-agence', [SessionAgenceController::class, 'ouvrirAgence'])
+             ->middleware('permission:ouverture/fermeture agence');
 
+        // Sécurité pour le Guichet
+        Route::post('/ouvrir-guichet', [SessionAgenceController::class, 'ouvrirGuichet'])
+             ->middleware('permission:ouverture/fermeture guichet');
+        
+        Route::post('/fermer-guichet', [SessionAgenceController::class, 'fermerGuichet'])
+             ->middleware('permission:ouverture/fermeture guichet');
+
+        // Sécurité pour la Caisse
+        Route::post('/ouvrir-caisse', [SessionAgenceController::class, 'ouvrirCaisse'])
+             ->middleware('permission:ouverture/fermeture caisse');
+             
+        Route::post('/fermer-caisse', [SessionAgenceController::class, 'fermerCaisse'])
+             ->middleware('permission:ouverture/fermeture caisse');
+
+        // Clôture finale
+        Route::post('/fermer-agence', [SessionAgenceController::class, 'fermerAgence'])
+             ->middleware('permission:ouverture/fermeture agence');
+    });
+
+    /* Exemple dans routes/api.php
+Route::middleware(['auth:sanctum', 'permission:saisir depot retrait', 'verifier.caisse'])->group(function () {
+    
+    Route::post('/versement', [TransactionController::class, 'deposer']);
+    Route::post('/retrait', [TransactionController::class, 'retirer']);
+
+});*/
 
 
 });

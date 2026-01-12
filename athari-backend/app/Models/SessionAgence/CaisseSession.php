@@ -17,4 +17,10 @@ class CaisseSession extends Model {
             ->logOnlyDirty() // Ne logue que si une valeur change
             ->useLogName('session_caisse');
     }
+
+    public function guichetSession()
+{
+    // Vérifiez bien le nom de la classe et de la clé étrangère
+    return $this->belongsTo(GuichetSession::class, 'guichet_session_id');
+}
 }

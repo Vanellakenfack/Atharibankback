@@ -306,6 +306,8 @@ Route::prefix('sessions')->group(function () {
              
         Route::post('/fermer-caisse', [SessionAgenceController::class, 'fermerCaisse'])
              ->middleware('permission:ouverture/fermeture caisse');
+             // Si vous utilisez un préfixe ou un groupement
+        Route::post('/reouvrir-caisse', [SessionAgenceController::class, 'reouvrirCaisse']);
 
         // Clôture finale
         Route::post('/fermer-agence', [SessionAgenceController::class, 'fermerAgence'])

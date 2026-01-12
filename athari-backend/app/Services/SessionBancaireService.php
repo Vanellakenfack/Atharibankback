@@ -255,9 +255,9 @@ public function reouvrirCaisseSession($caisseSessionId)
         }
 
         // 2. Vérifier si le guichet est toujours ouvert
-        if ($caisse->guichetSession->statut !== 'OU') {
-            throw new Exception("Impossible de rouvrir : le guichet associé est déjà fermé.");
-        }
+      if (($caisse->guichetSession?->statut ?? '') !== 'OU') {
+       throw new Exception("Impossible de rouvrir : le guichet associé est introuvable ou déjà fermé.");
+   }
 
         // 3. Changement de statut vers 'RE' (Réouvert)
         $caisse->update([

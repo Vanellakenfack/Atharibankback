@@ -87,7 +87,7 @@ class SessionAgenceController extends Controller
     /**
      * Étape 4 : Ouverture de la Caisse
      */
-    public function ouvrirCaisse(Request $request)
+public function ouvrirCaisse(Request $request)
 {
     $request->validate([
         'guichet_session_id' => 'required',
@@ -107,9 +107,9 @@ class SessionAgenceController extends Controller
 
     $soldeSaisi = (float) $request->solde_saisi;
 
-    // 3. Vérification de l'Ajustage (La règle d'or)
-    // On compare les montants castés en float pour éviter les erreurs de type
-    if (abs($montantBillete - $soldeSaisi) > 0.01) {
+    // 3. Vérification de l'Ajustage
+    // Règle 1: Le billetage doit correspondre au solde saisi
+    if (abs($montantBillete - $soldeSaisi) > 1) { // Tolérance de 1 FCFA
         return response()->json([
             'message' => 'Le billetage n’est pas correct. Reprendre le billetage.',
             'debug' => [
@@ -119,9 +119,11 @@ class SessionAgenceController extends Controller
         ], 422);
     }
 
+    // Règle 2: Le solde saisi doit correspondre au solde informatique
+    // IMPORTANT: Pour une première ouverture, le solde informatique peut être 0
     if (abs($soldeSaisi - $soldeInformatique) > 0.01) {
         return response()->json([
-            'message' => 'Erreur : Le solde saisi est différent du solde informatique.',
+            'message' => 'Erreur d\'ajustage : Le solde saisi (' . $soldeSaisi . ') diffère du solde informatique (' . $soldeInformatique . ').',
             'debug' => [
                 'solde_saisi' => $soldeSaisi,
                 'attendu_systeme' => $soldeInformatique
@@ -134,21 +136,20 @@ class SessionAgenceController extends Controller
         $caisse = $this->sessionService->ouvrirCaisseSession(
             $request->guichet_session_id,
             auth()->id(),
-            $request->code_caisse,        // Argument 3 : CELUI QUI MANQUAIT !
+            $request->code_caisse,
             $soldeSaisi,
             $request->billetage
         );
 
         return response()->json([
             'statut' => 'success',
-            'message' => 'La caisse est ouverte',
+            'message' => 'Le billetage est équilibré. Vous pouvez ouvrir la caisse.',
             'data' => ['caisse_id' => $caisse->id, 'statut' => 'OU']
         ]);
     } catch (Exception $e) {
         return response()->json(['message' => $e->getMessage()], 422);
     }
 }
-
 
 /**
  * POST /api/sessions-agence/reouvrir-caisse
@@ -238,6 +239,29 @@ public function fermerGuichet(Request $request)
             'statut' => 'error',
             'message' => $e->getMessage()
         ], 422);
+    }
+}
+
+/**
+ * GET - Récupérer le solde informatique d'une caisse
+ */
+public function getSoldeInformatique(string $code_caisse)
+{
+    try {
+        $soldeInformatique = (float)
+            $this->sessionService->getDernierSoldeFermeture($code_caisse);
+
+        return response()->json([
+            'statut' => 'success',
+            'code_caisse' => $code_caisse,
+            'solde_informatique' => $soldeInformatique
+        ], 200);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'statut' => 'error',
+            'message' => $e->getMessage()
+        ], 500);
     }
 }
 

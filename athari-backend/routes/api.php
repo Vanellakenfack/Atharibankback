@@ -310,6 +310,11 @@ Route::prefix('sessions')->group(function () {
         // Clôture finale
         Route::post('/fermer-agence', [SessionAgenceController::class, 'fermerAgence'])
              ->middleware('permission:ouverture/fermeture agence');
+
+        Route::get(
+    '/caisses/{code_caisse}/solde-informatique',
+    [SessionAgenceController::class, 'getSoldeInformatique']
+);
     });
 
     /* Exemple dans routes/api.php

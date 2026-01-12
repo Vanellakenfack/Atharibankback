@@ -1,6 +1,6 @@
 APP_NAME=Laravel
-APP_ENV=testing
-APP_KEY=base64:m/Kc3TgH321Br8gRIWJ4o0qc7yqiKegmvE8YC32YnK8=
+APP_ENV=local
+APP_KEY=base64:JB9JtasYiqeCJRbzU8O/ZFiFRd+a8f0QJFnU1QKu7c0=
 APP_DEBUG=true
 APP_URL=http://localhost
 
@@ -21,11 +21,12 @@ LOG_DEPRECATIONS_CHANNEL=null
 LOG_LEVEL=debug
 
 DB_CONNECTION=mysql
-DB_HOST=127.0.0.1
+DB_HOST=localhost
 DB_PORT=3306
-DB_DATABASE=testing
+DB_DATABASE=laravel
 DB_USERNAME=root
 DB_PASSWORD=
+
 
 SESSION_DRIVER=database
 SESSION_LIFETIME=120
@@ -63,3 +64,10 @@ AWS_BUCKET=
 AWS_USE_PATH_STYLE_ENDPOINT=false
 
 VITE_APP_NAME="${APP_NAME}"
+
+# L'URL de votre backend Laravel (pour les Artisan commands)
+APP_URL=http://127.0.0.1:8000 
+
+# L'URL exacte de votre frontend React (l'origine qui fait la requête)
+# C'est cette valeur qui est lue par config/cors.php
+FRONTEND_URL=http://127.0.0.1:5173

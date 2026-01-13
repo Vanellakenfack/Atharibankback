@@ -14,8 +14,7 @@ return new class extends Migration
         Schema::create('guichet_sessions', function (Blueprint $table) {
            $table->id();
     $table->foreignId('agence_session_id')->constrained('agence_sessions')->onDelete('cascade');
-    $table->integer('code_guichet'); 
-    $table->enum('statut', ['OU', 'FE'])->default('FE');
+    $table->foreignId('guichet_id')->constrained('guichets');    $table->enum('statut', ['OU', 'FE'])->default('FE');
     $table->timestamp('heure_ouverture')->nullable();
     $table->timestamp('heure_fermeture')->nullable();
     $table->timestamps();

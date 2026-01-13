@@ -24,6 +24,9 @@ use App\Http\Controllers\Compte\DatContratController;
 use App\Http\Controllers\Compte\DatTypeController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Sessions\SessionAgenceController;
+use  App\Http\Controllers\Caisse\VersementController;
+use  App\Http\Controllers\Caisse\RetraitController;
+
 
 
 /*
@@ -117,7 +120,7 @@ Route::middleware('auth:sanctum')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::prefix('plan-comptable')->group(function () {
-        // Catégories comptables
+        // Catégorites comptables
         Route::get('categories', [CategorieComptableController::class, 'index']);
         Route::post('categories', [CategorieComptableController::class, 'store']);
         Route::put('categories/{id}', [CategorieComptableController::class, 'update']);
@@ -287,36 +290,42 @@ Route::middleware('auth:sanctum')->group(function () {
 Route::get('/dashboard/stats', [DashboardController::class, 'getStats']);
 
 
-Route::prefix('sessions')->group(function () {
+/*
+    |--------------------------------------------------------------------------
+    | Gestion des Sessions (Agence, Guichet, Caisse)
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('sessions')->group(function () {
         
-        // Sécurité pour l'Agence
+        // --- Agence ---
         Route::post('/ouvrir-agence', [SessionAgenceController::class, 'ouvrirAgence'])
              ->middleware('permission:ouverture/fermeture agence');
+             
+        Route::post('/fermer-agence', [SessionAgenceController::class, 'fermerAgence'])
+             ->middleware('permission:ouverture/fermeture agence');
 
-        // Sécurité pour le Guichet
+        // --- Guichet ---
         Route::post('/ouvrir-guichet', [SessionAgenceController::class, 'ouvrirGuichet'])
              ->middleware('permission:ouverture/fermeture guichet');
         
         Route::post('/fermer-guichet', [SessionAgenceController::class, 'fermerGuichet'])
              ->middleware('permission:ouverture/fermeture guichet');
 
-        // Sécurité pour la Caisse
+        // --- Caisse ---
         Route::post('/ouvrir-caisse', [SessionAgenceController::class, 'ouvrirCaisse'])
              ->middleware('permission:ouverture/fermeture caisse');
              
         Route::post('/fermer-caisse', [SessionAgenceController::class, 'fermerCaisse'])
              ->middleware('permission:ouverture/fermeture caisse');
-             // Si vous utilisez un préfixe ou un groupement
-        Route::post('/reouvrir-caisse', [SessionAgenceController::class, 'reouvrirCaisse']);
 
-        // Clôture finale
-        Route::post('/fermer-agence', [SessionAgenceController::class, 'fermerAgence'])
-             ->middleware('permission:ouverture/fermeture agence');
+        Route::post('/reouvrir-caisse', [SessionAgenceController::class, 'reouvrirCaisse'])
+             ->middleware('permission:ouverture/fermeture caisse');
 
-        Route::get(
-    '/caisses/{code_caisse}/solde-informatique',
-    [SessionAgenceController::class, 'getSoldeInformatique']
-);
+        // --- Bilans et Infos ---
+        Route::get('/caisses/{caisse_session_id}/bilan', [SessionAgenceController::class, 'getBilanCaisse']);
+        
+        // Utile pour afficher le solde attendu sur l'écran d'ouverture du caissier
+        Route::get('/caisses/{code_caisse}/solde-informatique', [SessionAgenceController::class, 'getSoldeInformatique']);
     });
 
     /* Exemple dans routes/api.php
@@ -327,5 +336,19 @@ Route::middleware(['auth:sanctum', 'permission:saisir depot retrait', 'verifier.
 
 });*/
 
+
+});
+
+
+
+
+
+Route::middleware(['auth:sanctum', 'verifier.caisse'])->prefix('caisse')->group(function () {
+    
+    // API Versement (Dépôt)
+    Route::post('/versement', [VersementController::class, 'store']);
+    
+    // API Retrait
+    Route::post('/retrait', [RetraitController::class, 'store']);
 
 });

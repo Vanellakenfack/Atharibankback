@@ -389,9 +389,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // AJOUTER CETTE ROUTE (utilisée dans getBilanCaisse) :
         Route::get('/caisses/{caisse_session_id}/bilan', [SessionAgenceController::class, 'getBilanCaisse']);
-        
-        // AJOUTER CETTE ROUTE (pour solde informatique) :
-        Route::get('/caisses/{code_caisse}/solde-informatique', [SessionAgenceController::class, 'getSoldeInformatique']);
 
         // Clôture finale
         Route::post('/fermer-agence', [SessionAgenceController::class, 'fermerAgence'])

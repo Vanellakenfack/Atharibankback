@@ -157,7 +157,9 @@ class SessionAgenceController extends Controller
             return response()->json(['error' => $e->getMessage()], 422);
         }
     }
-
+  /**
+     * POST /api/sessions/fermer-guichet
+     */
     public function fermerGuichet(Request $request)
     {
         $request->validate([
@@ -188,7 +190,6 @@ class SessionAgenceController extends Controller
             ], 422);
         }
     }
-
     /**
      * BILAN DE CLÔTURE (Visualisation avant TFJ)
      * GET /api/sessions/bilan-caisse/{id}
@@ -229,8 +230,7 @@ class SessionAgenceController extends Controller
     }
 
     /**
-     * RÉOUVERTURE DE CAISSE (Exceptionnel)
-     * POST /api/sessions/reouvrir-caisse
+
      */
     public function reouvrirCaisse(Request $request)
     {

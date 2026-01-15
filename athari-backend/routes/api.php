@@ -27,13 +27,13 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Sessions\SessionAgenceController;
 use  App\Http\Controllers\Caisse\VersementController;
 use  App\Http\Controllers\Caisse\RetraitController;
-use App\Http\Controllers\Caisse\SupervisionController;
+use  App\Http\Controllers\Caisse\SupervisionController;
 use App\Models\Caisse\CaisseDemandeValidation;
 use App\Http\Controllers\Caisse\GuichetController;
 use App\Http\Controllers\Caisse\CaisseControllerC;
 
-// AJOUTER CE CONTROLLER :
-use App\Http\Controllers\OperationDiversController; // <-- AJOUTER
+use App\Http\Controllers\OperationDiversController;
+use App\Http\Controllers\Caisse\JournalCaisseController;
 
 
 /*
@@ -162,17 +162,21 @@ Route::middleware('auth:sanctum')->group(function () {
     // ==========================================
     
     // Routes pour les guichets
-Route::prefix('caisse')->name('caisse.')->group(function () {
+    Route::prefix('caisse')->name('caisse.')->group(function () {
+        
+        // Routes pour les Guichets (index, create, store, show, edit, update, destroy)
+        // URL: /caisse/guichets
+        Route::resource('guichets', GuichetController::class);
+
+        // Routes pour les Caisses (index, create, store, show, edit, update, destroy)
+        // URL: /caisse/caisses
+        Route::resource('caisses', CaisseControllerC::class);
+
+    });
     
-    // Routes pour les Guichets (index, create, store, show, edit, update, destroy)
-    // URL: /caisse/guichets
-    Route::resource('guichets', GuichetController::class);
+    // AJOUTER CETTE ROUTE POUR L'EXPORT PDF DU JOURNAL DE CAISSE
+    Route::get('/caisse/journal/export-pdf', [JournalCaisseController::class, 'exportPdf']);
 
-    // Routes pour les Caisses (index, create, store, show, edit, update, destroy)
-    // URL: /caisse/caisses
-    Route::resource('caisses', CaisseControllerC::class);
-
-});
     /*
     |--------------------------------------------------------------------------
     | Clients

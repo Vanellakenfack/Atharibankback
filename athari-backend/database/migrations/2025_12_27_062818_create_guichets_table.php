@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('nom_guichet');
             $table->boolean('est_actif')->default(true);
             $table->timestamps();
-           
+            
             // Index supplémentaire pour la clé étrangère (créé automatiquement par Laravel mais explicit ici)
             $table->index('agence_id');
         });

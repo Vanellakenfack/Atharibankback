@@ -157,7 +157,39 @@ class SessionAgenceController extends Controller
             return response()->json(['error' => $e->getMessage()], 422);
         }
     }
+  /**
+     * POST /api/sessions/fermer-guichet
+     */
+    public function fermerGuichet(Request $request)
+    {
+        $request->validate([
+            'guichet_session_id' => 'required|exists:guichet_sessions,id',
+        ]);
 
+        try {
+            $guichetSession = $this->sessionService->fermerGuichetSession(
+                $request->guichet_session_id
+            );
+
+            activity('session')
+                ->performedOn($guichetSession)
+                ->log("Clôture du guichet effectuée par l'utilisateur ID: " . auth()->id());
+
+            return response()->json([
+                'statut' => 'success',
+                'message' => 'Le guichet a été clôturé avec succès.',
+                'data' => [
+                    'guichet_session_id' => $guichetSession->id,
+                    'statut' => 'FE' // Statut Fermé
+                ]
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'statut' => 'error',
+                'message' => $e->getMessage()
+            ], 422);
+        }
+    }
     /**
      * BILAN DE CLÔTURE (Visualisation avant TFJ)
      * GET /api/sessions/bilan-caisse/{id}
@@ -198,8 +230,7 @@ class SessionAgenceController extends Controller
     }
 
     /**
-     * RÉOUVERTURE DE CAISSE (Exceptionnel)
-     * POST /api/sessions/reouvrir-caisse
+
      */
     public function reouvrirCaisse(Request $request)
     {

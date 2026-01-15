@@ -31,6 +31,8 @@ use App\Http\Controllers\Caisse\SupervisionController;
 use App\Models\Caisse\CaisseDemandeValidation;
 use App\Http\Controllers\Caisse\GuichetController;
 use App\Http\Controllers\Caisse\CaisseControllerC;
+use App\Http\Controllers\Caisse\JournalCaisseController;
+
 
 
 /*
@@ -370,6 +372,8 @@ Route::prefix('caisse')->name('caisse.')->group(function () {
 
 });
 
+Route::get('/caisse/journal/export-pdf', [JournalCaisseController::class, 'exportPdf']);
+
 });
 
 
@@ -384,7 +388,7 @@ Route::middleware(['auth:sanctum', 'verifier.caisse'])->prefix('caisse')->group(
     // API Retrait
     Route::post('/retrait', [RetraitController::class, 'store']);
     // routes/api.php
-   Route::get('/recu/{id}', [App\Http\Controllers\Caisse\RetraitController::class, 'imprimerRecu']);
+   Route::get('/recu/{id}', [RetraitController::class, 'imprimerRecu']);
 
 });
 

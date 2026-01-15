@@ -23,10 +23,14 @@ use App\Http\Controllers\frais\MouvementRubriqueMataController;
 use App\Http\Controllers\Compte\DatContratController;
 use App\Http\Controllers\Compte\DatTypeController;
 use App\Http\Controllers\DashboardController;
+
 use App\Http\Controllers\Sessions\SessionAgenceController;
 use  App\Http\Controllers\Caisse\VersementController;
 use  App\Http\Controllers\Caisse\RetraitController;
-
+use App\Http\Controllers\Caisse\SupervisionController;
+use App\Models\Caisse\CaisseDemandeValidation;
+use App\Http\Controllers\Caisse\GuichetController;
+use App\Http\Controllers\Caisse\CaisseControllerC;
 
 
 /*
@@ -335,7 +339,36 @@ Route::middleware(['auth:sanctum', 'permission:saisir depot retrait', 'verifier.
     Route::post('/retrait', [TransactionController::class, 'retirer']);
 
 });*/
+Route::prefix('supervision-caisse')->group(function () {
+        Route::get('/attente', [SupervisionController::class, 'index']);
+        Route::post('/approuver/{id}', [SupervisionController::class, 'approuver']);
+        Route::post('/rejeter/{id}', [SupervisionController::class, 'rejeter']);
+    });
 
+    // Liste des demandes en attente pour l'assistant
+Route::get('/assistant/demandes-en-attente', function() {
+    return CaisseDemandeValidation::where('statut', 'EN_ATTENTE')->get();
+});
+
+
+
+/*
+|--------------------------------------------------------------------------
+| Routes pour la Gestion de la Caisse
+|--------------------------------------------------------------------------
+*/
+
+Route::prefix('caisse')->name('caisse.')->group(function () {
+    
+    // Routes pour les Guichets (index, create, store, show, edit, update, destroy)
+    // URL: /caisse/guichets
+    Route::resource('guichets', GuichetController::class);
+
+    // Routes pour les Caisses (index, create, store, show, edit, update, destroy)
+    // URL: /caisse/caisses
+    Route::resource('caisses', CaisseControllerC::class);
+
+});
 
 });
 
@@ -350,5 +383,8 @@ Route::middleware(['auth:sanctum', 'verifier.caisse'])->prefix('caisse')->group(
     
     // API Retrait
     Route::post('/retrait', [RetraitController::class, 'store']);
+    // routes/api.php
+   Route::get('/recu/{id}', [App\Http\Controllers\Caisse\RetraitController::class, 'imprimerRecu']);
 
 });
+

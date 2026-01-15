@@ -6,27 +6,29 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
+    /**
+     * Run the migrations.
+     */
     public function up(): void
     {
-        Schema::create('caisses', function (Blueprint $table) {
+        Schema::create('guichets', function (Blueprint $table) {
             $table->id();
-            // Une caisse appartient à un guichet
-            $table->foreignId('guichet_id')->constrained('guichets')->onDelete('cascade');
-            
-            $table->string('code_caisse')->unique(); // Ex: CAISSE-A1
-            $table->string('libelle'); // Ex: Caisse Principale
-            
-            // Suivi du solde en temps réel
-            $table->decimal('solde_actuel', 15, 2)->default(0);
-            $table->decimal('plafond_max', 15, 2)->nullable(); // Alerte si trop d'espèces
-            
-            $table->boolean('est_active')->default(true);
+            $table->foreignId('agence_id')->constrained('agencies')->onDelete('cascade');
+            $table->string('code_guichet')->unique();
+            $table->string('nom_guichet');
+            $table->boolean('est_actif')->default(true);
             $table->timestamps();
+            
+            // Index supplémentaire pour la clé étrangère (créé automatiquement par Laravel mais explicit ici)
+            $table->index('agence_id');
         });
     }
 
+    /**
+     * Reverse the migrations.
+     */
     public function down(): void
     {
-        Schema::dropIfExists('caisses');
+        Schema::dropIfExists('guichets');
     }
 };

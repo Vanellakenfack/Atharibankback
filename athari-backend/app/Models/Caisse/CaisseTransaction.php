@@ -38,4 +38,11 @@ class CaisseTransaction extends Model
         {
             return $this->hasOne(TransactionTier::class, 'transaction_id');
         }
+
+        // App/Models/Caisse/CaisseTransaction.php
+public function demandeValidation()
+{
+    // On lie la transaction à la demande via le montant, la caissière et le statut EXECUTE
+    return $this->hasOne(CaisseDemandeValidation::class, 'payload_data->reference_unique', 'reference_unique');
+}
 }

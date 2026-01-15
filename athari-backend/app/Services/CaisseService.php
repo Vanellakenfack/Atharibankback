@@ -10,6 +10,11 @@ use App\Models\Caisse\TransactionBilletage;
 use App\Models\Caisse\Caisse;
 use App\Models\SessionAgence\CaisseSession;
 use Illuminate\Support\Facades\DB;
+use App\Models\Caisse\CaisseDemandeValidation;
+use Illuminate\Support\Facades\Notification; 
+use App\Models\User;
+use App\Notifications\RetraitDepassementPlafond; 
+use Illuminate\Support\Facades\Log;            
 use Exception;
 
 class CaisseService
@@ -19,31 +24,39 @@ class CaisseService
      */
     public function traiterOperation(string $type, array $data, array $billetage)
     {
-        return DB::transaction(function () use ($type, $data, $billetage) {
-            
-            $user = auth()->user();
+        
+       return DB::transaction(function () use ($type, $data, $billetage) {
+        $user = auth()->user();
 
-            // 1. Validation du Jour Comptable
-            $jourComptable = DB::table('jours_comptables')
-                ->where('statut', 'OUVERT')
-                ->first();
+        // --- DÉPLACEMENT : On récupère la session AVANT le contrôle du plafond ---
+        $session = CaisseSession::with(['caisse.guichet.agence'])
+            ->where('caissier_id', $user->id)
+            ->where('statut', 'OU') 
+            ->first();
 
-            if (!$jourComptable) {
-                throw new Exception("Opération impossible : Le jour comptable de l'agence est fermé.");
+        if (!$session) {
+            throw new Exception("Session de caisse introuvable ou déjà fermée.");
+        }
+
+        // --- CONTRÔLE DES PLAFONDS ---
+        $plafondCaisse = $session->caisse->plafond_autonomie_caissiere ?? 500000;
+        $montant = $data['montant_brut'];
+
+        if ($type === 'RETRAIT' && $montant > $plafondCaisse) {
+            if (!isset($data['code_validation'])) {
+                // IMPORTANT : On retourne ici, donc le reste du code ne s'exécute pas
+                return $this->creerDemandeValidation($type, $data, $billetage, $user);
             }
+            // Si code présent, on vérifie
+            $this->verifierCodeApprouve($data['code_validation'], $user->id, $montant);
+        }
 
-            // Correction : Utilisation du nom de colonne correct 'date_du_jour'
-            $dateBancaire = $jourComptable->date_du_jour;
+        // 1. Validation du Jour Comptable
+        $jourComptable = DB::table('jours_comptables')->where('statut', 'OUVERT')->first();
+        if (!$jourComptable) throw new Exception("Le jour comptable est fermé.");
+        $dateBancaire = $jourComptable->date_du_jour;
 
-            // 2. Validation de la Session de Caisse Active
-            $session = CaisseSession::with(['caisse.guichet.agence'])
-                ->where('caissier_id', $user->id)
-                ->where('statut', 'OU') 
-                ->first();
-
-            if (!$session) {
-                throw new Exception("Session de caisse introuvable ou déjà fermée pour l'utilisateur actuel.");
-            }
+           
 
             // 3. Gestion du Compte Client & Verrouillage
             $compte = null;
@@ -84,7 +97,6 @@ class CaisseService
             $this->enregistrerBilletage($transaction->id, $billetage);
 
           // 8. Mouvement Comptable
-            // On enlève $data et on ajoute $session à la fin
             $this->genererEcritureComptable($type, $transaction, $compte, $dateBancaire, $session);
 
             // 9. Mise à jour du Solde Client
@@ -107,6 +119,9 @@ class CaisseService
                 'code_agence'      => $agence->code ?? $guichet->agence_id,
                 'code_guichet'     => $guichet->code_guichet ?? $guichet->id, 
                 'code_caisse'      => $caisse->code_caisse ?? $caisse->id,
+                'origine_fonds'    => $data['origine_fonds'] ?? null,
+                'numero_bordereau' => $data['numero_bordereau'] ?? null,
+                'type_bordereau'   => $data['type_bordereau'] ?? null,
                 'type_flux'        => $type,
                 'montant_brut'     => $data['montant_brut'],
                 'commissions'      => $data['commissions'] ?? 0,
@@ -176,8 +191,8 @@ class CaisseService
             'compte_id'           => $compte->id,
             'date_mouvement'      => $dateBancaire,
             'date_valeur'         => $transaction->date_valeur,
-            'libelle_mouvement'   => "[$chapitre] " . $type . " - " . $transaction->reference_unique,
-            
+// Remplacez les accès par ceux-ci pour être sécurisé
+        'libelle_mouvement'   => "[$chapitre] " . $type . " - " . ($transaction->reference_unique ?? $transaction['reference_unique']),
             // Utilisation des IDs récupérés dynamiquement
             'compte_debit_id'     => $debitId,
             'compte_credit_id'    => $creditId,
@@ -232,4 +247,76 @@ class CaisseService
     private function generateReference($type) {
         return substr($type, 0, 3) . '-' . date('YmdHis') . '-' . strtoupper(str()->random(4));
     }
+
+
+    /**
+ * Met l'opération en attente et génère une réponse pour le Front-end
+ */
+private function creerDemandeValidation($type, $data, $billetage, $user)
+{
+    // On s'assure que reference_unique existe dans le payload pour le futur reçu
+    if (!isset($data['reference_unique'])) {
+        $data['reference_unique'] = $this->generateReference($type);
+    }
+
+    $payload = array_merge($data, ['billetage' => $billetage]);
+
+    $demande = CaisseDemandeValidation::create([
+        'type_operation' => $type,
+        'payload_data'   => $payload,
+        'montant'        => $data['montant_brut'],
+        'caissiere_id'   => $user->id,
+        'statut'         => 'EN_ATTENTE'
+    ]);
+
+    $assistants = User::whereHas('roles', function($q) {
+        $q->where('name', 'Assistant Comptable ');
+    })->get();
+
+    // On utilise try/catch pour que la caissière reçoive quand même son message 
+    // même si l'envoi de notification bugge
+    try {
+        Notification::send($assistants, new RetraitDepassementPlafond($demande));
+    } catch (\Exception $e) {
+        // Loggez l'erreur mais ne bloquez pas l'utilisateur
+        \Log::error("Erreur notification: " . $e->getMessage());
+    }
+
+    return [
+        'requires_validation' => true,
+        'demande_id' => $demande->id,
+        'message' => "Le montant (" . number_format($data['montant_brut'], 0, ',', ' ') . " FCFA) dépasse votre plafond. Demande envoyée."
+    ];
+}
+
+/**
+ * Vérifie si le code saisi par la caissière est valide et lié à une demande approuvée
+ */
+private function verifierCodeApprouve($code, $caissiereId, $montant)
+{
+    $demande = CaisseDemandeValidation::where('code_validation', $code)
+        ->where('caissiere_id', $caissiereId)
+        ->where('montant', $montant)
+        ->where('statut', 'APPROUVE')
+        ->first();
+
+    if (!$demande) {
+        throw new Exception("Code de validation invalide ou l'opération n'a pas encore été approuvée par l'assistant.");
+    }
+
+    // Très important : Marquer comme EXECUTE pour ne pas réutiliser le même code
+    $demande->update(['statut' => 'EXECUTE']);
+}
+
+public function genererRecu($transactionId)
+{
+    $transaction = CaisseTransaction::with(['compte.client', 'tier', 'demandeValidation.assistant'])
+        ->findOrFail($transactionId);
+
+    // Si vous utilisez DomPDF ou Browsershot :
+    // $pdf = PDF::loadView('reçus.transaction', compact('transaction'));
+    // return $pdf->stream();
+
+    return view('recus.transaction', compact('transaction'));
+}
 }

@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Sessions;
 
 use App\Http\Controllers\Controller;
 use App\Services\SessionBancaireService;
-use App\Models\SessionAgence\AgenceSession; // Import du modèle dans le nouveau dossier
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Exception;
 
 class SessionAgenceController extends Controller
@@ -15,12 +15,11 @@ class SessionAgenceController extends Controller
     public function __construct(SessionBancaireService $sessionService)
     {
         $this->sessionService = $sessionService;
-
-       
     }
 
     /**
-     * Étape 1 & 2 : Ouverture de la Journée et de l'Agence
+     * ÉTAPE 1 & 2 : OUVERTURE DE LA JOURNÉE ET DE L'AGENCE
+     * POST /api/sessions/ouvrir-agence
      */
     public function ouvrirAgence(Request $request)
     {
@@ -30,54 +29,59 @@ class SessionAgenceController extends Controller
         ]);
 
         try {
-            // Appel au service pour créer le jour comptable et la session agence
-            $jour = $this->sessionService->ouvrirJourneeComptable(
-                $request->agence_id,
-                $request->date_comptable,
-                auth()->id()
-            );
+            return DB::transaction(function () use ($request) {
+                // 1. Ouvrir le jour comptable
+                $jour = $this->sessionService->ouvrirJourneeComptable(
+                    $request->agence_id,
+                    $request->date_comptable,
+                    auth()->id()
+                );
 
-            $session = $this->sessionService->ouvrirAgenceSession(
-                $request->agence_id,
-                $jour->id,
-                auth()->id()
-            );
+                // 2. Ouvrir la session agence liée
+                $session = $this->sessionService->ouvrirAgenceSession(
+                    $request->agence_id,
+                    $jour->id,
+                    auth()->id()
+                );
 
-            return response()->json([
-                'statut' => 'success',
-                'message' => 'Journée comptable et Agence ouvertes avec succès',
-                'data' => [
-                    'journee_id' => $jour->id,
-                    'session_agence_id' => $session->id,
-                    'date_comptable' => $jour->date_du_jour
-                ]
-            ], 201);
-
+                return response()->json([
+                    'statut' => 'success',
+                    'message' => 'Journée comptable et Agence ouvertes avec succès',
+                    'data' => [
+                        'jour_comptable_id' => $jour->id,
+                        'agence_session_id' => $session->id,
+                        'date_comptable' => $jour->date_du_jour
+                    ]
+                ], 201);
+            });
         } catch (Exception $e) {
             return response()->json(['error' => $e->getMessage()], 422);
         }
     }
 
     /**
-     * Étape 3 : Ouverture du Guichet
+     * ÉTAPE 3 : OUVERTURE DU GUICHET
      */
     public function ouvrirGuichet(Request $request)
     {
         $request->validate([
             'agence_session_id' => 'required|exists:agence_sessions,id',
-            'code_guichet' => 'required|integer',
+            'guichet_id' => 'required|exists:guichets,id',
         ]);
 
         try {
             $guichet = $this->sessionService->ouvrirGuichetSession(
                 $request->agence_session_id,
-                $request->code_guichet
+                $request->guichet_id
             );
 
             return response()->json([
                 'statut' => 'success',
                 'message' => 'Guichet ouvert avec succès',
-                'guichet_session_id' => $guichet->id
+                'data' => [
+                    'guichet_session_id' => $guichet->id,
+                    'code_guichet' => $guichet->code_guichet
+                ]
             ], 201);
         } catch (Exception $e) {
             return response()->json(['error' => $e->getMessage()], 422);
@@ -85,76 +89,119 @@ class SessionAgenceController extends Controller
     }
 
     /**
-     * Étape 4 : Ouverture de la Caisse
+     * ÉTAPE 4 : OUVERTURE DE LA CAISSE
      */
-public function ouvrirCaisse(Request $request)
-{
-    $request->validate([
-        'guichet_session_id' => 'required',
-        'code_caisse' => 'required',
-        'billetage' => 'required|array', 
-        'solde_saisi' => 'required|numeric'
-    ]);
-
-    // 1. Récupérer le solde de clôture (Solde Informatique)
-    $soldeInformatique = (float) $this->sessionService->getDernierSoldeFermeture($request->code_caisse);
-
-    // 2. Calculer le montant total du billetage avec forçage de type
-    $montantBillete = 0;
-    foreach ($request->billetage as $coupure => $quantite) {
-        $montantBillete += ((int)$coupure * (int)$quantite);
-    }
-
-    $soldeSaisi = (float) $request->solde_saisi;
-
-    // 3. Vérification de l'Ajustage
-    // Règle 1: Le billetage doit correspondre au solde saisi
-    if (abs($montantBillete - $soldeSaisi) > 1) { // Tolérance de 1 FCFA
-        return response()->json([
-            'message' => 'Le billetage n’est pas correct. Reprendre le billetage.',
-            'debug' => [
-                'calcul_billetage' => $montantBillete,
-                'solde_saisi' => $soldeSaisi
-            ]
-        ], 422);
-    }
-
-    // Règle 2: Le solde saisi doit correspondre au solde informatique
-    // IMPORTANT: Pour une première ouverture, le solde informatique peut être 0
-    if (abs($soldeSaisi - $soldeInformatique) > 0.01) {
-        return response()->json([
-            'message' => 'Erreur d\'ajustage : Le solde saisi (' . $soldeSaisi . ') diffère du solde informatique (' . $soldeInformatique . ').',
-            'debug' => [
-                'solde_saisi' => $soldeSaisi,
-                'attendu_systeme' => $soldeInformatique
-            ]
-        ], 422);
-    }
-
-    // 4. Si tout est OK, on procède à l'ouverture
-    try {
-        $caisse = $this->sessionService->ouvrirCaisseSession(
-            $request->guichet_session_id,
-            auth()->id(),
-            $request->code_caisse,
-            $soldeSaisi,
-            $request->billetage
-        );
-
-        return response()->json([
-            'statut' => 'success',
-            'message' => 'Le billetage est équilibré. Vous pouvez ouvrir la caisse.',
-            'data' => ['caisse_id' => $caisse->id, 'statut' => 'OU']
+    public function ouvrirCaisse(Request $request)
+    {
+        $request->validate([
+            'guichet_session_id' => 'required|exists:guichet_sessions,id',
+            'caisse_id'          => 'required|exists:caisses,id',
+            'billetage'          => 'required|array', 
+            'solde_saisi'        => 'required|numeric'
         ]);
-    } catch (Exception $e) {
-        return response()->json(['message' => $e->getMessage()], 422);
-    }
-}
 
-/**
- * POST /api/sessions-agence/reouvrir-caisse
- */
-public function reouvrirCaisse(Request $request)
+        try {
+            // Le service gère l'ajustage (Saisi vs Billetage vs Informatique)
+            $caisse = $this->sessionService->ouvrirCaisseSession(
+                $request->guichet_session_id,
+                auth()->id(),
+                $request->caisse_id,
+                (float)$request->solde_saisi,
+                $request->billetage
+            );
+
+            return response()->json([
+                'statut' => 'success',
+                'message' => 'La caisse est ajustée et ouverte avec succès.',
+                'data' => [
+                    'caisse_session_id' => $caisse->id,
+                    'code_caisse' => $caisse->code_caisse,
+                    'statut' => 'OU'
+                ]
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'statut' => 'error',
+                'message' => $e->getMessage()
+            ], 422);
+        }
+    }
+
+    /**
+     * FERMETURE DE LA CAISSE
+     * POST /api/sessions/fermer-caisse
+     */
+    public function fermerCaisse(Request $request) {
+        $request->validate([
+            'caisse_session_id' => 'required|exists:caisse_sessions,id',
+            'solde_fermeture'   => 'required|numeric|min:0',
+            'billetage'         => 'required|array'
+        ]);
+
+        try {
+            $session = $this->sessionService->fermerCaisseSession(
+                $request->caisse_session_id, 
+                (float)$request->solde_fermeture,
+                $request->billetage
+            );
+
+            activity('caisse')
+                ->performedOn($session)
+                ->log("Clôture de caisse effectuée par le caissier ID: " . auth()->id());
+
+            return response()->json([
+                'statut' => 'success',
+                'message' => 'Caisse fermée avec succès et solde de coffre mis à jour.'
+            ]);
+        } catch (Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * BILAN DE CLÔTURE (Visualisation avant TFJ)
+     * GET /api/sessions/bilan-caisse/{id}
+     */
+    public function getBilanCaisse($id)
+    {
+        try {
+            $bilan = $this->sessionService->genererBilanCaisse($id);
+            return response()->json(['statut' => 'success', 'data' => $bilan]);
+        } catch (Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * TRAITEMENT DE FIN DE JOURNÉE (TFJ)
+     * POST /api/sessions/fermer-agence
+     */
+    public function fermerAgence(Request $request) {
+        $request->validate([
+            'agence_session_id' => 'required|exists:agence_sessions,id',
+            'jour_comptable_id' => 'required|exists:jours_comptables,id'
+        ]);
+
+        try {
+            $this->sessionService->fermerAgenceEtJournee(
+                $request->agence_session_id, 
+                $request->jour_comptable_id
+            );
+
+            return response()->json([
+                'statut' => 'success',
+                'message' => 'Traitement de fin de journée terminé. Agence et Journée clôturées.'
+            ]);
+        } catch (Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * RÉOUVERTURE DE CAISSE (Exceptionnel)
+     * POST /api/sessions/reouvrir-caisse
+     */
+    public function reouvrirCaisse(Request $request)
     {
         $request->validate([
             'caisse_session_id' => 'required|exists:caisse_sessions,id'
@@ -163,126 +210,17 @@ public function reouvrirCaisse(Request $request)
         try {
             $caisse = $this->sessionService->reouvrirCaisseSession($request->caisse_session_id);
 
-            // Audit Log Spatie
             activity('caisse')
                 ->performedOn($caisse)
-                ->causedBy(auth()->user())
-                ->log("Réouverture de la caisse session ID: {$caisse->id}");
+                ->log("Réouverture exceptionnelle de la session caisse ID: {$caisse->id}");
 
             return response()->json([
                 'statut' => 'success',
-                'message' => 'La caisse est rouverte (Statut RE)',
+                'message' => 'La caisse est à nouveau disponible (Statut RE)',
                 'data' => ['statut' => 'RE']
             ]);
-
         } catch (Exception $e) {
-            return response()->json([
-                'statut' => 'error',
-                'message' => 'Erreur lors de la réouverture : ' . $e->getMessage()
-            ], 422);
+            return response()->json(['error' => $e->getMessage()], 422);
         }
     }
-/**
- * FERMETURE DE LA CAISSE
- */
-public function fermerCaisse(Request $request) {
-    $request->validate([
-        'caisse_session_id' => 'required|exists:caisse_sessions,id',
-        'solde_fermeture' => 'required|numeric|min:0'
-    ]);
-
-    try {
-        $caisse = $this->sessionService->fermerCaisseSession(
-            $request->caisse_session_id, 
-            $request->solde_fermeture
-        );
-
-        // LOG MANUEL (Optionnel si vous avez mis LogsActivity dans le modèle)
-        activity('clôture')
-            ->performedOn($caisse)
-            ->log("Le caissier " . auth()->user()->name . " a fermé sa caisse avec " . $request->solde_fermeture);
-
-        return response()->json(['message' => 'Caisse fermée avec succès']);
-    } catch (Exception $e) {
-        return response()->json(['error' => $e->getMessage()], 422);
-    }
-}
-
-/**
- * FERMETURE DU GUICHET
- * Accessible uniquement par le Chef d'Agence ou l'Admin
- */
-public function fermerGuichet(Request $request)
-{
-    $request->validate([
-        'guichet_session_id' => 'required|exists:guichet_sessions,id',
-    ]);
-
-    try {
-       
-
-        $guichet = $this->sessionService->fermerGuichetSession($request->guichet_session_id);
-
-        // Log d'audit avec Spatie Log
-        activity('session_guichet')
-            ->performedOn($guichet)
-            ->causedBy(auth()->user())
-            ->log("Fermeture du guichet code: " . $guichet->code_guichet);
-
-        return response()->json([
-            'statut' => 'success',
-            'message' => 'Guichet fermé avec succès.'
-        ], 200);
-
-    } catch (Exception $e) {
-        return response()->json([
-            'statut' => 'error',
-            'message' => $e->getMessage()
-        ], 422);
-    }
-}
-
-/**
- * GET - Récupérer le solde informatique d'une caisse
- */
-public function getSoldeInformatique(string $code_caisse)
-{
-    try {
-        $soldeInformatique = (float)
-            $this->sessionService->getDernierSoldeFermeture($code_caisse);
-
-        return response()->json([
-            'statut' => 'success',
-            'code_caisse' => $code_caisse,
-            'solde_informatique' => $soldeInformatique
-        ], 200);
-
-    } catch (\Exception $e) {
-        return response()->json([
-            'statut' => 'error',
-            'message' => $e->getMessage()
-        ], 500);
-    }
-}
-
-/**
- * TRAITEMENT DE FIN DE JOURNÉE (TFJ)
- */
-public function fermerAgence(Request $request) {
-    $request->validate([
-        'agence_session_id' => 'required|exists:agence_sessions,id',
-        'jour_comptable_id' => 'required|exists:jours_comptables,id'
-    ]);
-
-    try {
-        $this->sessionService->fermerAgenceEtJournee(
-            $request->agence_session_id, 
-            $request->jour_comptable_id
-        );
-
-        return response()->json(['message' => 'Traitement de fin de journée terminé. Agence clôturée.']);
-    } catch (Exception $e) {
-        return response()->json(['error' => $e->getMessage()], 422);
-    }
-}
 }

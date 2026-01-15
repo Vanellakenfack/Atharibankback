@@ -6,6 +6,8 @@ use App\Models\SessionAgence\JourComptable;
 use App\Models\SessionAgence\AgenceSession;
 use App\Models\SessionAgence\GuichetSession;
 use App\Models\SessionAgence\CaisseSession;
+use App\Models\Caisse\Caisse;
+use App\Models\Caisse\Guichet;
 use Illuminate\Support\Facades\DB;
 use Exception;
 
@@ -13,13 +15,11 @@ class SessionBancaireService
 {
     /**
      * ÉTAPE 1 : OUVERTURE DE LA JOURNÉE COMPTABLE
-     * Définit la date de référence pour tout le système.
      */
     public function ouvrirJourneeComptable($agenceId, $dateSaisie, $utilisateurId)
     {
         return DB::transaction(function () use ($agenceId, $dateSaisie, $utilisateurId) {
             
-            // Vérifier si une journée est déjà ouverte
             $journeeActive = JourComptable::where('agence_id', $agenceId)
                 ->where('statut', 'OUVERT')
                 ->first();
@@ -28,7 +28,6 @@ class SessionBancaireService
                 throw new Exception("Une journée comptable est déjà en cours pour cette agence.");
             }
 
-            // Cohérence de la date (interdire le retour dans le passé)
             $derniereJournee = JourComptable::where('agence_id', $agenceId)
                 ->orderBy('date_du_jour', 'desc')
                 ->first();
@@ -50,7 +49,6 @@ class SessionBancaireService
 
     /**
      * ÉTAPE 2 : OUVERTURE DE L'AGENCE
-     * Autorise l'agence physique à opérer pour la journée comptable.
      */
     public function ouvrirAgenceSession($agenceId, $jourComptableId, $utilisateurId)
     {
@@ -71,229 +69,193 @@ class SessionBancaireService
 
     /**
      * ÉTAPE 3 : OUVERTURE DU GUICHET
-     * Active un guichet spécifique au sein de l'agence ouverte.
      */
-    public function ouvrirGuichetSession($agenceSessionId, $codeGuichet)
+    public function ouvrirGuichetSession($agenceSessionId, $guichetId)
     {
         $agenceSession = AgenceSession::findOrFail($agenceSessionId);
+        $guichetPhysique = Guichet::findOrFail($guichetId);
 
         if ($agenceSession->statut !== 'OU') {
-            throw new Exception("L'agence doit être ouverte (statut OU) avant d'ouvrir un guichet.");
+            throw new Exception("L'agence doit être ouverte avant d'ouvrir un guichet.");
         }
 
-        // Vérifier si ce guichet n'est pas déjà ouvert
         $dejaOuvert = GuichetSession::where('agence_session_id', $agenceSessionId)
-            ->where('code_guichet', $codeGuichet)
+            ->where('guichet_id', $guichetId)
             ->where('statut', 'OU')
             ->first();
 
         if ($dejaOuvert) {
-            throw new Exception("Ce guichet est déjà ouvert pour cette session.");
+            throw new Exception("Ce guichet est déjà ouvert.");
         }
 
         return GuichetSession::create([
             'agence_session_id' => $agenceSessionId,
-            'code_guichet' => $codeGuichet,
-            'statut' => 'OU',
+            'guichet_id' => $guichetId,
+            'guichet_id' => $guichetId, 
+            'statut'            => 'OU', 
             'heure_ouverture' => now()
         ]);
     }
 
     /**
-     * ÉTAPE 4 : OUVERTURE DE LA CAISSE
-     * Responsabilise le caissier et valide le solde initial.
+     * ÉTAPE 4 : OUVERTURE DE LA CAISSE (Avec ajustage strict)
      */
-public function ouvrirCaisseSession($guichetSessionId, $caissierId, $codeCaisse, $soldeOuvertureSaisi, array $detailsBilletage){
-return DB::transaction(function () use ($guichetSessionId, $caissierId, $codeCaisse, $soldeOuvertureSaisi, $detailsBilletage) {        
-        // 1. Vérification du Guichet (Condition obligatoire du manuel)
-        $guichet = GuichetSession::findOrFail($guichetSessionId);
-        if ($guichet->statut !== 'OU') {
-            throw new Exception("Le guichet doit être ouvert avant l'ouverture de la caisse.");
-        }
+    public function ouvrirCaisseSession($guichetSessionId, $caissierId, $caisseId, $soldeOuvertureSaisi, array $detailsBilletage)
+    {
+        return DB::transaction(function () use ($guichetSessionId, $caissierId, $caisseId, $soldeOuvertureSaisi, $detailsBilletage) {
+            
+            $guichet = GuichetSession::findOrFail($guichetSessionId);
+            if ($guichet->statut !== 'OU') {
+                throw new Exception("Le guichet doit être ouvert avant l'ouverture de la caisse.");
+            }
 
-        // 2. Récupération du Solde Informatique (Dernière clôture FE)
-        $derniereSession = CaisseSession::where('caissier_id', $caissierId)
-            ->where('statut', 'FE')
-            ->orderBy('id', 'desc')
-            ->first();
+            $caissePhysique = Caisse::lockForUpdate()->findOrFail($caisseId);
+            $soldeInformatique = (float)$caissePhysique->solde_actuel;
 
-        $soldeInformatique = $derniereSession ? (float)$derniereSession->solde_fermeture : 0;
+            // Calcul et vérification du billetage
+            $montantBillete = $this->calculerMontantBilletage($detailsBilletage);
 
-        // 3. Calcul du montant total du billetage (Montant Billeté)
-        $montantBillete = 0;
-        foreach ($detailsBilletage as $coupure => $quantite) {
-            $montantBillete += ($coupure * $quantite);
-        }
+            if ((float)$soldeOuvertureSaisi !== (float)$montantBillete) {
+                throw new Exception("Le montant billeté ($montantBillete) ne correspond pas au solde saisi ($soldeOuvertureSaisi).");
+            }
 
-        // 4. VERIFICATION DE L'AJUSTAGE (Règle d'or du manuel)
-        // Le montant saisi doit être égal au montant billeté
-        if ((float)$soldeOuvertureSaisi !== (float)$montantBillete) {
-            throw new Exception("Le billetage n'est pas correct : le montant billeté ne correspond pas au solde saisi.");
-        }
+            if ((float)$soldeOuvertureSaisi !== $soldeInformatique) {
+                throw new Exception("Erreur d'ajustage : Le solde déclaré diffère du solde informatique en coffre ($soldeInformatique).");
+            }
 
-        // Le solde saisi doit être égal au solde informatique
-        if ((float)$soldeOuvertureSaisi !== $soldeInformatique) {
-            throw new Exception("Erreur d'ajustage : Le solde saisi ($soldeOuvertureSaisi) diffère du solde informatique ($soldeInformatique).");
-        }
-
-        // 5. Création de la session (La caisse est ajustée)
-        return CaisseSession::create([
-            'guichet_session_id' => $guichetSessionId,
-            'caissier_id'        => $caissierId,
-            'code_caisse'        => $codeCaisse, // <--- AJOUT INDISPENSABLE ICI
-            'solde_ouverture'    => $soldeOuvertureSaisi,
-            'solde_informatique' => $soldeInformatique, // On garde une trace des deux
-            'billetage_json'     => json_encode($detailsBilletage), // Stockage du détail F4
-            'statut'             => 'OU'
-        ]);
-    });
-}
+            return CaisseSession::create([
+                'guichet_session_id' => $guichetSessionId,
+                'caissier_id'        => $caissierId,
+                'caisse_id'          => $caisseId,
+                'solde_physique'     => $soldeOuvertureSaisi, // Changé ici pour correspondre à la migration                'solde_informatique' => $soldeInformatique,
+                'billetage_ouverture'=> $detailsBilletage,
+                'statut'             => 'OU',
+                'heure_ouverture'    => now()
+            ]);
+        });
+    }
 
     /**
- * FERMETURE DE LA CAISSE
- */
-public function fermerCaisseSession($caisseSessionId, $soldeFermetureSaisi) {
-    return DB::transaction(function () use ($caisseSessionId, $soldeFermetureSaisi) {
-        $caisse = CaisseSession::findOrFail($caisseSessionId);
-        
-        if ($caisse->statut === 'FE') throw new Exception("Caisse déjà fermée.");
+     * FERMETURE DE LA CAISSE
+     */
+    public function fermerCaisseSession($caisseSessionId, $soldeFermetureSaisi, array $billetageFermeture) {
+        return DB::transaction(function () use ($caisseSessionId, $soldeFermetureSaisi, $billetageFermeture) {
+            $session = CaisseSession::findOrFail($caisseSessionId);
+            
+            if ($session->statut === 'FE') throw new Exception("Caisse déjà fermée.");
 
-        $caisse->update([
-            'solde_fermeture' => $soldeFermetureSaisi,
-            'statut' => 'FE',
-        ]);
+            // Vérification du billetage de fermeture
+            $montantBillete = $this->calculerMontantBilletage($billetageFermeture);
+            if ((float)$soldeFermetureSaisi !== (float)$montantBillete) {
+                throw new Exception("Le billetage de fermeture ne correspond pas au solde saisi.");
+            }
 
-        return $caisse;
-    });
-}
+            $session->update([
+                'solde_fermeture' => $soldeFermetureSaisi,
+                'billetage_fermeture' => $billetageFermeture,
+                'statut' => 'FE',
+                'heure_fermeture' => now()
+            ]);
 
-/**
- * FERMETURE DU GUICHET
- */
-public function fermerGuichetSession($guichetSessionId) {
-    $guichet = GuichetSession::findOrFail($guichetSessionId);
-    
-    // Vérifier si des caisses sont encore ouvertes au guichet
-    $caissesOuvertes = CaisseSession::where('guichet_session_id', $guichetSessionId)
-        ->where('statut', 'OU')->exists();
+            // Mise à jour du solde permanent de la caisse physique
+            $session->caisse->update(['solde_actuel' => $soldeFermetureSaisi]);
 
-    if ($caissesOuvertes) throw new Exception("Fermez toutes les caisses avant de fermer le guichet.");
-
-    $guichet->update(['statut' => 'FE', 'heure_fermeture' => now()]);
-    return $guichet;
-}
-
-/**
- * FERMETURE DE L'AGENCE ET DE LA JOURNÉE (Traitement de fin de journée)
- */
-public function fermerAgenceEtJournee($agenceSessionId, $jourComptableId) {
-    return DB::transaction(function () use ($agenceSessionId, $jourComptableId) {
-        // 1. Vérifier les guichets
-        $guichetsOuverts = GuichetSession::where('agence_session_id', $agenceSessionId)
-            ->where('statut', 'OU')->exists();
-        if ($guichetsOuverts) throw new Exception("Des guichets sont encore ouverts.");
-
-        // 2. Fermer l'agence
-        AgenceSession::where('id', $agenceSessionId)->update([
-            'statut' => 'FE', 
-            'heure_fermeture' => now()
-        ]);
-
-        // 3. Fermer le jour comptable (Irréversible)
-        return JourComptable::where('id', $jourComptableId)->update([
-            'statut' => 'FERME',
-            'ferme_at' => now()
-        ]);
-    });
-}
-
-/**
- * Générer le bilan de clôture d'une caisse
- */
-public function genererBilanCaisse($caisseSessionId)
-{
-    $caisse = CaisseSession::findOrFail($caisseSessionId);
-
-    // Simulation du calcul des mouvements (à lier avec votre future table transactions)
-    // Pour l'instant, nous supposons des méthodes sommeDepots() et sommeRetraits()
-    $totalDepots = DB::table('transactions')
-        ->where('caisse_session_id', $caisseSessionId)
-        ->where('type', 'DEPOT')
-        ->sum('montant');
-
-    $totalRetraits = DB::table('transactions')
-        ->where('caisse_session_id', $caisseSessionId)
-        ->where('type', 'RETRAIT')
-        ->sum('montant');
-
-    $soldeTheorique = $caisse->solde_ouverture + $totalDepots - $totalRetraits;
-    $ecart = $caisse->solde_fermeture - $soldeTheorique;
-
-    return [
-        'caissier' => $caisse->caissier_id,
-        'ouverture' => $caisse->solde_ouverture,
-        'total_depots' => $totalDepots,
-        'total_retraits' => $totalRetraits,
-        'solde_theorique' => $soldeTheorique,
-        'solde_reel_declare' => $caisse->solde_fermeture,
-        'ecart' => $ecart,
-        'statut_bilan' => ($ecart == 0) ? 'ÉQUILIBRÉ' : 'ERREUR',
-    ];
-}
-
-/**
- * REOUVERTURE DE CAISSE (Passage de FE à RE)
- */
-public function reouvrirCaisseSession($caisseSessionId)
-{
-    return DB::transaction(function () use ($caisseSessionId) {
-        $caisse = CaisseSession::findOrFail($caisseSessionId);
-
-        // 1. Vérifier si la caisse est bien fermée (on ne réouvre que ce qui est fermé)
-        if ($caisse->statut !== 'FE') {
-            throw new Exception("Seule une caisse fermée peut être rouverte.");
-        }
-
-        // 2. Vérifier si le guichet est toujours ouvert
-        if ($caisse->guichetSession->statut !== 'OU') {
-            throw new Exception("Impossible de rouvrir : le guichet associé est déjà fermé.");
-        }
-
-        // 3. Changement de statut vers 'RE' (Réouvert)
-        $caisse->update([
-            'statut' => 'RE',
-            'solde_fermeture' => null, // On réinitialise le solde de fermeture
-            'heure_fermeture' => null
-        ]);
-
-        return $caisse;
-    });
-}
-/**
- * Récupère le solde de la dernière clôture pour une caisse précise
- */
-public function getDernierSoldeFermeture($codeCaisse)
-{
-    $derniereSession = CaisseSession::where('code_caisse', $codeCaisse)
-        ->where('statut', 'FE') // Uniquement les sessions clôturées
-        ->orderBy('id', 'desc')
-        ->first();
-
-    return $derniereSession ? (float) $derniereSession->solde_fermeture : 0.00;
-}
-
-/**
- * Calcule le montant total à partir d'un tableau de billetage
- * Exemple de $billetage : [10000 => 50, 5000 => 20, 2000 => 0...]
- */
-private function calculerMontantBilletage(array $billetage)
-{
-    $total = 0;
-    foreach ($billetage as $coupure => $quantite) {
-        $total += ($coupure * $quantite);
+            return $session;
+        });
     }
-    return $total;
-}
 
+    /**
+     * FERMETURE DU GUICHET
+     */
+    public function fermerGuichetSession($guichetSessionId) {
+        $guichet = GuichetSession::findOrFail($guichetSessionId);
+        
+        $caissesOuvertes = CaisseSession::where('guichet_session_id', $guichetSessionId)
+            ->where('statut', 'OU')->exists();
 
+        if ($caissesOuvertes) throw new Exception("Fermez toutes les caisses avant de fermer le guichet.");
+
+        $guichet->update(['statut' => 'FE', 'heure_fermeture' => now()]);
+        return $guichet;
+    }
+
+    /**
+     * FERMETURE DE L'AGENCE ET DE LA JOURNÉE
+     */
+    public function fermerAgenceEtJournee($agenceSessionId, $jourComptableId) {
+        return DB::transaction(function () use ($agenceSessionId, $jourComptableId) {
+            $guichetsOuverts = GuichetSession::where('agence_session_id', $agenceSessionId)
+                ->whereIn('statut', ['OU'])->exists();
+            
+            if ($guichetsOuverts) throw new Exception("Des guichets sont encore ouverts.");
+
+            AgenceSession::where('id', $agenceSessionId)->update([
+                'statut' => 'FE', 
+                'heure_fermeture' => now()
+            ]);
+
+            return JourComptable::where('id', $jourComptableId)->update([
+                'statut' => 'FERME',
+                'ferme_at' => now()
+            ]);
+        });
+    }
+
+    /**
+     * BILAN DE CLÔTURE (Calcul des écarts)
+     */
+    public function genererBilanCaisse($caisseSessionId)
+    {
+        $caisse = CaisseSession::findOrFail($caisseSessionId);
+
+        $totalFlux = DB::table('caisse_transactions')
+            ->where('code_caisse', $caisse->caisse_id)
+            ->where('date_operation', $caisse->heure_ouverture->format('Y-m-d'))
+            ->selectRaw("SUM(CASE WHEN type_flux IN ('VERSEMENT', 'ENTREE_CAISSE') THEN montant_brut ELSE 0 END) as total_entrees")
+            ->selectRaw("SUM(CASE WHEN type_flux IN ('RETRAIT', 'SORTIE_CAISSE') THEN montant_brut ELSE 0 END) as total_sorties")
+            ->first();
+
+        $soldeTheorique = $caisse->solde_ouverture + $totalFlux->total_entrees - $totalFlux->total_sorties;
+        $ecart = ($caisse->solde_fermeture ?? 0) - $soldeTheorique;
+
+        return [
+            'ouverture' => (float)$caisse->solde_ouverture,
+            'total_entrees' => (float)$totalFlux->total_entrees,
+            'total_sorties' => (float)$totalFlux->total_sorties,
+            'solde_theorique' => $soldeTheorique,
+            'solde_reel' => (float)$caisse->solde_fermeture,
+            'ecart' => $ecart,
+            'statut_bilan' => ($ecart == 0) ? 'ÉQUILIBRÉ' : 'ÉCART'
+        ];
+    }
+
+    /**
+     * RÉOUVERTURE (Correction)
+     */
+    public function reouvrirCaisseSession($caisseSessionId)
+    {
+        return DB::transaction(function () use ($caisseSessionId) {
+            $caisse = CaisseSession::findOrFail($caisseSessionId);
+
+            if ($caisse->statut !== 'FE') throw new Exception("Seule une caisse fermée peut être rouverte.");
+            if ($caisse->guichetSession->statut !== 'OU') throw new Exception("Le guichet est déjà fermé.");
+
+            $caisse->update([
+                'statut' => 'RE',
+                'solde_fermeture' => null,
+                'heure_fermeture' => null
+            ]);
+
+            return $caisse;
+        });
+    }
+
+    private function calculerMontantBilletage(array $billetage)
+    {
+        $total = 0;
+        foreach ($billetage as $coupure => $quantite) {
+            $total += ((int)$coupure * (int)$quantite);
+        }
+        return $total;
+    }
 }

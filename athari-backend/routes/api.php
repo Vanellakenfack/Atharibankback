@@ -24,7 +24,9 @@ use App\Http\Controllers\Compte\DatContratController;
 use App\Http\Controllers\Compte\DatTypeController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Sessions\SessionAgenceController;
-
+use App\Http\Controllers\OperationDiversController;
+use App\Http\Controllers\Caisse\GuichetController;
+use App\Http\Controllers\Caisse\CaisseControllerC;
 
 /*
 |--------------------------------------------------------------------------
@@ -47,6 +49,60 @@ Route::middleware('auth:sanctum')->group(function () {
     */
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [UserController::class, 'me']);
+
+    /* ==========================================
+        Routes pour les OD (Opérations Diverses)
+    ========================================== */ 
+    Route::prefix('operation-diverses')->group(function () {
+        
+        // CRUD de base
+        Route::get('/', [OperationDiversController::class, 'index']);
+        Route::post('/', [OperationDiversController::class, 'store']);
+        Route::get('/{operationDiverse}', [OperationDiversController::class, 'show']);
+        Route::put('/{operationDiverse}', [OperationDiversController::class, 'update']);
+        Route::delete('/{operationDiverse}', [OperationDiversController::class, 'destroy']);
+        
+        // Historique et suivi
+        Route::get('/{operationDiverse}/historique', [OperationDiversController::class, 'historique']);
+        
+        // Workflow de validation
+        Route::post('/{operationDiverse}/valider', [OperationDiversController::class, 'valider'])
+            ->middleware('permission:valider les od');
+        
+        Route::post('/{operationDiverse}/rejeter', [OperationDiversController::class, 'rejeter'])
+            ->middleware('permission:valider les od');
+        
+        Route::post('/{operationDiverse}/comptabiliser', [OperationDiversController::class, 'comptabiliser'])
+            ->middleware('permission:comptabiliser od');
+        
+        Route::post('/{operationDiverse}/annuler', [OperationDiversController::class, 'annuler'])
+            ->middleware('permission:annuler od');
+        
+        // Gestion des justificatifs
+        Route::post('/{operationDiverse}/upload-justificatif', [OperationDiversController::class, 'uploadJustificatif'])
+            ->middleware('permission:saisir od');
+        
+        Route::get('/{operationDiverse}/justificatif', [OperationDiversController::class, 'downloadJustificatif']);
+        
+        // Reporting et statistiques
+        Route::get('/journal/liste', [OperationDiversController::class, 'journal'])
+            ->middleware('permission:exporter od');
+        
+        Route::get('/statistiques/generales', [OperationDiversController::class, 'statistiques']);
+        
+        Route::get('/export/data', [OperationDiversController::class, 'export'])
+            ->middleware('permission:exporter od');
+        
+        // Recherche et filtres
+        Route::get('/recherche/avancee', [OperationDiversController::class, 'rechercheAvancee']);
+        
+        // Vues spécialisées par rôle
+        Route::get('/etat/en-attente-validation', [OperationDiversController::class, 'enAttenteValidation'])
+            ->middleware('permission:valider les od');
+        
+        Route::get('/etat/a-comptabiliser', [OperationDiversController::class, 'aComptabiliser'])
+            ->middleware('permission:comptabiliser od');
+    });
 
     /*
     |--------------------------------------------------------------------------
@@ -90,13 +146,25 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/agencies', [AgencyController::class, 'index']);
     Route::post('/agencies', [AgencyController::class, 'store']); 
     Route::delete('/agencies/{id}', [AgencyController::class, 'destroy']); 
-  Route::get('/agencies/{id}', [AgencyController::class, 'show']);
-  Route::get('/agencies/{agency}/next-number', [ClientController::class, 'getNextNumber']);
+    Route::get('/agencies/{id}', [AgencyController::class, 'show']);
+    Route::get('/agencies/{agency}/next-number', [ClientController::class, 'getNextNumber']);
 
+    // ==========================================
+    // DÉPLACER CES ROUTES ICI DANS LE GROUPE auth:sanctum
+    // ==========================================
+    
+    // Routes pour les guichets
+Route::prefix('caisse')->name('caisse.')->group(function () {
+    
+    // Routes pour les Guichets (index, create, store, show, edit, update, destroy)
+    // URL: /caisse/guichets
+    Route::resource('guichets', GuichetController::class);
 
+    // Routes pour les Caisses (index, create, store, show, edit, update, destroy)
+    // URL: /caisse/caisses
+    Route::resource('caisses', CaisseControllerC::class);
 
-
-
+});
     /*
     |--------------------------------------------------------------------------
     | Clients
@@ -177,9 +245,6 @@ Route::middleware('auth:sanctum')->group(function () {
         // Actions individuelles
         Route::get('/{id}', [DatContratController::class, 'show']);
         Route::post('/{id}/cloturer', [DatContratController::class, 'cloturer']);
-
-      
-
     });
 
     /*
@@ -216,8 +281,6 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/documents', [DocumentCompteController::class, 'index']);
             Route::post('/documents', [DocumentCompteController::class, 'store']);
         });
-
-       
     });
 
     /*
@@ -281,13 +344,14 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     /**dashbord */
+    Route::get('/dashboard/stats', [DashboardController::class, 'getStats']);
 
-
-// Ajoutez cette ligne dans votre fichier routes/api.php
-Route::get('/dashboard/stats', [DashboardController::class, 'getStats']);
-
-
-Route::prefix('sessions')->group(function () {
+    /*
+    |--------------------------------------------------------------------------
+    | Sessions d'agence
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('sessions')->group(function () {
         
         // Sécurité pour l'Agence
         Route::post('/ouvrir-agence', [SessionAgenceController::class, 'ouvrirAgence'])
@@ -311,19 +375,12 @@ Route::prefix('sessions')->group(function () {
         Route::post('/fermer-agence', [SessionAgenceController::class, 'fermerAgence'])
              ->middleware('permission:ouverture/fermeture agence');
 
-        Route::get(
-    '/caisses/{code_caisse}/solde-informatique',
-    [SessionAgenceController::class, 'getSoldeInformatique']
-);
+        Route::get('/caisses/{code_caisse}/solde-informatique', [SessionAgenceController::class, 'getSoldeInformatique']);
     });
 
-    /* Exemple dans routes/api.php
-Route::middleware(['auth:sanctum', 'permission:saisir depot retrait', 'verifier.caisse'])->group(function () {
-    
-    Route::post('/versement', [TransactionController::class, 'deposer']);
-    Route::post('/retrait', [TransactionController::class, 'retirer']);
+}); // ← C'est ici que se termine le middleware auth:sanctum
 
-});*/
-
-
-});
+// ==========================================
+// AUCUNE ROUTE NE DOIT ÊTRE ICI APRÈS CETTE LIGNE
+// (à moins que vous ne vouliez des routes publiques)
+// ==========================================

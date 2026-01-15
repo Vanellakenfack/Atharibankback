@@ -117,13 +117,15 @@ class CaisseService
             $caisse = $session->caisse;
             $guichet = $caisse->guichet;
             $agence = $guichet->agence; 
-            
+            $typeVersement = $data['type_versement'] ?? 'ESPECE';
             return CaisseTransaction::create([
                 'reference_unique' => $this->generateReference($type),
                 'compte_id'        => $data['compte_id'] ?? null,
                 'code_agence'      => $agence->code ?? $guichet->agence_id,
                 'code_guichet'     => $guichet->code_guichet ?? $guichet->id, 
                 'code_caisse'      => $caisse->code_caisse ?? $caisse->id,
+                'type_versement'   => $typeVersement, 
+               'reference_externe'=> $data['reference_externe'] ?? null, // ID Orange/MTN
                 'origine_fonds'    => $data['origine_fonds'] ?? null,
                 'numero_bordereau' => $data['numero_bordereau'] ?? null,
                 'type_bordereau'   => $data['type_bordereau'] ?? null,

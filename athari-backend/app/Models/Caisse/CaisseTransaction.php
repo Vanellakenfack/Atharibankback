@@ -13,6 +13,7 @@ class CaisseTransaction extends Model
     'code_caisse',
     'type_flux',
     'type_versement', 
+  'reference_externe',
     'montant_brut',
     'commissions',
     'taxes',

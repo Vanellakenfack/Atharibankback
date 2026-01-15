@@ -48,6 +48,14 @@ return new class extends Migration
         $table->foreignId('approbateur_id')->nullable()->constrained('users');
         $table->timestamps();
         $table->index('numero_bordereau');
+       $table->enum('type_versement', [
+            'ESPECE', 
+            'ORANGE_MONEY', 
+            'MOBILE_MONEY', 
+        ])->default('ESPECE')->change();
+                
+            // Optionnel : Ajouter une colonne pour la référence externe (ID transaction OM/MoMo)
+            $table->string('reference_externe')->nullable();
     });
 }
 

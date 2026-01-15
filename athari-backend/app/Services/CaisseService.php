@@ -27,6 +27,7 @@ class CaisseService
         
        return DB::transaction(function () use ($type, $data, $billetage) {
         $user = auth()->user();
+        $typeVersement = $data['type_versement'] ?? 'ESPECE';
 
         // --- DÉPLACEMENT : On récupère la session AVANT le contrôle du plafond ---
         $session = CaisseSession::with(['caisse.guichet.agence'])
@@ -37,6 +38,8 @@ class CaisseService
         if (!$session) {
             throw new Exception("Session de caisse introuvable ou déjà fermée.");
         }
+
+      
 
         // --- CONTRÔLE DES PLAFONDS ---
         $plafondCaisse = $session->caisse->plafond_autonomie_caissiere ?? 500000;
@@ -94,8 +97,9 @@ class CaisseService
                 ]);
 
             // 7. Enregistrement Billetage granulaire
+            if ($typeVersement === 'ESPECE' && !empty($billetage)) {
             $this->enregistrerBilletage($transaction->id, $billetage);
-
+        }
           // 8. Mouvement Comptable
             $this->genererEcritureComptable($type, $transaction, $compte, $dateBancaire, $session);
 
@@ -113,6 +117,7 @@ class CaisseService
             $caisse = $session->caisse;
             $guichet = $caisse->guichet;
             $agence = $guichet->agence; 
+            
             return CaisseTransaction::create([
                 'reference_unique' => $this->generateReference($type),
                 'compte_id'        => $data['compte_id'] ?? null,
@@ -191,7 +196,6 @@ class CaisseService
             'compte_id'           => $compte->id,
             'date_mouvement'      => $dateBancaire,
             'date_valeur'         => $transaction->date_valeur,
-// Remplacez les accès par ceux-ci pour être sécurisé
         'libelle_mouvement'   => "[$chapitre] " . $type . " - " . ($transaction->reference_unique ?? $transaction['reference_unique']),
             // Utilisation des IDs récupérés dynamiquement
             'compte_debit_id'     => $debitId,
@@ -218,7 +222,6 @@ class CaisseService
        private function actualiserSoldeCompte($type, $compte, $montant) {
                 if (!$compte) return;
 
-                // On s'assure que le montant est un nombre positif
                 $montant = abs($montant);
 
                 if (in_array($type, ['VERSEMENT', 'ENTREE_CAISSE'])) {
@@ -313,9 +316,7 @@ public function genererRecu($transactionId)
     $transaction = CaisseTransaction::with(['compte.client', 'tier', 'demandeValidation.assistant'])
         ->findOrFail($transactionId);
 
-    // Si vous utilisez DomPDF ou Browsershot :
-    // $pdf = PDF::loadView('reçus.transaction', compact('transaction'));
-    // return $pdf->stream();
+   
 
     return view('recus.transaction', compact('transaction'));
 }

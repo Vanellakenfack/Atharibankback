@@ -12,10 +12,11 @@ class CaisseTransaction extends Model
     'code_guichet',
     'code_caisse',
     'type_flux',
+    'type_versement', 
     'montant_brut',
     'commissions',
     'taxes',
-    'frais_en_compte', // Vérifiez bien ce nom
+    'frais_en_compte',
     'date_operation',
     'date_valeur',
     'caissier_id',

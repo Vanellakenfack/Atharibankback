@@ -35,7 +35,7 @@ class VersementController extends Controller
             'billetage'             => 'required|array|min:1',
             'billetage.*.valeur'    => 'required|numeric',
             'billetage.*.quantite'  => 'required|integer|min:1',
-            
+            'type_versement'       => 'required|in:ESPECE,OM,MOMO',
             'net_a_percevoir_payer' => 'required|numeric',
             
             // Informations sur le porteur/tiers
@@ -81,6 +81,8 @@ class VersementController extends Controller
                     'montant_verse'  => $transaction->montant_brut,
                     'frais_appliqués'=> $transaction->commissions + $transaction->taxes,
                     'date_operation' => $transaction->date_operation,
+                  'type_versement' => $transaction->type_versement,
+
                     'caissier'       => auth()->user()->name ?? 'Système',
                     'agence_code'    => $transaction->code_agence
                 ]

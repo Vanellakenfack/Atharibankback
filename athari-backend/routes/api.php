@@ -23,10 +23,18 @@ use App\Http\Controllers\frais\MouvementRubriqueMataController;
 use App\Http\Controllers\Compte\DatContratController;
 use App\Http\Controllers\Compte\DatTypeController;
 use App\Http\Controllers\DashboardController;
+
 use App\Http\Controllers\Sessions\SessionAgenceController;
-use App\Http\Controllers\OperationDiversController;
+use  App\Http\Controllers\Caisse\VersementController;
+use  App\Http\Controllers\Caisse\RetraitController;
+use App\Http\Controllers\Caisse\SupervisionController;
+use App\Models\Caisse\CaisseDemandeValidation;
 use App\Http\Controllers\Caisse\GuichetController;
 use App\Http\Controllers\Caisse\CaisseControllerC;
+
+// AJOUTER CE CONTROLLER :
+use App\Http\Controllers\OperationDiversController; // <-- AJOUTER
+
 
 /*
 |--------------------------------------------------------------------------
@@ -51,7 +59,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me', [UserController::class, 'me']);
 
     /* ==========================================
-        Routes pour les OD (Opérations Diverses)
+        Routes pour les OD (Opérations Diverses) - AJOUTER TOUT CE BLOC
     ========================================== */ 
     Route::prefix('operation-diverses')->group(function () {
         
@@ -371,16 +379,45 @@ Route::prefix('caisse')->name('caisse.')->group(function () {
         Route::post('/fermer-caisse', [SessionAgenceController::class, 'fermerCaisse'])
              ->middleware('permission:ouverture/fermeture caisse');
 
+        // AJOUTER CES ROUTES MANQUANTES :
+        Route::post('/reouvrir-caisse', [SessionAgenceController::class, 'reouvrirCaisse'])
+             ->middleware('permission:ouverture/fermeture caisse');
+
+        // AJOUTER CETTE ROUTE (utilisée dans getBilanCaisse) :
+        Route::get('/caisses/{caisse_session_id}/bilan', [SessionAgenceController::class, 'getBilanCaisse']);
+        
+        // AJOUTER CETTE ROUTE (pour solde informatique) :
+        Route::get('/caisses/{code_caisse}/solde-informatique', [SessionAgenceController::class, 'getSoldeInformatique']);
+
         // Clôture finale
         Route::post('/fermer-agence', [SessionAgenceController::class, 'fermerAgence'])
              ->middleware('permission:ouverture/fermeture agence');
-
-        Route::get('/caisses/{code_caisse}/solde-informatique', [SessionAgenceController::class, 'getSoldeInformatique']);
     });
 
-}); // ← C'est ici que se termine le middleware auth:sanctum
+    // AJOUTER CE GROUPE DE ROUTES POUR LA SUPERVISION DE CAISSE :
+    Route::prefix('supervision-caisse')->group(function () {
+        Route::get('/attente', [SupervisionController::class, 'index']);
+        Route::post('/approuver/{id}', [SupervisionController::class, 'approuver']);
+        Route::post('/rejeter/{id}', [SupervisionController::class, 'rejeter']);
+    });
 
-// ==========================================
-// AUCUNE ROUTE NE DOIT ÊTRE ICI APRÈS CETTE LIGNE
-// (à moins que vous ne vouliez des routes publiques)
-// ==========================================
+    // AJOUTER CETTE ROUTE POUR LES DEMANDES EN ATTENTE :
+    Route::get('/assistant/demandes-en-attente', function() {
+        return \App\Models\Caisse\CaisseDemandeValidation::where('statut', 'EN_ATTENTE')->get();
+    });
+
+});
+
+// AJOUTER CE GROUPE DE ROUTES POUR LES TRANSACTIONS DE CAISSE :
+Route::middleware(['auth:sanctum', 'verifier.caisse'])->prefix('caisse')->group(function () {
+    
+    // API Versement (Dépôt)
+    Route::post('/versement', [VersementController::class, 'store']);
+    
+    // API Retrait
+    Route::post('/retrait', [RetraitController::class, 'store']);
+    
+    // AJOUTER CETTE ROUTE POUR L'IMPRESSION DE RECU :
+    Route::get('/recu/{id}', [App\Http\Controllers\Caisse\RetraitController::class, 'imprimerRecu']);
+
+});

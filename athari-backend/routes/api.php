@@ -27,12 +27,13 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Sessions\SessionAgenceController;
 use  App\Http\Controllers\Caisse\VersementController;
 use  App\Http\Controllers\Caisse\RetraitController;
-use App\Http\Controllers\Caisse\SupervisionController;
+use  App\Http\Controllers\Caisse\SupervisionController;
 use App\Models\Caisse\CaisseDemandeValidation;
 use App\Http\Controllers\Caisse\GuichetController;
 use App\Http\Controllers\Caisse\CaisseControllerC;
-use App\Http\Controllers\Caisse\JournalCaisseController;
 
+use App\Http\Controllers\OperationDiversController;
+use App\Http\Controllers\Caisse\JournalCaisseController;
 
 
 /*
@@ -56,6 +57,60 @@ Route::middleware('auth:sanctum')->group(function () {
     */
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [UserController::class, 'me']);
+
+    /* ==========================================
+        Routes pour les OD (Opérations Diverses) - AJOUTER TOUT CE BLOC
+    ========================================== */ 
+    Route::prefix('operation-diverses')->group(function () {
+        
+        // CRUD de base
+        Route::get('/', [OperationDiversController::class, 'index']);
+        Route::post('/', [OperationDiversController::class, 'store']);
+        Route::get('/{operationDiverse}', [OperationDiversController::class, 'show']);
+        Route::put('/{operationDiverse}', [OperationDiversController::class, 'update']);
+        Route::delete('/{operationDiverse}', [OperationDiversController::class, 'destroy']);
+        
+        // Historique et suivi
+        Route::get('/{operationDiverse}/historique', [OperationDiversController::class, 'historique']);
+        
+        // Workflow de validation
+        Route::post('/{operationDiverse}/valider', [OperationDiversController::class, 'valider'])
+            ->middleware('permission:valider les od');
+        
+        Route::post('/{operationDiverse}/rejeter', [OperationDiversController::class, 'rejeter'])
+            ->middleware('permission:valider les od');
+        
+        Route::post('/{operationDiverse}/comptabiliser', [OperationDiversController::class, 'comptabiliser'])
+            ->middleware('permission:comptabiliser od');
+        
+        Route::post('/{operationDiverse}/annuler', [OperationDiversController::class, 'annuler'])
+            ->middleware('permission:annuler od');
+        
+        // Gestion des justificatifs
+        Route::post('/{operationDiverse}/upload-justificatif', [OperationDiversController::class, 'uploadJustificatif'])
+            ->middleware('permission:saisir od');
+        
+        Route::get('/{operationDiverse}/justificatif', [OperationDiversController::class, 'downloadJustificatif']);
+        
+        // Reporting et statistiques
+        Route::get('/journal/liste', [OperationDiversController::class, 'journal'])
+            ->middleware('permission:exporter od');
+        
+        Route::get('/statistiques/generales', [OperationDiversController::class, 'statistiques']);
+        
+        Route::get('/export/data', [OperationDiversController::class, 'export'])
+            ->middleware('permission:exporter od');
+        
+        // Recherche et filtres
+        Route::get('/recherche/avancee', [OperationDiversController::class, 'rechercheAvancee']);
+        
+        // Vues spécialisées par rôle
+        Route::get('/etat/en-attente-validation', [OperationDiversController::class, 'enAttenteValidation'])
+            ->middleware('permission:valider les od');
+        
+        Route::get('/etat/a-comptabiliser', [OperationDiversController::class, 'aComptabiliser'])
+            ->middleware('permission:comptabiliser od');
+    });
 
     /*
     |--------------------------------------------------------------------------
@@ -99,12 +154,28 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/agencies', [AgencyController::class, 'index']);
     Route::post('/agencies', [AgencyController::class, 'store']); 
     Route::delete('/agencies/{id}', [AgencyController::class, 'destroy']); 
-  Route::get('/agencies/{id}', [AgencyController::class, 'show']);
-  Route::get('/agencies/{agency}/next-number', [ClientController::class, 'getNextNumber']);
+    Route::get('/agencies/{id}', [AgencyController::class, 'show']);
+    Route::get('/agencies/{agency}/next-number', [ClientController::class, 'getNextNumber']);
 
+    // ==========================================
+    // DÉPLACER CES ROUTES ICI DANS LE GROUPE auth:sanctum
+    // ==========================================
+    
+    // Routes pour les guichets
+    Route::prefix('caisse')->name('caisse.')->group(function () {
+        
+        // Routes pour les Guichets (index, create, store, show, edit, update, destroy)
+        // URL: /caisse/guichets
+        Route::resource('guichets', GuichetController::class);
 
+        // Routes pour les Caisses (index, create, store, show, edit, update, destroy)
+        // URL: /caisse/caisses
+        Route::resource('caisses', CaisseControllerC::class);
 
-
+    });
+    
+    // AJOUTER CETTE ROUTE POUR L'EXPORT PDF DU JOURNAL DE CAISSE
+    Route::get('/caisse/journal/export-pdf', [JournalCaisseController::class, 'exportPdf']);
 
     /*
     |--------------------------------------------------------------------------
@@ -126,7 +197,7 @@ Route::middleware('auth:sanctum')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::prefix('plan-comptable')->group(function () {
-        // Catégorites comptables
+        // Catégories comptables
         Route::get('categories', [CategorieComptableController::class, 'index']);
         Route::post('categories', [CategorieComptableController::class, 'store']);
         Route::put('categories/{id}', [CategorieComptableController::class, 'update']);
@@ -186,9 +257,6 @@ Route::middleware('auth:sanctum')->group(function () {
         // Actions individuelles
         Route::get('/{id}', [DatContratController::class, 'show']);
         Route::post('/{id}/cloturer', [DatContratController::class, 'cloturer']);
-
-      
-
     });
 
     /*
@@ -225,8 +293,6 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/documents', [DocumentCompteController::class, 'index']);
             Route::post('/documents', [DocumentCompteController::class, 'store']);
         });
-
-       
     });
 
     /*
@@ -290,96 +356,60 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     /**dashbord */
+    Route::get('/dashboard/stats', [DashboardController::class, 'getStats']);
 
-
-// Ajoutez cette ligne dans votre fichier routes/api.php
-Route::get('/dashboard/stats', [DashboardController::class, 'getStats']);
-
-
-/*
+    /*
     |--------------------------------------------------------------------------
-    | Gestion des Sessions (Agence, Guichet, Caisse)
+    | Sessions d'agence
     |--------------------------------------------------------------------------
     */
     Route::prefix('sessions')->group(function () {
         
-        // --- Agence ---
+        // Sécurité pour l'Agence
         Route::post('/ouvrir-agence', [SessionAgenceController::class, 'ouvrirAgence'])
              ->middleware('permission:ouverture/fermeture agence');
-             
-        Route::post('/fermer-agence', [SessionAgenceController::class, 'fermerAgence'])
-             ->middleware('permission:ouverture/fermeture agence');
 
-        // --- Guichet ---
+        // Sécurité pour le Guichet
         Route::post('/ouvrir-guichet', [SessionAgenceController::class, 'ouvrirGuichet'])
              ->middleware('permission:ouverture/fermeture guichet');
         
         Route::post('/fermer-guichet', [SessionAgenceController::class, 'fermerGuichet'])
              ->middleware('permission:ouverture/fermeture guichet');
 
-        // --- Caisse ---
+        // Sécurité pour la Caisse
         Route::post('/ouvrir-caisse', [SessionAgenceController::class, 'ouvrirCaisse'])
              ->middleware('permission:ouverture/fermeture caisse');
              
         Route::post('/fermer-caisse', [SessionAgenceController::class, 'fermerCaisse'])
              ->middleware('permission:ouverture/fermeture caisse');
 
+        // AJOUTER CES ROUTES MANQUANTES :
         Route::post('/reouvrir-caisse', [SessionAgenceController::class, 'reouvrirCaisse'])
              ->middleware('permission:ouverture/fermeture caisse');
 
-        // --- Bilans et Infos ---
+        // AJOUTER CETTE ROUTE (utilisée dans getBilanCaisse) :
         Route::get('/caisses/{caisse_session_id}/bilan', [SessionAgenceController::class, 'getBilanCaisse']);
-        
-        // Utile pour afficher le solde attendu sur l'écran d'ouverture du caissier
-        Route::get('/caisses/{code_caisse}/solde-informatique', [SessionAgenceController::class, 'getSoldeInformatique']);
+
+        // Clôture finale
+        Route::post('/fermer-agence', [SessionAgenceController::class, 'fermerAgence'])
+             ->middleware('permission:ouverture/fermeture agence');
     });
 
-    /* Exemple dans routes/api.php
-Route::middleware(['auth:sanctum', 'permission:saisir depot retrait', 'verifier.caisse'])->group(function () {
-    
-    Route::post('/versement', [TransactionController::class, 'deposer']);
-    Route::post('/retrait', [TransactionController::class, 'retirer']);
-
-});*/
-Route::prefix('supervision-caisse')->group(function () {
+    // AJOUTER CE GROUPE DE ROUTES POUR LA SUPERVISION DE CAISSE :
+    Route::prefix('supervision-caisse')->group(function () {
         Route::get('/attente', [SupervisionController::class, 'index']);
         Route::post('/approuver/{id}', [SupervisionController::class, 'approuver']);
         Route::post('/rejeter/{id}', [SupervisionController::class, 'rejeter']);
     });
 
-    // Liste des demandes en attente pour l'assistant
-Route::get('/assistant/demandes-en-attente', function() {
-    return CaisseDemandeValidation::where('statut', 'EN_ATTENTE')->get();
-});
-
-
-
-/*
-|--------------------------------------------------------------------------
-| Routes pour la Gestion de la Caisse
-|--------------------------------------------------------------------------
-*/
-
-Route::prefix('caisse')->name('caisse.')->group(function () {
-    
-    // Routes pour les Guichets (index, create, store, show, edit, update, destroy)
-    // URL: /caisse/guichets
-    Route::resource('guichets', GuichetController::class);
-
-    // Routes pour les Caisses (index, create, store, show, edit, update, destroy)
-    // URL: /caisse/caisses
-    Route::resource('caisses', CaisseControllerC::class);
+    // AJOUTER CETTE ROUTE POUR LES DEMANDES EN ATTENTE :
+    Route::get('/assistant/demandes-en-attente', function() {
+        return \App\Models\Caisse\CaisseDemandeValidation::where('statut', 'EN_ATTENTE')->get();
+    });
 
 });
 
-Route::get('/caisse/journal/export-pdf', [JournalCaisseController::class, 'exportPdf']);
-
-});
-
-
-
-
-
+// AJOUTER CE GROUPE DE ROUTES POUR LES TRANSACTIONS DE CAISSE :
 Route::middleware(['auth:sanctum', 'verifier.caisse'])->prefix('caisse')->group(function () {
     
     // API Versement (Dépôt)
@@ -387,8 +417,8 @@ Route::middleware(['auth:sanctum', 'verifier.caisse'])->prefix('caisse')->group(
     
     // API Retrait
     Route::post('/retrait', [RetraitController::class, 'store']);
-    // routes/api.php
-   Route::get('/recu/{id}', [RetraitController::class, 'imprimerRecu']);
+    
+    // AJOUTER CETTE ROUTE POUR L'IMPRESSION DE RECU :
+    Route::get('/recu/{id}', [App\Http\Controllers\Caisse\RetraitController::class, 'imprimerRecu']);
 
 });
-

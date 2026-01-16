@@ -30,5 +30,3 @@ public function caisse()
         // On lie caisse_id de cette table à l'id de la table caisses
         return $this->belongsTo(Caisse::class, 'caisse_id');
     }
-
-}

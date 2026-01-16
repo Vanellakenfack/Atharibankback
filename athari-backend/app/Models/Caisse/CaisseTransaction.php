@@ -15,6 +15,7 @@ class CaisseTransaction extends Model
     'type_versement', 
   'reference_externe',
     'montant_brut',
+    'origine_fonds',
     'commissions',
     'taxes',
     'frais_en_compte',

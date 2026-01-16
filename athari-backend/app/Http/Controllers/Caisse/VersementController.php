@@ -44,6 +44,7 @@ class VersementController extends Controller
             'commissions'           => 'nullable|numeric',
             'numero_bordereau' => 'required|string' ,
             'type_bordereau'   => 'required|string' ,
+            'origine_fonds'    => 'nullable|string|max:100',
 
         ]);
 
@@ -96,6 +97,19 @@ class VersementController extends Controller
                 'success' => false, 
                 'message' => "Échec de l'opération : " . $e->getMessage()
             ], 400);
+        }
+    }
+
+    public function imprimerRecu($id)
+    {
+        try {
+            // Appelle la méthode du service que vous avez montrée précédemment
+            return $this->caisseService->genererRecu($id);
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false, 
+                'message' => 'Impossible de générer le reçu : ' . $e->getMessage()
+            ], 404);
         }
     }
 }

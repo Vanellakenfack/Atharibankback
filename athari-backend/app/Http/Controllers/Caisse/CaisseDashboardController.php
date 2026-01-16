@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Caisse;
 use App\Http\Controllers\Controller;
 use App\Services\CaisseService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB; // Import explicite recommandé
 use Exception;
 
 class CaisseDashboardController extends Controller
@@ -16,15 +17,69 @@ class CaisseDashboardController extends Controller
         $this->caisseService = $caisseService;
     }
 
-    /**
-     * Récapitulatif des flux par type (ESPECE, OM, MOMO)
-     * Utile pour la clôture ou le point de mi-journée
-     */
+    public function index()
+    {
+        $user = auth()->user();
+
+        // 1. Récupérer la session active avec une sécurité
+        $session = DB::table('caisse_sessions')
+            ->where('caissier_id', $user->id)
+            ->where('statut', 'OU') // 'OU' pour OUVERT
+            ->first();
+
+        // Sécurité : Si pas de session, on s'arrête ici proprement
+        if (!$session) {
+            return response()->json([
+                'statut' => 'error',
+                'message' => 'Aucune session de caisse ouverte.'
+            ], 404);
+        }
+
+        // 2. Calculer les totaux
+        // Correction : Utilisation du session_id si disponible ou filtrage par date
+        $flux = DB::table('caisse_transactions')
+            ->where('caissier_id', $user->id)
+            // Idéalement, filtrez par session_id pour plus de précision :
+            // ->where('session_id', $session->id) 
+            ->whereDate('created_at', now()) 
+            ->select('type_flux', 'type_versement', DB::raw('SUM(montant_brut) as total'))
+            ->groupBy('type_flux', 'type_versement')
+            ->get();
+
+        // 3. Organiser les données (Correction de la ligne 67)
+        // On utilise l'opérateur ?? 0 pour garantir qu'on a un chiffre même si la colonne est vide
+        $soldeOuverture = (float)($session->solde_ouverture ?? 0);
+
+        $bilan_especes = [
+            'solde_ouverture' => $soldeOuverture,
+            'total_entrees' => (float)$flux->where('type_versement', 'ESPECE')->whereIn('type_flux', ['VERSEMENT', 'ENTREE'])->sum('total'),
+            'total_sorties' => (float)$flux->where('type_versement', 'ESPECE')->whereIn('type_flux', ['RETRAIT', 'SORTIE'])->sum('total'),
+        ];
+        
+        $bilan_especes['net_a_justifier_physique'] = ($bilan_especes['solde_ouverture'] + $bilan_especes['total_entrees']) - $bilan_especes['total_sorties'];
+
+        // 4. Retourner la réponse
+        return response()->json([
+            'statut' => 'success',
+            'dashboard' => [
+                'session' => [
+                    'caisse' => 'Caisse N°' . ($session->caisse_id ?? 'Inconnue'),
+                    'code' => $user->name,
+                    'ouvert_le' => $session->created_at
+                ],
+                'bilan_especes' => $bilan_especes,
+                'flux_digitaux' => $flux->where('type_versement', '!=', 'ESPECE')->groupBy('type_versement'),
+                'validations_en_cours' => DB::table('caisse_demandes_validation')
+                                            ->where('caissiere_id', $user->id)
+                                            ->where('statut', 'EN_ATTENTE')->count()
+            ]
+        ]);
+    }
+
     public function recapitulatifFlux($sessionId)
     {
         try {
             $recap = $this->caisseService->obtenirRecapitulatifCloture($sessionId);
-
             return response()->json([
                 'statut' => 'success',
                 'data' => $recap
@@ -33,66 +88,4 @@ class CaisseDashboardController extends Controller
             return response()->json(['error' => $e->getMessage()], 422);
         }
     }
-
-    /**
-     * Vue globale du tableau de bord de la caissière
-     */
- public function index()
-{
-    try {
-        $user = auth()->user();
-        
-        // 1. Récupération de la session active
-        $session = \DB::table('caisse_sessions as cs')
-            ->join('caisses as c', 'cs.caisse_id', '=', 'c.id')
-            ->select('cs.*', 'c.libelle_caisse', 'c.code_caisse')
-            ->where('cs.caissier_id', $user->id)
-            ->where('cs.statut', 'OU')
-            ->first();
-
-        if (!$session) {
-            return response()->json(['message' => 'Aucune session active'], 404);
-        }
-
-        // 2. Récupération du récapitulatif des flux
-        $recap = $this->caisseService->obtenirRecapitulatifCloture($session->id);
-
-        // 3. Calcul des soldes théoriques
-        $soldeEspeceInitial = (float)$session->solde_ouverture;
-        $mouvementsEspece = $recap['ESPECE'] ?? collect([]);
-        
-        $totalEntrees = $mouvementsEspece->whereIn('type_flux', ['VERSEMENT', 'ENTREE'])->sum('total');
-        $totalSorties = $mouvementsEspece->whereIn('type_flux', ['RETRAIT', 'SORTIE'])->sum('total');
-        
-        $soldeTheoriquePhysique = ($soldeEspeceInitial + $totalEntrees) - $totalSorties;
-
-        // 4. Récupération des demandes de validation en attente
-        $alertes = \DB::table('caisse_demandes_validation')
-            ->where('caissiere_id', $user->id)
-            ->where('statut', 'EN_ATTENTE')
-            ->get();
-
-        return response()->json([
-            'statut' => 'success',
-            'dashboard' => [
-                'session' => [
-                    'caisse' => $session->libelle_caisse,
-                    'code' => $session->code_caisse,
-                    'ouvert_le' => $session->created_at,
-                ],
-                'bilan_especes' => [
-                    'solde_ouverture' => $soldeEspeceInitial,
-                    'total_entrees' => $totalEntrees,
-                    'total_sorties' => $totalSorties,
-                    'net_a_justifier_physique' => $soldeTheoriquePhysique, // Ce qu'elle doit avoir en main
-                ],
-                'flux_digitaux' => $recap->except('ESPECE'), // OM, MOMO, etc.
-                'validations_en_cours' => $alertes->count(),
-                'liste_alertes' => $alertes
-            ]
-        ]);
-    } catch (\Exception $e) {
-        return response()->json(['error' => $e->getMessage()], 500);
-    }
-}
 }

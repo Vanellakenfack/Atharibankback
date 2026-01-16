@@ -26,6 +26,8 @@ class JournalCaisseController extends Controller
             'date_fin'    => 'required|date|after_or_equal:date_debut',
         ]);
 
+        $caisse = \DB::table('caisses')->where('id', $request->caisse_id)->first();
+
         try {
             $filtres = $request->all();
             
@@ -40,7 +42,8 @@ class JournalCaisseController extends Controller
                 'total_credit' => $donnees['total_credit'],
                 'cloture'      => $donnees['solde_cloture'],
                 'synthese'     => $donnees['mouvements']->groupBy('type_versement')->map(fn($items) => $items->sum('montant_debit')),
-                'filtres'      => $filtres
+                'filtres'      => $filtres,
+                'code_caisse'  => $caisse->code_caisse ?? 'N/A'
             ])->setPaper('a4', 'landscape');
 
             return $pdf->download('journal_caisse.pdf');

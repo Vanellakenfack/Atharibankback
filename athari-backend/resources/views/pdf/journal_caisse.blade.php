@@ -24,16 +24,16 @@
 <body>
 
     <div class="header">
-        <h1>JOURNAL DE CAISSE DETAILLED</h1>
+        <h1>JOURNAL DE CAISSE DÉTAILLÉ</h1>
         <p>Généré le {{ date('d/m/Y H:i') }}</p>
     </div>
 
     <div class="info-section">
         <table class="info-table">
             <tr>
-                <td><strong>Agence :</strong> {{ $filtres['code_agence'] }}</td>
-                <td><strong>Caisse :</strong> {{ $filtres['code_caisse'] }}</td>
-                <td><strong>Période :</strong> Du {{ $filtres['date_debut'] }} au {{ $filtres['date_fin'] }}</td>
+                <td><strong>Agence :</strong> {{ $filtres['code_agence'] ?? 'N/A' }}</td>
+                <td><strong>Caisse :</strong> {{ $code_caisse ?? $filtres['caisse_id'] ?? 'N/A' }}</td>
+                <td><strong>Période :</strong> Du {{ $filtres['date_debut'] ?? '?' }} au {{ $filtres['date_fin'] ?? '?' }}</td>
             </tr>
         </table>
     </div>
@@ -53,7 +53,7 @@
         <tbody>
             <tr class="solde-initial">
                 <td colspan="5">SOLDE D'OUVERTURE (REPORT)</td>
-                <td colspan="2" class="text-right">{{ number_format($ouverture, 0, ',', ' ') }} FCFA</td>
+                <td colspan="2" class="text-right">{{ number_format($ouverture ?? 0, 0, ',', ' ') }} FCFA</td>
             </tr>
 
             @php 
@@ -61,21 +61,23 @@
                 $cumulCredit = 0; 
             @endphp
 
-            @foreach($mouvements as $mvt)
-                @php 
-                    $cumulDebit += $mvt->montant_debit; 
-                    $cumulCredit += $mvt->montant_credit; 
-                @endphp
-                <tr>
-                    <td>{{ date('d/m/Y', strtotime($mvt->date_mouvement)) }}</td>
-                    <td>{{ $mvt->reference_operation }}</td>
-                    <td>{{ $mvt->numero_compte }}</td>
-                    <td>{{ $mvt->tiers_nom }}</td>
-                    <td>{{ $mvt->libelle_mouvement }}</td>
-                    <td class="text-right">{{ number_format($mvt->montant_debit, 0, ',', ' ') }}</td>
-                    <td class="text-right">{{ number_format($mvt->montant_credit, 0, ',', ' ') }}</td>
-                </tr>
-            @endforeach
+            @isset($mouvements)
+                @foreach($mouvements as $mvt)
+                    @php 
+                        $cumulDebit += $mvt->montant_debit ?? 0; 
+                        $cumulCredit += $mvt->montant_credit ?? 0; 
+                    @endphp
+                    <tr>
+                        <td>{{ isset($mvt->date_mouvement) ? date('d/m/Y', strtotime($mvt->date_mouvement)) : '-' }}</td>
+                        <td>{{ $mvt->reference_operation ?? '-' }}</td>
+                        <td>{{ $mvt->numero_compte ?? '-' }}</td>
+                        <td>{{ $mvt->tiers_nom ?? '-' }}</td>
+                        <td>{{ $mvt->libelle_mouvement ?? '-' }}</td>
+                        <td class="text-right">{{ number_format($mvt->montant_debit ?? 0, 0, ',', ' ') }}</td>
+                        <td class="text-right">{{ number_format($mvt->montant_credit ?? 0, 0, ',', ' ') }}</td>
+                    </tr>
+                @endforeach
+            @endisset
 
             <tr class="total-row">
                 <td colspan="5">TOTAL DES MOUVEMENTS DE LA PERIODE</td>
@@ -84,8 +86,8 @@
             </tr>
 
             <tr class="solde-final">
-                <td colspan="5">SOLDE DE CLÔTURE AU {{ $filtres['date_fin'] }}</td>
-                <td colspan="2" class="text-right">{{ number_format($cloture, 0, ',', ' ') }} FCFA</td>
+                <td colspan="5">SOLDE DE CLÔTURE AU {{ $filtres['date_fin'] ?? date('d/m/Y') }}</td>
+                <td colspan="2" class="text-right">{{ number_format($cloture ?? 0, 0, ',', ' ') }} FCFA</td>
             </tr>
         </tbody>
     </table>

@@ -268,9 +268,81 @@ class CaisseService
                     // SQL: UPDATE comptes SET solde = solde - montant WHERE id = ...
                     $compte->decrement('solde', $montant);
                 }
-                
-                
             }
+
+    /**
+     * Valider la cohérence du billetage avec le montant attendu
+     */
+    private function validerBilletage(array $billetage, float $montantAttendu): void
+    {
+        try {
+            // Calculer le total du billetage
+            $totalBilletage = 0;
+            $details = [];
+            
+            foreach ($billetage as $item) {
+                $valeur = (int) ($item['valeur'] ?? 0);
+                $quantite = (int) ($item['quantite'] ?? 0);
+                
+                // Validation des données de base
+                if ($valeur <= 0) {
+                    throw new Exception("Valeur de coupure invalide: {$valeur}");
+                }
+                
+                if ($quantite < 0) {
+                    throw new Exception("Quantité négative non autorisée: {$quantite}");
+                }
+                
+                $sousTotal = $valeur * $quantite;
+                $totalBilletage += $sousTotal;
+                
+                if ($quantite > 0) {
+                    $details[] = [
+                        'valeur' => $valeur,
+                        'quantite' => $quantite,
+                        'sous_total' => $sousTotal
+                    ];
+                }
+            }
+            
+            // Vérifier si le billetage correspond au montant attendu
+            // Tolérance de 1 FCFA pour les arrondis
+            $difference = abs($totalBilletage - $montantAttendu);
+            if ($difference > 1) {
+                $formattedTotal = number_format($totalBilletage, 0, ',', ' ');
+                $formattedExpected = number_format($montantAttendu, 0, ',', ' ');
+                $formattedDiff = number_format($difference, 0, ',', ' ');
+                
+                throw new Exception(
+                    "Désaccord billetage : Total billetage = {$formattedTotal} FCFA, " .
+                    "Montant attendu = {$formattedExpected} FCFA, " .
+                    "Différence = {$formattedDiff} FCFA"
+                );
+            }
+            
+            // Vérifier qu'il y a au moins une coupure
+            if (empty($details)) {
+                throw new Exception("Aucune coupure saisie dans le billetage");
+            }
+            
+            // Log pour audit
+            Log::info('Billetage validé', [
+                'total_billetage' => $totalBilletage,
+                'montant_attendu' => $montantAttendu,
+                'difference' => $difference,
+                'details' => $details
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Erreur validation billetage', [
+                'billetage' => $billetage,
+                'montant_attendu' => $montantAttendu,
+                'error' => $e->getMessage()
+            ]);
+            
+            throw new Exception("Erreur validation billetage: " . $e->getMessage());
+        }
+    }
 
     private function enregistrerBilletage($transactionId, $billetage) {
         foreach ($billetage as $item) {
@@ -351,8 +423,6 @@ public function genererRecu($transactionId)
 {
     $transaction = CaisseTransaction::with(['compte.client', 'tier', 'demandeValidation.assistant'])
         ->findOrFail($transactionId);
-
-   
 
     return view('recus.transaction', compact('transaction'));
 }

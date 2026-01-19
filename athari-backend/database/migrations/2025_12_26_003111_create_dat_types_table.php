@@ -14,7 +14,7 @@ return new class extends Migration
     $table->id();
     $table->string('libelle'); 
     $table->decimal('taux_interet', 5, 4); 
-        $table->decimal('taux_penalite', 5, 4)->default(0)->after('taux_interet');
+        $table->decimal('taux_penalite', 5, 4)->default(0);
 
     $table->integer('duree_mois'); 
     $table->foreignId('plan_comptable_chapitre_id');

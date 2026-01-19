@@ -41,9 +41,8 @@ return new class extends Migration
     $table->date('date_valeur');    
     $table->date('date_maturite');  
     $table->timestamp('date_scellage')->nullable();
-        $table->decimal('montant_actuel', 15, 2)->after('montant_initial');
-             $table->decimal('montant_actuel', 15, 2)->after('montant_initial');
-           $table->date('date_cloture_reelle')->nullable()->after('date_maturite');
+        $table->decimal('montant_actuel', 15, 2);
+           $table->date('date_cloture_reelle')->nullable();
 
 
     $table->decimal('interets_cumules', 15, 2)->default(0);

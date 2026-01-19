@@ -16,6 +16,45 @@ class JournalCaisseController extends Controller
         $this->caisseService = $caisseService;
     }
 
+    public function obtenirJournal(Request $request)
+    {
+        try {
+            // Validation des paramètres
+            $request->validate([
+                'caisse_id'   => 'required|exists:caisses,id',
+                'code_agence' => 'required|string',
+                'date_debut'  => 'required|date',
+                'date_fin'    => 'required|date|after_or_equal:date_debut',
+            ]);
+
+            $filtres = $request->only(['caisse_id', 'code_agence', 'date_debut', 'date_fin']);
+            
+            // Récupération des données via le service
+            $donnees = $this->caisseService->obtenirJournalCaisseComplet($filtres);
+
+            return response()->json([
+                'statut' => 'success',
+                'solde_ouverture' => $donnees['solde_ouverture'],
+                'mouvements' => $donnees['mouvements'],
+                'total_debit' => $donnees['total_debit'],
+                'total_credit' => $donnees['total_credit'],
+                'solde_cloture' => $donnees['solde_cloture'],
+                'synthese' => $donnees['mouvements']->groupBy('type_versement')
+                    ->map(fn($items) => [
+                        'debit' => $items->sum('montant_debit'),
+                        'credit' => $items->sum('montant_credit'),
+                        'count' => $items->count()
+                    ])
+            ]);
+
+        } catch (Exception $e) {
+            return response()->json([
+                'statut' => 'error',
+                'message' => $e->getMessage()
+            ], 400);
+        }
+    }
+
     public function exportPdf(Request $request)
     {
         // Validation des filtres pour Postman

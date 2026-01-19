@@ -174,6 +174,9 @@ Route::middleware('auth:sanctum')->group(function () {
         // Routes pour les Caisses (index, create, store, show, edit, update, destroy)
         // URL: /caisse/caisses
         Route::resource('caisses', CaisseControllerC::class);
+    Route::get('/journal', [JournalCaisseController::class, 'obtenirJournal']);
+
+
 
     });
     

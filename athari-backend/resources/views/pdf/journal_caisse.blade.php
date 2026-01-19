@@ -24,7 +24,7 @@
 <body>
 
     <div class="header">
-        <h1>JOURNAL DE CAISSE DÉTAILLÉ</h1>
+        <h1>JOURNAL DE CAISSE DÉTAILLÉ ATHARIFINANCIAL</h1>
         <p>Généré le {{ date('d/m/Y H:i') }}</p>
     </div>
 
@@ -51,10 +51,10 @@
             </tr>
         </thead>
         <tbody>
-            <tr class="solde-initial">
+            <!--tr class="solde-initial">
                 <td colspan="5">SOLDE D'OUVERTURE (REPORT)</td>
                 <td colspan="2" class="text-right">{{ number_format($ouverture ?? 0, 0, ',', ' ') }} FCFA</td>
-            </tr>
+            </tr-->
 
             @php 
                 $cumulDebit = 0; 
@@ -79,16 +79,16 @@
                 @endforeach
             @endisset
 
-            <tr class="total-row">
+          <tr class="total-row">
                 <td colspan="5">TOTAL DES MOUVEMENTS DE LA PERIODE</td>
                 <td class="text-right">{{ number_format($cumulDebit, 0, ',', ' ') }}</td>
                 <td class="text-right">{{ number_format($cumulCredit, 0, ',', ' ') }}</td>
             </tr>
 
-            <tr class="solde-final">
+            <!--tr class="solde-final">
                 <td colspan="5">SOLDE DE CLÔTURE AU {{ $filtres['date_fin'] ?? date('d/m/Y') }}</td>
                 <td colspan="2" class="text-right">{{ number_format($cloture ?? 0, 0, ',', ' ') }} FCFA</td>
-            </tr>
+            </tr-->
         </tbody>
     </table>
 

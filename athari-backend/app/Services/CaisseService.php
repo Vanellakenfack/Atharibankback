@@ -73,7 +73,6 @@ class CaisseService
         $this->validerEligibilite($type, $compte, $data['montant_brut']);
 
         // 5. Enregistrement Transaction Caisse
-        // La fonction enregistrerTransactionCaisse utilisera désormais $typeVersement
         $transaction = $this->enregistrerTransactionCaisse($type, $data, $dateBancaire, $session);
 
         // 6. Enregistrement des informations du tiers
@@ -92,11 +91,14 @@ class CaisseService
             'numero_piece'   => $piece,
         ]);
 
-        // 7. ENREGISTREMENT BILLETAGE (Conditionnel)
+
+
         // On n'enregistre le billetage QUE si c'est de l'ESPECE
         if ($typeVersement === 'ESPECE' && !empty($billetage)) {
             $this->validerBilletage($billetage, $data['montant_brut']); // Sécurité supplémentaire
             $this->enregistrerBilletage($transaction->id, $billetage);
+          $this->actualiserSoldesFinanciers($type, $session, $data['montant_brut']);
+
         }
 
         // 8. Mouvement Comptable
@@ -132,6 +134,7 @@ class CaisseService
                 'type_bordereau'   => $data['type_bordereau'] ,
                 'type_flux'        => $type,
                 'montant_brut'     => $data['montant_brut'],
+                'origine_fonds'    => $data['origine_fonds'] ?? null,
                 'commissions'      => $data['commissions'] ?? 0,
                 'taxes'            => $data['taxes'] ?? 0,
 
@@ -255,11 +258,19 @@ class CaisseService
                 };
             }
 
-       private function actualiserSoldeCompte($type, $compte, $montant) {
-                if (!$compte) return;
+     private function actualiserSoldeCompte($type, $compte, $montant) {
+            if (!$compte) return;
 
-                $montant = abs($montant);
+            $montant = abs($montant);
 
+            if (in_array($type, ['VERSEMENT', 'ENTREE_CAISSE'])) {
+                // SQL: UPDATE comptes SET solde = solde + montant WHERE id = ...
+                $compte->increment('solde', $montant);
+            } 
+            elseif (in_array($type, ['RETRAIT', 'SORTIE_CAISSE'])) {
+                // SQL: UPDATE comptes SET solde = solde - montant WHERE id = ...
+                $compte->decrement('solde', $montant);
+            }
                 if (in_array($type, ['VERSEMENT', 'ENTREE_CAISSE'])) {
                     // SQL: UPDATE comptes SET solde = solde + montant WHERE id = ...
                     $compte->increment('solde', $montant);
@@ -289,6 +300,8 @@ class CaisseService
                     throw new Exception("Valeur de coupure invalide: {$valeur}");
                 }
                 
+     }
+
                 if ($quantite < 0) {
                     throw new Exception("Quantité négative non autorisée: {$quantite}");
                 }
@@ -430,15 +443,34 @@ public function genererRecu($transactionId)
 
 public function obtenirRecapitulatifCloture($sessionId)
 {
-    return CaisseTransaction::where('session_id', $sessionId)
+    // 1. On remonte la chaîne : Session -> Caisse -> Guichet -> Agencis
+    $session = DB::table('caisse_sessions as cs')
+        ->join('caisses as c', 'cs.caisse_id', '=', 'c.id')
+        ->join('guichets as g', 'c.guichet_id', '=', 'g.id')
+        ->join('agencies as a', 'g.agence_id', '=', 'a.id') // Correction ici: agencis au lieu de agences
+        ->select(
+            'c.code_caisse', 
+            'a.code as code_agence', 
+            'cs.created_at'
+        )
+        ->where('cs.id', $sessionId)
+        ->first();
+
+    if (!$session) {
+        throw new \Exception("Session introuvable.");
+    }
+
+    // 2. On récupère les totaux groupés par type (ESPECE, OM, MOMO)
+    return CaisseTransaction::where('code_caisse', $session->code_caisse)
+        ->where('code_agence', $session->code_agence)
         ->where('statut', 'VALIDE')
+        ->whereDate('date_operation', '=', date('Y-m-d', strtotime($session->created_at)))
         ->select('type_versement', 'type_flux')
         ->selectRaw('SUM(montant_brut) as total')
         ->groupBy('type_versement', 'type_flux')
         ->get()
         ->groupBy('type_versement');
 }
-
 public function obtenirJournalCaisseComplet($filtres)
 {
     // 1. Calcul du solde d'ouverture (Sécurisé)

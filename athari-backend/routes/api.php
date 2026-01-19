@@ -31,6 +31,9 @@ use  App\Http\Controllers\Caisse\SupervisionController;
 use App\Models\Caisse\CaisseDemandeValidation;
 use App\Http\Controllers\Caisse\GuichetController;
 use App\Http\Controllers\Caisse\CaisseControllerC;
+use App\Http\Controllers\Caisse\CaisseDashboardController;
+
+
 
 use App\Http\Controllers\OperationDiversController;
 use App\Http\Controllers\Caisse\JournalCaisseController;
@@ -422,8 +425,14 @@ Route::middleware(['auth:sanctum', 'verifier.caisse'])->prefix('caisse')->group(
     
     // API Retrait
     Route::post('/retrait', [RetraitController::class, 'store']);
-    
-    // AJOUTER CETTE ROUTE POUR L'IMPRESSION DE RECU :
-    Route::get('/recu/{id}', [App\Http\Controllers\Caisse\RetraitController::class, 'imprimerRecu']);
+    // routes/api.php
+   Route::get('/recu/{id}', [RetraitController::class, 'imprimerRecu']);
+      Route::get('/recu/{id}', [VersementController::class, 'imprimerRecu']);
+      Route::get('/dashboard', [CaisseDashboardController::class, 'index']);
+    Route::get('/recapitulatif/{sessionId}', [CaisseDashboardController::class, 'recapitulatifFlux']);
+
 
 });
+    
+// AJOUTER CETTE ROUTE POUR L'IMPRESSION DE RECU :
+Route::get('/recu/{id}', [App\Http\Controllers\Caisse\RetraitController::class, 'imprimerRecu']);

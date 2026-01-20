@@ -174,14 +174,22 @@ Route::middleware('auth:sanctum')->group(function () {
         // Routes pour les Caisses (index, create, store, show, edit, update, destroy)
         // URL: /caisse/caisses
         Route::resource('caisses', CaisseControllerC::class);
+<<<<<<< HEAD
     Route::get('/journal', [JournalCaisseController::class, 'obtenirJournal']);
 
 
+=======
+            // Route pour récupérer le journal de caisse
+    Route::get('/journal', [JournalCaisseController::class, 'obtenirJournal']);
+    
+    // Route pour exporter en PDF
+    Route::get('/journal/export-pdf', [JournalCaisseController::class, 'exportPdf']);
+>>>>>>> cb64e432d5a995c59abfc5f8c879a8cdccac1f1b
 
     });
     
     // AJOUTER CETTE ROUTE POUR L'EXPORT PDF DU JOURNAL DE CAISSE
-    Route::get('/caisse/journal/export-pdf', [JournalCaisseController::class, 'exportPdf']);
+   // Route::get('/caisse/journal/export-pdf', [JournalCaisseController::class, 'exportPdf']);
 
     /*
     |--------------------------------------------------------------------------

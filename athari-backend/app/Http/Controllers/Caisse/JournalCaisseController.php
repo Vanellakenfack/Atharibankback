@@ -16,6 +16,12 @@ class JournalCaisseController extends Controller
         $this->caisseService = $caisseService;
     }
 
+<<<<<<< HEAD
+=======
+    /**
+     * Récupère le journal de caisse
+     */
+>>>>>>> cb64e432d5a995c59abfc5f8c879a8cdccac1f1b
     public function obtenirJournal(Request $request)
     {
         try {
@@ -55,6 +61,12 @@ class JournalCaisseController extends Controller
         }
     }
 
+<<<<<<< HEAD
+=======
+    /**
+     * Exporte le journal de caisse en PDF
+     */
+>>>>>>> cb64e432d5a995c59abfc5f8c879a8cdccac1f1b
     public function exportPdf(Request $request)
     {
         // Validation des filtres pour Postman
@@ -73,6 +85,19 @@ class JournalCaisseController extends Controller
             // Récupération des données via le service
             $donnees = $this->caisseService->obtenirJournalCaisseComplet($filtres);
 
+            // Calcul de la synthèse par type de versement
+            $synthese = [];
+            if (isset($donnees['mouvements'])) {
+                $grouped = $donnees['mouvements']->groupBy('type_versement');
+                foreach ($grouped as $type => $items) {
+                    $synthese[$type] = [
+                        'debit' => $items->sum('montant_debit'),
+                        'credit' => $items->sum('montant_credit'),
+                        'count' => $items->count()
+                    ];
+                }
+            }
+
             // Génération du PDF
             $pdf = Pdf::loadView('pdf.journal_caisse', [
                 'ouverture'    => $donnees['solde_ouverture'],
@@ -83,6 +108,8 @@ class JournalCaisseController extends Controller
                 'synthese'     => $donnees['mouvements']->groupBy('type_versement')->map(fn($items) => $items->sum('montant_debit')),
                 'filtres'      => $filtres,
                 'code_caisse'  => $caisse->code_caisse ?? 'N/A'
+                'synthese'     => $synthese,
+                'filtres'      => $filtres
             ])->setPaper('a4', 'landscape');
 
             return $pdf->download('journal_caisse.pdf');

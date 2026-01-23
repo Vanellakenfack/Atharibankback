@@ -6,6 +6,7 @@ use App\Services\Compte\CompteService;
 use Illuminate\Http\JsonResponse;
 use App\Http\Resources\Compte\CompteResource;
 use Illuminate\Http\Request;
+use App\Models\compte\Compte;
 
 class CompteValidationController extends Controller
 {
@@ -79,4 +80,39 @@ class CompteValidationController extends Controller
             return response()->json(['status' => 'error', 'message' => $e->getMessage()], 422);
         }
     }
+
+    public function getComptesEnInstruction(Request $request): JsonResponse
+{
+    $query = Compte::enInstruction() // On commence par le filtre de base
+        ->with([
+            'client.agency', 
+            'typeCompte', 
+            'utilisateur_createur',
+            'chefAgence',
+            'juriste'
+        ]);
+
+    // Filtre dynamique par Agence
+    if ($request->has('agence_id')) {
+        $query->parAgence($request->agence_id);
+    }
+
+    // Filtre dynamique par Type de Compte
+    if ($request->has('type_compte_id')) {
+        $query->parType($request->type_compte_id);
+    }
+
+    // Filtre spécifique pour n'avoir QUE les rejetés ou QUE les en attente
+    if ($request->has('statut')) {
+        $query->where('statut', $request->statut);
+    }
+
+    $comptes = $query->orderBy('updated_at', 'desc')->get();
+
+    return response()->json([
+        'status' => 'success',
+        'count'  => $comptes->count(),
+        'data'   => CompteResource::collection($comptes)
+    ]);
+}
 }

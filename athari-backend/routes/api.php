@@ -274,6 +274,7 @@ Route::middleware('auth:sanctum')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::prefix('comptes')->group(function () {
+      Route::get('/en-instruction', [CompteValidationController::class, 'getComptesEnInstruction']);
 
          //journal ouverture de compte
        Route::get('/journal-ouverture', [CompteController::class, 'getJournalOuvertures']);
@@ -302,6 +303,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/documents', [DocumentCompteController::class, 'index']);
             Route::post('/documents', [DocumentCompteController::class, 'store']);
               });
+
 
          Route::post('{id}/valider', [CompteValidationController::class, 'valider']);    
 

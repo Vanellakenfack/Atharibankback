@@ -251,5 +251,31 @@ public function chefAgence() {
         return $this->belongsTo(User::class, 'juriste_id');
     }
 
+    /**
+ * Scope pour filtrer les comptes en attente ou rejetés
+ */
+public function scopeEnInstruction($query)
+{
+    return $query->whereIn('statut', ['en_attente', 'rejete']);
+}
+
+/**
+ * Scope pour filtrer par agence (via la relation client)
+ */
+public function scopeParAgence($query, $agenceId)
+{
+    return $query->whereHas('client', function($q) use ($agenceId) {
+        $q->where('agency_id', $agenceId);
+    });
+}
+
+/**
+ * Scope pour filtrer par type de compte
+ */
+public function scopeParType($query, $typeId)
+{
+    return $query->where('type_compte_id', $typeId);
+}
+
     
 }

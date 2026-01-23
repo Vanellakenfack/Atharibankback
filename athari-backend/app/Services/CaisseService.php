@@ -67,8 +67,8 @@ public function traiterOperation(string $type, array $data, array $billetage)
                 ->lockForUpdate()
                 ->first();
                 
-            $this->verifierStatutCompte($compte);
-        }
+// LIGNE 70 : Remplacez par ceci
+$this->verifierStatutCompte($type, $compte);        }
 
         // 4. Contrôle de Provision
         $this->validerEligibilite($type, $compte, $data['montant_brut']);
@@ -178,15 +178,16 @@ private function enregistrerTransactionCaisse($type, $data, $dateBancaire, $sess
         $session->caisse->$operation('solde_actuel', $montant);
     }
 
- private function verifierStatutCompte($compte) {
+ private function verifierStatutCompte($type,$compte) {
     if (!$compte) throw new Exception("Compte inexistant.");
-
+    if ($type === 'RETRAIT' ) {
     // Bloque si le compte est encore "en attente" ou "sous opposition"
-    if ($compte->statut === 'en_attente' || $compte->sous_opposition) {
+    if ($compte->statut === 'en_attente' || $compte->est_en_opposition) {
         throw new Exception(
             "Opération refusée : Compte en attente de validation juridique (NUI) " . 
             "ou accord du Chef d'Agence."
         );
+    }
     }
 
     if ($compte->statut !== 'actif') {

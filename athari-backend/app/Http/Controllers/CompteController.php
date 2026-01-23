@@ -88,6 +88,7 @@ class CompteController extends Controller
         'client.physique', // <--- IMPORTANT : charge la table clients_physiques
         'client.morale',   // <--- IMPORTANT : charge la table clients_morales
         'typeCompte',
+        'documents', 
         'planComptable',
         'mandataires'
     ])->findOrFail($id);
@@ -290,10 +291,37 @@ public function store(StoreCompteRequest $request): JsonResponse
     try {
         $data = $request->all();
 
-        $donneesEtape1 = $data['etape1'] ?? null;
-        $donneesEtape2 = $data['etape2'] ?? null;
-        $donneesEtape3 = $data['etape3'] ?? null;
+        // Défauts pour éviter des erreurs 'Undefined array key' côté service
+        $donneesEtape1 = $data['etape1'] ?? [];
+        $donneesEtape2 = $data['etape2'] ?? [];
+        $donneesEtape3 = $data['etape3'] ?? [];
         $donneesEtape4Raw = $data['etape4'] ?? [];
+
+        // Vérifications rapides des champs essentiels pour une erreur lisible
+        if (empty($donneesEtape1) || empty($donneesEtape2)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Données d\'ouverture incomplètes : étapes 1 et 2 requises.',
+            ], 422);
+        }
+
+        if (!array_key_exists('gestionnaire_id', $donneesEtape2)) {
+            Log::error('Erreur création compte : gestionnaire_id manquant', ['payload' => $data]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Le champ gestionnaire_id est requis dans l\'étape 2.',
+            ], 422);
+        }
+
+        if (!array_key_exists('gestionnaire_id', $donneesEtape2)) {
+            Log::error('Erreur création compte : gestionnaire_id manquant', ['payload' => $data]);
+            return response()->json([
+                'message' => 'Le champ gestionnaire_id est requis dans l\'étape 2.',
+            ], 422);
+        }
+
+        // 🔹 Récupérer les infos du gestionnaire (les noms seront ignorés côté serveur)
+        $gestionnaire = \App\Models\Gestionnaire::findOrFail($donneesEtape2['gestionnaire_id']);
 
         // 1. Traitement des fichiers (Signature et Documents)
         $documentsUploades = [];
@@ -358,7 +386,7 @@ public function store(StoreCompteRequest $request): JsonResponse
 
             return response()->json([
                 'success' => true,
-                'message' => 'Compte créé et mouvements comptables enregistrés avec succès',
+                'message' => 'Compte créé et en attente de validation',
                 'data' => $compte->fresh(['documents', 'typeCompte']),
             ], 201);
         });
@@ -515,6 +543,11 @@ public function store(StoreCompteRequest $request): JsonResponse
                 'frais_carnet' => [
                     'actif' => $typeCompte->frais_carnet_actif,
                     'montant' => $typeCompte->frais_carnet,
+                    'chapitre' => $typeCompte->chapitreFraisCarnet,
+                ],
+                'frais_livret' => [
+                    'actif' => $typeCompte->frais_livret_actif,
+                    'montant' => $typeCompte->frais_livret,
                     'chapitre' => $typeCompte->chapitreFraisCarnet,
                 ],
                 'commission_mensuelle' => [

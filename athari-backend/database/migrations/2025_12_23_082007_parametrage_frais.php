@@ -1,4 +1,4 @@
-<?php
+/<?php
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -71,8 +71,8 @@ return new class extends Migration
             $table->boolean('necessite_autorisation')->default(false)->comment('Nécessite autorisation spéciale');
             
             // Comptes comptables
-            $table->foreignId('compte_produit_id')->constrained('plan_comptable')->comment('Compte produit à créditer');
-            $table->foreignId('compte_attente_id')->nullable()->constrained('plan_comptable')->comment('Compte d\'attente si solde insuffisant');
+            $table->foreignId('compte_produit_id')->constrained('plan_comptable')->onDelete('restrict')->comment('Compte produit à créditer');
+            $table->foreignId('compte_attente_id')->nullable()->constrained('plan_comptable')->onDelete('set null')->comment('Compte d\'attente si solde insuffisant');
             
             // Paramètres techniques
             $table->json('regles_speciales')->nullable()->comment('Règles spéciales en JSON');

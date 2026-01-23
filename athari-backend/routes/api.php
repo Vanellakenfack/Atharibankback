@@ -32,12 +32,11 @@ use App\Models\Caisse\CaisseDemandeValidation;
 use App\Http\Controllers\Caisse\GuichetController;
 use App\Http\Controllers\Caisse\CaisseControllerC;
 use App\Http\Controllers\Caisse\CaisseDashboardController;
-
-
+use App\Http\Controllers\Compte\CompteValidationController;
 
 use App\Http\Controllers\OperationDiversController;
 use App\Http\Controllers\Caisse\JournalCaisseController;
-
+use App\Http\Controllers\Gestionnaire\GestionnaireController;
 
 /*
 |--------------------------------------------------------------------------
@@ -174,17 +173,13 @@ Route::middleware('auth:sanctum')->group(function () {
         // Routes pour les Caisses (index, create, store, show, edit, update, destroy)
         // URL: /caisse/caisses
         Route::resource('caisses', CaisseControllerC::class);
-<<<<<<< HEAD
     Route::get('/journal', [JournalCaisseController::class, 'obtenirJournal']);
 
 
-=======
-            // Route pour récupérer le journal de caisse
-    Route::get('/journal', [JournalCaisseController::class, 'obtenirJournal']);
+
     
     // Route pour exporter en PDF
     Route::get('/journal/export-pdf', [JournalCaisseController::class, 'exportPdf']);
->>>>>>> cb64e432d5a995c59abfc5f8c879a8cdccac1f1b
 
     });
     
@@ -306,7 +301,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::prefix('{compte}')->group(function () {
             Route::get('/documents', [DocumentCompteController::class, 'index']);
             Route::post('/documents', [DocumentCompteController::class, 'store']);
-        });
+              });
+
+         Route::post('{id}/valider', [CompteValidationController::class, 'valider']);    
+
+         Route::post('{id}/rejeter', [CompteValidationController::class, 'rejeter']);
     });
 
     /*
@@ -419,6 +418,20 @@ Route::middleware('auth:sanctum')->group(function () {
     // AJOUTER CETTE ROUTE POUR LES DEMANDES EN ATTENTE :
     Route::get('/assistant/demandes-en-attente', function() {
         return \App\Models\Caisse\CaisseDemandeValidation::where('statut', 'EN_ATTENTE')->get();
+    });
+
+    Route::prefix('gestionnaires')->group(function () {
+        Route::get('/', [GestionnaireController::class, 'index']);
+        Route::get('/{id}', [GestionnaireController::class, 'show']);
+        Route::post('/', [GestionnaireController::class, 'store']);
+        Route::put('/{id}', [GestionnaireController::class, 'update']);
+        Route::delete('/{id}', [GestionnaireController::class, 'destroy']);
+        
+        // Routes supplémentaires
+        Route::get('/agence/{agenceId}', [GestionnaireController::class, 'parAgence']);
+        Route::get('/corbeille', [GestionnaireController::class, 'corbeille']);
+        Route::post('/{id}/restaurer', [GestionnaireController::class, 'restaurer']);
+        Route::delete('/{id}/force', [GestionnaireController::class, 'supprimerDefinitivement']);
     });
 
 });

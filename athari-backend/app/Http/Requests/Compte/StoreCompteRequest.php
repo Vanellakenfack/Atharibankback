@@ -93,6 +93,8 @@ class StoreCompteRequest extends FormRequest
             'etape2.plan_comptable_id.required' => 'Le plan comptable est obligatoire',
             'etape2.plan_comptable_id.exists' => 'Le plan comptable sélectionné n\'existe pas',
             'etape4.notice_acceptee.accepted' => 'Vous devez accepter la notice d\'engagement',
+                 'etape2.gestionnaire_id' => 'required|exists:gestionnaires,id',
+
             'documents.required' => 'Au moins un document est requis',
             'documents.*.max' => 'Chaque document ne doit pas dépasser 10 MB',
         ];

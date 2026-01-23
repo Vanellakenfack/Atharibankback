@@ -16,7 +16,7 @@ class ComptePolicy
      */
     public function before(User $user, string $ability): ?bool
     {
-        if ($user->hasRole(['DG', 'Admin'])) {
+        if ($user->hasRole(['DG', 'Admin','Chef Comptable','Assistant Comptable '])) {
             return true;
         }
         return null;
@@ -30,6 +30,15 @@ class ComptePolicy
             'gestion des clients',
         ]);
     }
+
+    // App\Policies\ComptePolicy.php
+public function validerEnTantQueCA(User $user) {
+    return $user->role === 'Chef d\'Agence (CA)';
+}
+
+public function validerEnTantQueJuriste(User $user) {
+    return $user->role === 'Assistant Juridique';
+}
 
     public function view(User $user, Compte $account): bool
     {

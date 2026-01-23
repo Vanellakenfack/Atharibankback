@@ -10,18 +10,18 @@ return new class extends Migration
      * Run the migrations.
      */
     public function up(): void
-    {
-        Schema::table('caisses', function (Blueprint $table) {
-            //
-        });
-    }
+{
+    Schema::table('comptes', function (Blueprint $table) {
+        $table->foreignId('juriste_id')->nullable()->constrained('users')->onDelete('set null')->after('ca_id');
+    });
+}
 
     /**
      * Reverse the migrations.
      */
     public function down(): void
     {
-        Schema::table('caisses', function (Blueprint $table) {
+        Schema::table('comptes', function (Blueprint $table) {
             //
         });
     }

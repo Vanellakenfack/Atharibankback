@@ -14,7 +14,7 @@ return new class extends Migration
     Schema::create('caisse_transactions', function (Blueprint $table) {
         $table->id();
         $table->string('reference_unique')->unique(); // Pour le lettrage comptable
-        $table->foreignId('compte_id')->constrained('comptes'); // Liaison avec votre table existante
+        $table->foreignId('compte_id')->constrained('comptes')->onDelete('cascade'); // Liaison avec votre table existante
         
         // Champs métiers Turbobank
         $table->string('code_agence');
@@ -27,13 +27,13 @@ return new class extends Migration
         $table->decimal('commissions', 15, 2)->default(0);
         $table->decimal('taxes', 15, 2)->default(0);
         $table->boolean('frais_en_compte')->default(false);
-        $table->string('origine_fonds')->nullable()->after('montant_brut');
+        $table->string('origine_fonds')->nullable();
         
         // Numéro de bordereau physique
-        $table->string('numero_bordereau')->nullable()->after('origine_fonds');
+        $table->string('numero_bordereau')->nullable();
         
         // Type de bordereau (ex: GUICHET, CHÈQUE, TRANSFERT)
-        $table->string('type_bordereau')->nullable()->after('numero_bordereau');
+        $table->string('type_bordereau')->nullable();
         
         // Dates bancaires
         $table->date('date_operation');
@@ -44,8 +44,8 @@ return new class extends Migration
         $table->string('code_desaccord')->nullable(); // SPRV, SLIV, CHIN, FRME
         $table->enum('statut', ['SAISIE', 'ATTENTE_FORCAGE', 'VALIDE', 'ANNULE'])->default('SAISIE');
         
-        $table->foreignId('caissier_id')->constrained('users');
-        $table->foreignId('approbateur_id')->nullable()->constrained('users');
+        $table->foreignId('caissier_id')->constrained('users')->onDelete('cascade');
+        $table->foreignId('approbateur_id')->nullable()->constrained('users')->onDelete('set null');
         $table->timestamps();
         $table->index('numero_bordereau');
        $table->enum('type_versement', [

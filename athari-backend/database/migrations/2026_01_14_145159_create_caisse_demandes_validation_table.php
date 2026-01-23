@@ -20,8 +20,8 @@ return new class extends Migration
         $table->decimal('montant', 15, 2);
         
         // Acteurs (Relations)
-        $table->foreignId('caissiere_id')->constrained('users'); 
-        $table->foreignId('assistant_id')->nullable()->constrained('users'); 
+        $table->foreignId('caissiere_id')->constrained('users')->onDelete('cascade'); 
+        $table->foreignId('assistant_id')->nullable()->constrained('users')->onDelete('cascade'); 
         
         // Sécurité du workflow
         $table->string('code_validation', 8)->nullable(); // Le code généré par l'assistant

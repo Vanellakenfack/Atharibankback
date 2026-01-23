@@ -1,0 +1,82 @@
+<?php
+namespace App\Http\Controllers\Compte;
+
+use App\Http\Controllers\Controller;
+use App\Services\Compte\CompteService;
+use Illuminate\Http\JsonResponse;
+use App\Http\Resources\Compte\CompteResource;
+use Illuminate\Http\Request;
+
+class CompteValidationController extends Controller
+{
+    protected $compteService;
+
+    public function __construct(CompteService $compteService)
+    {
+        $this->compteService = $compteService;
+    }
+
+    public function valider(Request $request, int $id)
+    {
+        $user = $request->user();
+        $rolesAutorises = ["Chef d'Agence (CA)", "Assistant Juridique (AJ)"];
+        
+        if (!$user->hasAnyRole($rolesAutorises)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => "Accès refusé : Droits d'approbation manquants."
+            ], 403);
+        }
+
+        try {
+            $roleActuel = $user->hasRole("Chef d'Agence (CA)") ? "Chef d'Agence (CA)" : "Assistant Juridique (AJ)";
+
+            // 1. On récupère les checkboxes et le NUI depuis la requête
+            $checkboxes = $request->input('checkboxes', []); 
+            $nui = $request->input('nui');
+
+            // 2. Appel du service avec les nouveaux paramètres
+            $compte = $this->compteService->validerOuvertureCompte(
+                $id, 
+                $roleActuel, 
+                $checkboxes, 
+                $nui
+            );
+
+            // 3. Retour via la Ressource pour un JSON standardisé
+            return (new CompteResource($compte))
+                ->additional([
+                    'status' => 'success',
+                    'message' => $roleActuel === "Chef d'Agence (CA)" 
+                        ? "Validation Agence effectuée." 
+                        : "Conformité juridique enregistrée."
+                ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage()
+            ], 422);
+        }
+    }
+
+    /**
+     * Nouvelle méthode pour gérer le rejet
+     */
+    public function rejeter(Request $request, int $id): JsonResponse
+    {
+        $request->validate(['motif_rejet' => 'required|string|min:10']);
+
+        try {
+            $compte = $this->compteService->rejeterOuverture($id, $request->motif_rejet);
+            
+            return response()->json([
+                'status' => 'success',
+                'message' => "Le dossier a été rejeté et renvoyé pour correction.",
+                'data' => new CompteResource($compte)
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 422);
+        }
+    }
+}

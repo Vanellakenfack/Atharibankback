@@ -37,17 +37,36 @@ class TypeCompte extends Model
         'frais_carnet_actif',
         'chapitre_frais_carnet_id',
         'frais_renouvellement_carnet',
+        'frais_renouvellement_livret',
         'frais_renouvellement_actif',
         'chapitre_renouvellement_id',
         'frais_perte_carnet',
         'frais_perte_actif',
         'chapitre_perte_id',
         
+        // Frais chéquier
+        'frais_chequier',
+        'frais_chequier_actif',
+        'chapitre_frais_chequier_id',
+        'chapitre_chequier_id',
+        
+        // Frais chèque guichet
+        'frais_cheque_guichet',
+        'frais_cheque_guichet_actif',
+        'chapitre_cheque_guichet_id',
+        
+        // Frais livret
+        'frais_livret',
+        'frais_livret_actif',
+        'chapitre_livret_id',
+        
         // Commission mensuelle
         'commission_mensuelle_actif',
+        'commission_mensuel',
         'seuil_commission',
         'commission_si_superieur',
         'commission_si_inferieur',
+        'chapitre_commission_mensuelle_id',
         
         // Commission retrait
         'commission_retrait',
@@ -107,6 +126,9 @@ class TypeCompte extends Model
         'frais_carnet_actif' => 'boolean',
         'frais_renouvellement_actif' => 'boolean',
         'frais_perte_actif' => 'boolean',
+        'frais_chequier_actif' => 'boolean',
+        'frais_cheque_guichet_actif' => 'boolean',
+        'frais_livret_actif' => 'boolean',
         'commission_mensuelle_actif' => 'boolean',
         'commission_retrait_actif' => 'boolean',
         'commission_sms_actif' => 'boolean',
@@ -126,7 +148,12 @@ class TypeCompte extends Model
         'frais_ouverture' => 'decimal:2',
         'frais_carnet' => 'decimal:2',
         'frais_renouvellement_carnet' => 'decimal:2',
+        'frais_renouvellement_livret' => 'decimal:2',
         'frais_perte_carnet' => 'decimal:2',
+        'frais_chequier' => 'decimal:2',
+        'frais_cheque_guichet' => 'decimal:2',
+        'frais_livret' => 'decimal:2',
+        'commission_mensuel' => 'decimal:2',
         'commission_retrait' => 'decimal:2',
         'commission_sms' => 'decimal:2',
         'frais_deblocage' => 'decimal:2',
@@ -152,6 +179,26 @@ class TypeCompte extends Model
         return $this->belongsTo(PlanComptable::class, 'chapitre_frais_carnet_id');
     }
 
+    public function chapitreFraisChequi()
+    {
+        return $this->belongsTo(PlanComptable::class, 'chapitre_frais_chequier_id');
+    }
+
+    public function chapitreChequierGuid()
+    {
+        return $this->belongsTo(PlanComptable::class, 'chapitre_chequier_id');
+    }
+
+    public function chapitreChequeGuichet()
+    {
+        return $this->belongsTo(PlanComptable::class, 'chapitre_cheque_guichet_id');
+    }
+
+    public function chapitreLivret()
+    {
+        return $this->belongsTo(PlanComptable::class, 'chapitre_livret_id');
+    }
+
     public function chapitreRenouvellement()
     {
         return $this->belongsTo(PlanComptable::class, 'chapitre_renouvellement_id');
@@ -160,6 +207,11 @@ class TypeCompte extends Model
     public function chapitrePerte()
     {
         return $this->belongsTo(PlanComptable::class, 'chapitre_perte_id');
+    }
+
+    public function chapitreCommissionMensuelle()
+    {
+        return $this->belongsTo(PlanComptable::class, 'chapitre_commission_mensuelle_id');
     }
 
     public function chapitreCommissionRetrait()
@@ -190,6 +242,11 @@ class TypeCompte extends Model
     public function chapitreClotureAnticipe()
     {
         return $this->belongsTo(PlanComptable::class, 'chapitre_cloture_anticipe_id');
+    }
+
+    public function chapitreMinimum()
+    {
+        return $this->belongsTo(PlanComptable::class, 'chapitre_minimum_id');
     }
 
     public function compteAttenteProduits()

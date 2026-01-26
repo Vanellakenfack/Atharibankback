@@ -9,6 +9,7 @@ use App\Models\SessionAgence\CaisseSession;
 use App\Models\Caisse\Caisse;
 use App\Models\Caisse\Guichet;
 use Illuminate\Support\Facades\DB;
+use App\Models\SessionAgence\BilanJournalierAgence;
 use Exception;
 
 class SessionBancaireService
@@ -110,7 +111,8 @@ class SessionBancaireService
             }
 
             $caissePhysique = Caisse::lockForUpdate()->findOrFail($caisseId);
-            $soldeInformatique = (float)$caissePhysique->solde_actuel;
+        
+           $soldeTheoriqueInitial = (float)$caissePhysique->solde_actuel; // Ce que le système croit avoir
 
             // Calcul et vérification du billetage
             $montantBillete = $this->calculerMontantBilletage($detailsBilletage);
@@ -119,16 +121,18 @@ class SessionBancaireService
                 throw new Exception("Le montant billeté ($montantBillete) ne correspond pas au solde saisi ($soldeOuvertureSaisi).");
             }
 
-            if ((float)$soldeOuvertureSaisi !== $soldeInformatique) {
-                throw new Exception("Erreur d'ajustage : Le solde déclaré diffère du solde informatique en coffre ($soldeInformatique).");
+            if ((float)$soldeOuvertureSaisi !== $soldeTheoriqueInitial) {
+                throw new Exception("Erreur d'ajustage : Le solde déclaré diffère du solde informatique en coffre ($soldeTheoriqueInitial).");
             }
 
             return CaisseSession::create([
                 'guichet_session_id' => $guichetSessionId,
                 'caissier_id'        => $caissierId,
                 'caisse_id'          => $caisseId,
-                'solde_physique'     => $soldeOuvertureSaisi, // Changé ici pour correspondre à la migration                'solde_informatique' => $soldeInformatique,
-                'billetage_ouverture'=> $detailsBilletage,
+                'solde_ouverture' => $soldeTheoriqueInitial, // La photo au départ
+                'solde_physique'     => $soldeOuvertureSaisi,    //              
+                  'billetage_ouverture'=> $detailsBilletage,
+                  'solde_informatique' => 0,                       // Le flux net commence à 0
                 'statut'             => 'OU',
                 'heure_ouverture'    => now()
             ]);
@@ -182,13 +186,74 @@ class SessionBancaireService
     /**
      * FERMETURE DE L'AGENCE ET DE LA JOURNÉE
      */
+
+    public function traiterBilanFinJournee($agenceSessionId, $jourComptableId)
+    {
+        return DB::transaction(function () use ($agenceSessionId, $jourComptableId) {
+            
+            // 1. Vérification : Toutes les caisses de l'agence doivent être fermées
+            $caissesOuvertes = CaisseSession::whereHas('guichetSession', function($q) use ($agenceSessionId) {
+                $q->where('agence_session_id', $agenceSessionId);
+            })->where('statut', '!=', 'FE')->exists();
+
+            if ($caissesOuvertes) {
+                throw new Exception("Le traitement est impossible : toutes les caisses ne sont pas fermées.");
+            }
+
+            // 2. Calcul des agrégats pour toutes les caisses
+            $sessionsCaisses = CaisseSession::whereHas('guichetSession', function($q) use ($agenceSessionId) {
+                $q->where('agence_session_id', $agenceSessionId);
+            })->get();
+
+            $bilanGlobal = [
+                'entrees' => 0, 'sorties' => 0, 'theorique' => 0, 'reel' => 0, 'details' => []
+            ];
+
+            foreach ($sessionsCaisses as $s) {
+                $stats = $this->genererBilanCaisse($s->id);
+                $bilanGlobal['entrees']   += $stats['total_entrees'];
+                $bilanGlobal['sorties']   += $stats['total_sorties'];
+                $bilanGlobal['theorique'] += $stats['solde_theorique'];
+                $bilanGlobal['reel']      += $stats['solde_reel'];
+                $bilanGlobal['details'][] = [
+                    'caisse_id' => $s->caisse_id,
+                    'libelle'   => $s->caisse->libelle,
+                    'caissier'  => $s->caissier_id,
+                    'ecart'     => $stats['ecart'],
+                    'statut'    => $stats['statut_bilan']
+                ];
+            }
+
+            // 3. Enregistrement ou Mise à jour du Snapshot (Bilan Journalier)
+            // On utilise updateOrInsert pour pouvoir relancer le traitement si besoin avant fermeture
+            return DB::table('bilan_journalier_agences')->updateOrInsert(
+                ['jour_comptable_id' => $jourComptableId],
+                [
+                    'date_comptable'         => now()->toDateString(),
+                    'total_especes_entree'   => $bilanGlobal['entrees'],
+                    'total_especes_sortie'   => $bilanGlobal['sorties'],
+                    'solde_theorique_global' => $bilanGlobal['theorique'],
+                    'solde_reel_global'      => $bilanGlobal['reel'],
+                    'ecart_global'           => $bilanGlobal['reel'] - $bilanGlobal['theorique'],
+                    'resume_caisses'         => json_encode($bilanGlobal['details']),
+                    'created_at'             => now(),
+                    'updated_at'             => now()
+                ]
+            );
+        });
+    }
     public function fermerAgenceEtJournee($agenceSessionId, $jourComptableId) {
         return DB::transaction(function () use ($agenceSessionId, $jourComptableId) {
+
             $guichetsOuverts = GuichetSession::where('agence_session_id', $agenceSessionId)
                 ->whereIn('statut', ['OU'])->exists();
             
             if ($guichetsOuverts) throw new Exception("Des guichets sont encore ouverts.");
-
+                        $bilanExiste = BilanJournalierAgence::where('jour_comptable_id',$jourComptableId)->exists();
+                
+                if (!$bilanExiste) {
+                    throw new Exception("Impossible de clôturer : Le traitement des bilans (TFJ) n'a pas été effectué.");
+                }
             AgenceSession::where('id', $agenceSessionId)->update([
                 'statut' => 'FE', 
                 'heure_fermeture' => now()
@@ -204,30 +269,37 @@ class SessionBancaireService
     /**
      * BILAN DE CLÔTURE (Calcul des écarts)
      */
-    public function genererBilanCaisse($caisseSessionId)
-    {
-        $caisse = CaisseSession::findOrFail($caisseSessionId);
+ public function genererBilanCaisse($caisseSessionId)
+{
+    // On charge la session avec sa caisse liée
+    $caisse = CaisseSession::findOrFail($caisseSessionId);
 
-        $totalFlux = DB::table('caisse_transactions')
-            ->where('code_caisse', $caisse->caisse_id)
-            ->where('date_operation', $caisse->heure_ouverture->format('Y-m-d'))
-            ->selectRaw("SUM(CASE WHEN type_flux IN ('VERSEMENT', 'ENTREE_CAISSE') THEN montant_brut ELSE 0 END) as total_entrees")
-            ->selectRaw("SUM(CASE WHEN type_flux IN ('RETRAIT', 'SORTIE_CAISSE') THEN montant_brut ELSE 0 END) as total_sorties")
-            ->first();
+    // Calcul des flux : On filtre par l'ID de la session pour être précis
+    $totalFlux = DB::table('caisse_transactions')
+        ->where('session_id', $caisseSessionId) // Filtre de précision chirurgicale
+        ->selectRaw("SUM(CASE WHEN type_flux IN ('VERSEMENT', 'ENTREE_CAISSE') THEN montant_brut ELSE 0 END) as total_entrees")
+        ->selectRaw("SUM(CASE WHEN type_flux IN ('RETRAIT', 'SORTIE_CAISSE') THEN montant_brut ELSE 0 END) as total_sorties")
+        ->first();
 
-        $soldeTheorique = $caisse->solde_ouverture + $totalFlux->total_entrees - $totalFlux->total_sorties;
-        $ecart = ($caisse->solde_fermeture ?? 0) - $soldeTheorique;
+    // L'équation de contrôle bancaire
+    $soldeTheorique = (float)$caisse->solde_ouverture + (float)$totalFlux->total_entrees - (float)$totalFlux->total_sorties;
+    
+    // Si la caisse est encore ouverte, on compare avec le solde_actuel informatique
+    // Si elle est fermée, on compare avec le solde_fermeture saisi
+    $soldeReel = ($caisse->statut === 'FE') ? (float)$caisse->solde_fermeture : (float)$caisse->caisse->solde_actuel;
+    
+    $ecart = $soldeReel - $soldeTheorique;
 
-        return [
-            'ouverture' => (float)$caisse->solde_ouverture,
-            'total_entrees' => (float)$totalFlux->total_entrees,
-            'total_sorties' => (float)$totalFlux->total_sorties,
-            'solde_theorique' => $soldeTheorique,
-            'solde_reel' => (float)$caisse->solde_fermeture,
-            'ecart' => $ecart,
-            'statut_bilan' => ($ecart == 0) ? 'ÉQUILIBRÉ' : 'ÉCART'
-        ];
-    }
+    return [
+        'ouverture'       => (float)$caisse->solde_ouverture,
+        'total_entrees'   => (float)$totalFlux->total_entrees,
+        'total_sorties'   => (float)$totalFlux->total_sorties,
+        'solde_theorique' => $soldeTheorique,
+        'solde_reel'      => $soldeReel,
+        'ecart'           => $ecart,
+        'statut_bilan'    => (abs($ecart) < 0.01) ? 'ÉQUILIBRÉ' : (($ecart > 0) ? 'SURPLUS' : 'DÉFICIT')
+    ];
+}
 
     /**
      * RÉOUVERTURE (Correction)

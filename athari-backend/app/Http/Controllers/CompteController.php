@@ -286,119 +286,112 @@ class CompteController extends Controller
      * POST /api/comptes/creer
      * Créer un compte
      */
-public function store(StoreCompteRequest $request): JsonResponse
-{
-    try {
-        $data = $request->all();
+ public function store(StoreCompteRequest $request): JsonResponse
+    {
+        try {
+            $data = $request->all();
 
-        // Défauts pour éviter des erreurs 'Undefined array key' côté service
-        $donneesEtape1 = $data['etape1'] ?? [];
-        $donneesEtape2 = $data['etape2'] ?? [];
-        $donneesEtape3 = $data['etape3'] ?? [];
-        $donneesEtape4Raw = $data['etape4'] ?? [];
+            // Défauts pour éviter des erreurs 'Undefined array key' côté service
+            $donneesEtape1 = $data['etape1'] ?? [];
+            $donneesEtape2 = $data['etape2'] ?? [];
+            $donneesEtape3 = $data['etape3'] ?? [];
+            $donneesEtape4Raw = $data['etape4'] ?? [];
 
-        // Vérifications rapides des champs essentiels pour une erreur lisible
-        if (empty($donneesEtape1) || empty($donneesEtape2)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Données d\'ouverture incomplètes : étapes 1 et 2 requises.',
-            ], 422);
-        }
+            // Vérifications rapides des champs essentiels pour une erreur lisible
+            if (empty($donneesEtape1) || empty($donneesEtape2)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Données d\'ouverture incomplètes : étapes 1 et 2 requises.',
+                ], 422);
+            }
 
-        if (!array_key_exists('gestionnaire_id', $donneesEtape2)) {
-            Log::error('Erreur création compte : gestionnaire_id manquant', ['payload' => $data]);
-            return response()->json([
-                'success' => false,
-                'message' => 'Le champ gestionnaire_id est requis dans l\'étape 2.',
-            ], 422);
-        }
+            // Vérification gestionnaire_id (requis)
+            if (!isset($donneesEtape2['gestionnaire_id'])) {
+                Log::error('Erreur création compte : gestionnaire_id manquant', ['payload' => $data]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Le champ gestionnaire_id est requis dans l\'étape 2.',
+                ], 422);
+            }
 
-        if (!array_key_exists('gestionnaire_id', $donneesEtape2)) {
-            Log::error('Erreur création compte : gestionnaire_id manquant', ['payload' => $data]);
-            return response()->json([
-                'message' => 'Le champ gestionnaire_id est requis dans l\'étape 2.',
-            ], 422);
-        }
+            // 🔹 Récupérer les infos du gestionnaire
+            $gestionnaire = \App\Models\Gestionnaire::findOrFail($donneesEtape2['gestionnaire_id']);
 
-        // 🔹 Récupérer les infos du gestionnaire (les noms seront ignorés côté serveur)
-        $gestionnaire = \App\Models\Gestionnaire::findOrFail($donneesEtape2['gestionnaire_id']);
+            // 1. Traitement des fichiers (Signature et Documents) - OPTIONNELS
+            $documentsUploades = [];
+            if ($request->hasFile('documents')) {
+                $documents = $request->file('documents');
+                $typesDocuments = $data['types_documents'] ?? [];
+                $descriptions = $data['descriptions_documents'] ?? [];
 
-        // 1. Traitement des fichiers (Signature et Documents)
-        $documentsUploades = [];
-        if ($request->hasFile('documents')) {
-            $documents = $request->file('documents');
-            $typesDocuments = $data['types_documents'] ?? [];
-            $descriptions = $data['descriptions_documents'] ?? [];
-
-            foreach ($documents as $index => $fichier) {
-                if ($fichier->isValid()) {
-                    $documentsUploades[] = [
-                        'fichier' => $fichier,
-                        'type_document' => $typesDocuments[$index] ?? 'document',
-                        'description' => $descriptions[$index] ?? null,
-                    ];
+                foreach ($documents as $index => $fichier) {
+                    if ($fichier->isValid()) {
+                        $documentsUploades[] = [
+                            'fichier' => $fichier,
+                            'type_document' => $typesDocuments[$index] ?? 'document',
+                            'description' => $descriptions[$index] ?? null,
+                        ];
+                    }
                 }
             }
-        }
 
-        if (empty($documentsUploades)) {
-            throw new \Exception('Au moins un document valide est requis.');
-        }
+            // SUPPRIMÉ : La vérification empty($documentsUploades) n'est plus obligatoire
 
-        $signaturePath = $request->hasFile('signature') 
-            ? $request->file('signature')->store('signatures', 'private') 
-            : null;
+            $signaturePath = $request->hasFile('signature') 
+                ? $request->file('signature')->store('signatures', 'private') 
+                : null;
 
-        $donneesEtape4 = [
-            'notice_acceptee' => $donneesEtape4Raw['notice_acceptee'] ?? false,
-            'signature_path' => $signaturePath,
-            'documents' => [],
-        ];
+            $donneesEtape4 = [
+                'notice_acceptee' => $donneesEtape4Raw['notice_acceptee'] ?? false,
+                'signature_path' => $signaturePath,
+                'documents' => [],
+            ];
 
-        // 2. Utilisation d'une transaction globale pour lier Création + Comptabilité
-        return DB::transaction(function () use ($donneesEtape1, $donneesEtape2, $donneesEtape3, $donneesEtape4, $documentsUploades) {
-            
-            // ÉTAPE A : Créer le compte
-            $compte = $this->compteService->creerCompte(
-                $donneesEtape1,
-                $donneesEtape2,
-                $donneesEtape3,
-                $donneesEtape4
-            );
-
-            // ÉTAPE B : Upload des documents
-            foreach ($documentsUploades as $docData) {
-                $this->documentService->uploadDocument(
-                    $compte->id,
-                    $docData['fichier'],
-                    $docData['type_document'],
-                    $docData['description'],
-                    auth()->id()
+            // 2. Utilisation d'une transaction globale pour lier Création + Comptabilité
+            return DB::transaction(function () use ($donneesEtape1, $donneesEtape2, $donneesEtape3, $donneesEtape4, $documentsUploades) {
+                
+                // ÉTAPE A : Créer le compte
+                $compte = $this->compteService->creerCompte(
+                    $donneesEtape1,
+                    $donneesEtape2,
+                    $donneesEtape3,
+                    $donneesEtape4
                 );
-            }
 
-            // ÉTAPE C : TRAITEMENT COMPTABLE (Dépôt + Frais + Minimum)
-            // On récupère le montant de dépôt saisi à l'étape 2
-            $montantInitial = floatval($donneesEtape2['solde'] ?? 0);
-            
-            // Cette ligne va créer les écritures et mettre à jour le solde final
-            $this->compteService->traiterOuvertureComptable($compte, $montantInitial);
+                // ÉTAPE B : Upload des documents (seulement s'il y en a)
+                foreach ($documentsUploades as $docData) {
+                    $this->documentService->uploadDocument(
+                        $compte->id,
+                        $docData['fichier'],
+                        $docData['type_document'],
+                        $docData['description'],
+                        auth()->id()
+                    );
+                }
 
+                // ÉTAPE C : TRAITEMENT COMPTABLE (Dépôt + Frais + Minimum)
+                // On récupère le montant de dépôt saisi à l'étape 2
+                $montantInitial = floatval($donneesEtape2['solde'] ?? 0);
+                
+                // Cette ligne va créer les écritures et mettre à jour le solde final
+                $this->compteService->traiterOuvertureComptable($compte, $montantInitial);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Compte créé et en attente de validation',
+                    'data' => $compte->fresh(['documents', 'typeCompte']),
+                ], 201);
+            });
+
+        } catch (\Exception $e) {
+            Log::error('Erreur création compte : ' . $e->getMessage());
             return response()->json([
-                'success' => true,
-                'message' => 'Compte créé et en attente de validation',
-                'data' => $compte->fresh(['documents', 'typeCompte']),
-            ], 201);
-        });
-
-    } catch (\Exception $e) {
-        Log::error('Erreur création compte : ' . $e->getMessage());
-        return response()->json([
-            'success' => false,
-            'message' => $e->getMessage(),
-        ], 500);
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
     }
-}
+
 
     /**
      * PUT /api/comptes/{id}

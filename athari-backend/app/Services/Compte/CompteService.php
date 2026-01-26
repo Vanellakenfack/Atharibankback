@@ -461,7 +461,7 @@ private function tenterActivationFinale(Compte $compte)
          * Si le dossier est complet, on lève l'opposition (false).
          * Si des documents manquent, on maintient l'opposition (true).
          */
-        $maintenirOpposition = ! (bool) $compte->dossier_complet;
+        $maintenirOpposition = ! (bool) ($compte->dossier_complet ?? false);
 
         $compte->update([
             'statut' => 'actif',
@@ -471,7 +471,9 @@ private function tenterActivationFinale(Compte $compte)
 
         try {
             // On ne notifie le client que si le compte est totalement prêt (sans opposition)
-            $compte->client->notify(new CompteActiveNotification($compte));
+            if (!$maintenirOpposition) {
+                $compte->client->notify(new CompteActiveNotification($compte));
+            }
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error("Erreur notification : " . $e->getMessage());
         }
@@ -503,16 +505,31 @@ public function validerOuvertureCompte(int $compteId, string $roleApprobateur, a
             }
 
             // 2. Gestion Spécifique des Checkboxes (uniquement pour AJ)
+            // Convertir si c'est un array simple en objet avec clés/valeurs
+            $checkboxesFormatted = [];
+            if (is_array($checkboxes)) {
+                // Si c'est un array séquentiel [0, 1, 2, ...], convertir en objet
+                if (array_keys($checkboxes) === range(0, count($checkboxes) - 1)) {
+                    // C'est un array simple, créer un objet avec les valeurs comme clés
+                    foreach ($checkboxes as $value) {
+                        $checkboxesFormatted[$value] = true;
+                    }
+                } else {
+                    // C'est déjà un objet
+                    $checkboxesFormatted = $checkboxes;
+                }
+            }
+
             $documentsObligatoires = ['cni_valide', 'plan_localisation', 'photo_identite'];
             $toutEstCoche = true;
 
             foreach ($documentsObligatoires as $doc) {
-                if (!isset($checkboxes[$doc]) || $checkboxes[$doc] !== true) {
+                if (!isset($checkboxesFormatted[$doc]) || $checkboxesFormatted[$doc] !== true) {
                     $toutEstCoche = false;
                 }
             }
 
-            $compte->checklist_juridique = $checkboxes;
+            $compte->checklist_juridique = $checkboxesFormatted;
             $compte->dossier_complet = $toutEstCoche;
             $compte->validation_juridique = true;
             $compte->date_validation_juridique = now();
@@ -524,7 +541,7 @@ public function validerOuvertureCompte(int $compteId, string $roleApprobateur, a
         // Tentative d'activation
         $this->tenterActivationFinale($compte);
 
-        return $compte->fresh(); // Très important pour que ton JSON Postman soit juste !
+        return $compte->fresh(['client', 'typeCompte', 'planComptable', 'mandataires', 'documents']);
     });
 }
 

@@ -46,6 +46,9 @@ return new class extends Migration
         $table->enum('statut', ['SAISIE', 'ATTENTE_FORCAGE', 'VALIDE', 'ANNULE'])->default('SAISIE');
         
         $table->foreignId('caissier_id')->constrained('users')->onDelete('cascade');
+        $table->unsignedBigInteger('session_id')->nullable();
+        // Optionnel : ajouter la clé étrangère
+         $table->foreign('session_id')->references('id')->on('caisse_sessions');
         $table->foreignId('approbateur_id')->nullable()->constrained('users')->onDelete('set null');
         $table->timestamps();
         $table->index('numero_bordereau');

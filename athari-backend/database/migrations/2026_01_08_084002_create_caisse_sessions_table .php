@@ -22,7 +22,8 @@ return new class extends Migration
             $table->json('billetage_ouverture')->nullable(); // Détail des billets (10k, 5k, etc.)
 
             $table->json('billetage_fermeture')->nullable(); // Important pour l'ajustage final
-            
+                    $table->decimal('solde_ouverture', 15, 2)->default(0)->after('caisse_id');
+
             // Temps
             $table->timestamp('heure_ouverture')->useCurrent();
             $table->timestamp('heure_fermeture')->nullable();

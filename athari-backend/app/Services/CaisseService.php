@@ -141,6 +141,7 @@ private function enregistrerTransactionCaisse($type, $data, $dateBancaire, $sess
             return CaisseTransaction::create([
                 'reference_unique' => $this->generateReference($type),
                 'compte_id'        => $data['compte_id'] ?? null,
+                'session_id'       => $session->id,
                 'code_agence'      => $agence->code ?? $guichet->agence_id,
                 'code_guichet'     => $guichet->code_guichet ?? $guichet->id, 
                 'code_caisse'      => $caisse->code_caisse ?? $caisse->id,
@@ -489,64 +490,26 @@ public function genererRecu($transactionId)
 }
 
 
-public function obtenirRecapitulatifCloture($sessionId)
-{
-    // 1. On remonte la chaîne : Session -> Caisse -> Guichet -> Agencis
-    $session = DB::table('caisse_sessions as cs')
-        ->join('caisses as c', 'cs.caisse_id', '=', 'c.id')
-        ->join('guichets as g', 'c.guichet_id', '=', 'g.id')
-        ->join('agencies as a', 'g.agence_id', '=', 'a.id') // Correction ici: agencis au lieu de agences
-        ->select(
-            'c.code_caisse', 
-            'a.code as code_agence', 
-            'cs.created_at'
-        )
-        ->where('cs.id', $sessionId)
-        ->first();
-
-    if (!$session) {
-        throw new \Exception("Session introuvable.");
-    }
-
-    // 2. On récupère les totaux groupés par type (ESPECE, OM, MOMO)
-    return CaisseTransaction::where('code_caisse', $session->code_caisse)
-        ->where('code_agence', $session->code_agence)
-        ->where('statut', 'VALIDE')
-        ->whereDate('date_operation', '=', date('Y-m-d', strtotime($session->created_at)))
-        ->select('type_versement', 'type_flux')
-        ->selectRaw('SUM(montant_brut) as total')
-        ->groupBy('type_versement', 'type_flux')
-        ->get()
-        ->groupBy('type_versement');
-}
 public function obtenirJournalCaisseComplet($filtres)
 {
-    // 1. Calcul du solde d'ouverture (Sécurisé)
-    $caisse = DB::table('caisses')->where('id', $filtres['caisse_id'])->first();
-    
-    // On cherche d'abord 'solde_initial', sinon 'solde_ouverture', sinon 0
-    $soldeOuverture = 0;
-    if ($caisse) {
-        if (isset($caisse->solde_initial)) {
-            $soldeOuverture = $caisse->solde_initial;
-        } elseif (isset($caisse->solde_ouverture)) {
-            $soldeOuverture = $caisse->solde_ouverture;
-        }
-    }
+    // 1. RÉCUPÉRER LE VRAI SOLDE D'OUVERTURE depuis la dernière session clôturée
+    $derniereSessionFermee = DB::table('caisse_sessions')
+        ->where('caisse_id', $filtres['caisse_id'])
+        ->where('statut', 'FE') // Session fermée
+        ->where('heure_fermeture', '<', $filtres['date_debut'])
+        ->orderBy('heure_fermeture', 'desc')
+        ->first();
 
-    $mouvements = DB::table('mouvements_comptables as mc')
-        // Jointure comptabilité -> transaction
+    // Le solde d'ouverture = le solde de fermeture de la session précédente
+    // Si c'est la première journée, pas de session précédente => solde_ouverture = 0
+    $soldeOuverture = $derniereSessionFermee ? $derniereSessionFermee->solde_fermeture : 0;
+
+    // 2. RÉCUPÉRATION DES MOUVEMENTS AVEC IDENTIFICATION DU FLUX
+    $mouvementsRaw = DB::table('mouvements_comptables as mc')
         ->join('caisse_transactions as ct', 'mc.reference_operation', '=', 'ct.reference_unique')
-        
-        // Jointure vers la caisse par le code (plus fiable selon votre structure)
         ->join('caisses as ca', 'ct.code_caisse', '=', 'ca.code_caisse')
-        
-        // Jointure vers les comptes
         ->join('comptes as c', 'mc.compte_id', '=', 'c.id')
-        
-        // Jointure vers le tiers (via transaction_id selon vos contraintes étrangères)
         ->leftJoin('transaction_tiers as tt', 'ct.id', '=', 'tt.transaction_id') 
-        
         ->select([
             'c.numero_compte',
             'tt.nom_complet as tiers_nom', 
@@ -555,6 +518,7 @@ public function obtenirJournalCaisseComplet($filtres)
             'mc.montant_debit',
             'mc.montant_credit',
             'ct.type_versement',
+            'ct.type_flux',
             'ca.code_caisse',
             'ct.code_agence',
             'mc.date_mouvement'
@@ -562,30 +526,30 @@ public function obtenirJournalCaisseComplet($filtres)
         ->where('ca.id', $filtres['caisse_id'])
         ->where('ct.code_agence', $filtres['code_agence'])
         ->whereBetween('mc.date_mouvement', [$filtres['date_debut'], $filtres['date_fin']])
-        
-        // Exclusion des frais/commissions (Comptes commençant par 671)
-        ->whereNotExists(function ($query) {
-            $query->select(DB::raw(1))
-                  ->from('plan_comptable as pc')
-                  ->whereRaw('(pc.id = mc.compte_debit_id OR pc.id = mc.compte_credit_id)')
-                  ->whereRaw('pc.code LIKE "671%"');
-        })
         ->orderBy('mc.date_mouvement', 'asc')
         ->get();
 
-    // 3. Retour des données avec calculs
+    // 3. GROUPEMENT DES OPÉRATIONS
+    $journalGroupe = [
+        'VERSEMENTS' => $mouvementsRaw->where('type_flux', 'VERSEMENT')->values(),
+        'RETRAITS'   => $mouvementsRaw->where('type_flux', 'RETRAIT')->values(),
+    ];
+
+    // 4. CALCUL DES TOTAUX
+    $totalDebit = (float)$mouvementsRaw->sum('montant_debit');
+    $totalCredit = (float)$mouvementsRaw->sum('montant_credit');
+    $soldeCloture = $soldeOuverture + $totalDebit - $totalCredit;
+
     return [
         'solde_ouverture' => (float)$soldeOuverture,
-        'mouvements'      => $mouvements,
-        'total_debit'     => (float)$mouvements->sum('montant_debit'),
-        'total_credit'    => (float)$mouvements->sum('montant_credit'),
-        'solde_cloture'   => (float)($soldeOuverture + $mouvements->sum('montant_debit') - $mouvements->sum('montant_credit'))
+        'journal_groupe'  => $journalGroupe,
+        'total_debit'     => $totalDebit,
+        'total_credit'    => $totalCredit,
+        'solde_cloture'   => (float)$soldeCloture,
+        'date_debut'      => $filtres['date_debut'],
+        'date_fin'        => $filtres['date_fin']
     ];
-    }
-
-
-
-
+}
 
 
     //

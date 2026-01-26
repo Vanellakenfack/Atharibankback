@@ -125,9 +125,34 @@ class TypeCompteController extends Controller
             'frais_carnet_actif' => 'boolean',
             'chapitre_frais_carnet_id' => 'nullable|exists:plan_comptable,id',
             'frais_renouvellement_carnet'=> 'nullable|numeric|min:0',
+            'frais_renouvellement_livret' => 'nullable|numeric|min:0',
+            'frais_renouvellement_actif' => 'boolean',
+            'chapitre_renouvellement_id' => 'nullable|exists:plan_comptable,id',
+
+            // Frais chéquier
+            'frais_chequier' => 'nullable|numeric|min:0',
+            'frais_chequier_actif' => 'boolean',
+            'chapitre_frais_chequier_id' => 'nullable|exists:plan_comptable,id',
+            'chapitre_chequier_id' => 'nullable|exists:plan_comptable,id',
+
+            // Frais chèque guichet
+            'frais_cheque_guichet' => 'nullable|numeric|min:0',
+            'frais_cheque_guichet_actif' => 'boolean',
+            'chapitre_cheque_guichet_id' => 'nullable|exists:plan_comptable,id',
+
+            // Frais livret
+            'frais_livret' => 'nullable|numeric|min:0',
+            'frais_livret_actif' => 'boolean',
+            'chapitre_livret_id' => 'nullable|exists:plan_comptable,id',
+
+            // Frais perte carnet
+            'frais_perte_carnet' => 'nullable|numeric|min:0',
+            'frais_perte_actif' => 'boolean',
+            'chapitre_perte_id' => 'nullable|exists:plan_comptable,id',
 
             // Commission mensuelle
             'commission_mensuelle_actif' => 'boolean',
+            'commission_mensuel' => 'nullable|numeric|min:0',
             'seuil_commission' => 'nullable|numeric|min:0',
             'commission_si_superieur' => 'nullable|numeric|min:0',
             'commission_si_inferieur' => 'nullable|numeric|min:0',
@@ -149,18 +174,39 @@ class TypeCompteController extends Controller
             'frequence_calcul_interet' => 'nullable|in:JOURNALIER,MENSUEL,ANNUEL',
             'heure_calcul_interet' => 'nullable|date_format:H:i',
             'chapitre_interet_credit_id' => 'nullable|exists:plan_comptable,id',
+            'capitalisation_interets' => 'boolean',
+
+            // Frais de déblocage
+            'frais_deblocage' => 'nullable|numeric|min:0',
+            'frais_deblocage_actif' => 'boolean',
+            'chapitre_frais_deblocage_id' => 'nullable|exists:plan_comptable,id',
 
             // Pénalités
             'penalite_retrait_anticipe' => 'nullable|numeric|min:0|max:100',
             'penalite_actif' => 'boolean',
             'chapitre_penalite_id' => 'nullable|exists:plan_comptable,id',
 
+            // Frais cloture anticipée
+            'frais_cloture_anticipe' => 'nullable|numeric|min:0',
+            'frais_cloture_actif' => 'boolean',
+            'chapitre_cloture_anticipe_id' => 'nullable|exists:plan_comptable,id',
+
             // Minimum compte
             'minimum_compte' => 'nullable|numeric|min:0',
             'minimum_compte_actif' => 'boolean',
+            'chapitre_minimum_id' => 'nullable|exists:plan_comptable,id',
 
             // Compte attente
             'compte_attente_produits_id' => 'nullable|exists:plan_comptable,id',
+
+            // Retraits anticipés
+            'retrait_anticipe_autorise' => 'boolean',
+            'validation_retrait_anticipe' => 'boolean',
+            'duree_blocage_min' => 'nullable|integer|min:0',
+            'duree_blocage_max' => 'nullable|integer|min:0',
+
+            // Observations
+            'observations' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
@@ -199,7 +245,8 @@ class TypeCompteController extends Controller
         $typeCompte = TypeCompte::findOrFail($id);
 
         $validator = Validator::make($request->all(), [
-'code' => 'sometimes|string|max:10|unique:types_comptes,code,' . $id . ',id',            'libelle' => 'sometimes|string|max:255',
+            'code' => 'sometimes|string|max:10|unique:types_comptes,code,' . $id . ',id',
+            'libelle' => 'sometimes|string|max:255',
             'description' => 'nullable|string',
 
             'est_mata' => 'sometimes|boolean',
@@ -207,13 +254,83 @@ class TypeCompteController extends Controller
             'a_vue' => 'sometimes|boolean',
             'actif' => 'sometimes|boolean',
 
+            'chapitre_defaut_id' => 'nullable|exists:plan_comptable,id',
+            
             'frais_ouverture' => 'nullable|numeric|min:0',
+            'frais_ouverture_actif' => 'sometimes|boolean',
+            'chapitre_frais_ouverture_id' => 'nullable|exists:plan_comptable,id',
+            
+            'frais_carnet' => 'nullable|numeric|min:0',
+            'frais_carnet_actif' => 'sometimes|boolean',
+            'chapitre_frais_carnet_id' => 'nullable|exists:plan_comptable,id',
+            'frais_renouvellement_carnet' => 'nullable|numeric|min:0',
+            'frais_renouvellement_livret' => 'nullable|numeric|min:0',
+            'frais_renouvellement_actif' => 'sometimes|boolean',
+            'chapitre_renouvellement_id' => 'nullable|exists:plan_comptable,id',
+            
+            'frais_chequier' => 'nullable|numeric|min:0',
+            'frais_chequier_actif' => 'sometimes|boolean',
+            'chapitre_frais_chequier_id' => 'nullable|exists:plan_comptable,id',
+            'chapitre_chequier_id' => 'nullable|exists:plan_comptable,id',
+            
+            'frais_cheque_guichet' => 'nullable|numeric|min:0',
+            'frais_cheque_guichet_actif' => 'sometimes|boolean',
+            'chapitre_cheque_guichet_id' => 'nullable|exists:plan_comptable,id',
+            
+            'frais_livret' => 'nullable|numeric|min:0',
+            'frais_livret_actif' => 'sometimes|boolean',
+            'chapitre_livret_id' => 'nullable|exists:plan_comptable,id',
+            
+            'frais_perte_carnet' => 'nullable|numeric|min:0',
+            'frais_perte_actif' => 'sometimes|boolean',
+            'chapitre_perte_id' => 'nullable|exists:plan_comptable,id',
+            
             'commission_mensuelle_actif' => 'sometimes|boolean',
+            'commission_mensuel' => 'nullable|numeric|min:0',
             'seuil_commission' => 'nullable|numeric|min:0',
+            'commission_si_superieur' => 'nullable|numeric|min:0',
+            'commission_si_inferieur' => 'nullable|numeric|min:0',
+            'chapitre_commission_mensuelle_id' => 'nullable|exists:plan_comptable,id',
+            
+            'commission_retrait' => 'nullable|numeric|min:0',
+            'commission_retrait_actif' => 'sometimes|boolean',
+            'chapitre_commission_retrait_id' => 'nullable|exists:plan_comptable,id',
+            
+            'commission_sms' => 'nullable|numeric|min:0',
+            'commission_sms_actif' => 'sometimes|boolean',
+            'chapitre_commission_sms_id' => 'nullable|exists:plan_comptable,id',
+            
             'taux_interet_annuel' => 'nullable|numeric|min:0|max:100',
+            'interets_actifs' => 'sometimes|boolean',
+            'frequence_calcul_interet' => 'nullable|in:JOURNALIER,MENSUEL,ANNUEL',
+            'heure_calcul_interet' => 'nullable|date_format:H:i',
+            'chapitre_interet_credit_id' => 'nullable|exists:plan_comptable,id',
+            'capitalisation_interets' => 'sometimes|boolean',
+            
+            'frais_deblocage' => 'nullable|numeric|min:0',
+            'frais_deblocage_actif' => 'sometimes|boolean',
+            'chapitre_frais_deblocage_id' => 'nullable|exists:plan_comptable,id',
+            
             'penalite_retrait_anticipe' => 'nullable|numeric|min:0|max:100',
-
-            // Tous les autres champs...
+            'penalite_actif' => 'sometimes|boolean',
+            'chapitre_penalite_id' => 'nullable|exists:plan_comptable,id',
+            
+            'frais_cloture_anticipe' => 'nullable|numeric|min:0',
+            'frais_cloture_actif' => 'sometimes|boolean',
+            'chapitre_cloture_anticipe_id' => 'nullable|exists:plan_comptable,id',
+            
+            'minimum_compte' => 'nullable|numeric|min:0',
+            'minimum_compte_actif' => 'sometimes|boolean',
+            'chapitre_minimum_id' => 'nullable|exists:plan_comptable,id',
+            
+            'compte_attente_produits_id' => 'nullable|exists:plan_comptable,id',
+            
+            'retrait_anticipe_autorise' => 'sometimes|boolean',
+            'validation_retrait_anticipe' => 'sometimes|boolean',
+            'duree_blocage_min' => 'nullable|integer|min:0',
+            'duree_blocage_max' => 'nullable|integer|min:0',
+            
+            'observations' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {

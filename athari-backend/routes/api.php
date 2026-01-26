@@ -379,7 +379,15 @@ Route::middleware('auth:sanctum')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::prefix('sessions')->group(function () {
-        
+        Route::get('/etat-agence/{agenceSessionId}', [SessionAgenceController::class, 'getEtatAgence']);
+    Route::get('/bilan-caisse/{id}', [SessionAgenceController::class, 'getBilanCaisse']);
+    
+    // ... autres routes d'ouverture/fermeture caisse ...
+
+    // --- AJOUTER CETTE ROUTE POUR LE TFJ ---
+    Route::post('/traiter-bilan-agence', [SessionAgenceController::class, 'executerTraitementFinJournee'])
+    ->middleware('permission:ouverture/fermeture agence');
+
         // Sécurité pour l'Agence
         Route::post('/ouvrir-agence', [SessionAgenceController::class, 'ouvrirAgence'])
              ->middleware('permission:ouverture/fermeture agence');
@@ -408,6 +416,8 @@ Route::middleware('auth:sanctum')->group(function () {
         // Clôture finale
         Route::post('/fermer-agence', [SessionAgenceController::class, 'fermerAgence'])
              ->middleware('permission:ouverture/fermeture agence');
+
+        Route::get('/imprimer-brouillard/{id}', [SessionAgenceController::class, 'imprimerBrouillard']);
     });
 
     // AJOUTER CE GROUPE DE ROUTES POUR LA SUPERVISION DE CAISSE :

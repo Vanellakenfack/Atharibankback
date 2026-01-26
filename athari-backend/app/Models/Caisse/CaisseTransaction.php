@@ -8,6 +8,7 @@ class CaisseTransaction extends Model
    protected $fillable = [
     'reference_unique',
     'compte_id',
+    'session_id',
     'code_agence',
     'code_guichet',
     'code_caisse',
@@ -19,15 +20,34 @@ class CaisseTransaction extends Model
     'commissions',
     'taxes',
     'frais_en_compte',
+    'numero_bordereau',
+    'type_bordereau',
     'date_operation',
     'date_valeur',
+    'code_desaccord',
     'caissier_id',
+    'approbateur_id',
     'statut'
 ];
 
     // Relation vers le compte client
     public function compte() {
         return $this->belongsTo(Compte::class);
+    }
+
+    // Relation vers la session de caisse
+    public function session() {
+        return $this->belongsTo(\App\Models\SessionAgence\CaisseSession::class, 'session_id');
+    }
+
+    // Relation vers le caissier
+    public function caissier() {
+        return $this->belongsTo(\App\Models\User::class, 'caissier_id');
+    }
+
+    // Relation vers l'approbateur
+    public function approbateur() {
+        return $this->belongsTo(\App\Models\User::class, 'approbateur_id');
     }
 
     // Relation vers le billetage détaillé

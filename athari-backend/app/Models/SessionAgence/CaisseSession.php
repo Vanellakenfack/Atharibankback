@@ -10,7 +10,7 @@ class CaisseSession extends Model {
     use LogsActivity;
 
     protected $table = 'caisse_sessions';
-    protected $fillable = ['guichet_session_id', 'caissier_id', 'solde_ouverture', 'solde_fermeture', 'statut','caisse_id', 'observations'];
+    protected $fillable = ['guichet_session_id', 'caissier_id', 'solde_ouverture', 'solde_fermeture', 'statut','caisse_id', 'observations','solde_ouverture'];
 
     public function getActivitylogOptions(): LogOptions {
         return LogOptions::defaults()

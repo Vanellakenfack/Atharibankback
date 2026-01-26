@@ -1,10 +1,12 @@
 <?php
+
 namespace App\Http\Controllers\Caisse;
 
 use App\Http\Controllers\Controller;
 use App\Services\CaisseService;
 use Illuminate\Http\Request;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\DB;
 use Exception;
 
 class JournalCaisseController extends Controller
@@ -17,12 +19,11 @@ class JournalCaisseController extends Controller
     }
 
     /**
-     * Récupère le journal de caisse
+     * Récupère le journal de caisse via JSON (pour l'affichage Vue/React)
      */
     public function obtenirJournal(Request $request)
     {
         try {
-            // Validation des paramètres
             $request->validate([
                 'caisse_id'   => 'required|exists:caisses,id',
                 'code_agence' => 'required|string',
@@ -30,84 +31,100 @@ class JournalCaisseController extends Controller
                 'date_fin'    => 'required|date|after_or_equal:date_debut',
             ]);
 
-            $filtres = $request->only(['caisse_id', 'code_agence', 'date_debut', 'date_fin']);
-            
-            // Récupération des données via le service
-            $donnees = $this->caisseService->obtenirJournalCaisseComplet($filtres);
+            $donnees = $this->caisseService->obtenirJournalCaisseComplet($request->all());
+
+            // Transformation pour le JSON : Regroupement par type d'opération
+            $groupes = $donnees['mouvements']->groupBy('type_versement')->map(function ($items, $type) {
+                return [
+                    'type' => $type,
+                    'total_entree' => $items->sum('montant_debit'),
+                    'total_sortie' => $items->sum('montant_credit'),
+                    'operations' => $items->map(fn($m) => [
+                        'date' => $m->date_mouvement,
+                        'ref' => $m->reference_operation,
+                        'tiers' => $m->tiers_nom,
+                        'libelle' => $m->libelle_mouvement,
+                        'entree' => $m->montant_debit > 0 ? $m->montant_debit : 0,
+                        'sortie' => $m->montant_credit > 0 ? $m->montant_credit : 0,
+                    ])
+                ];
+            });
 
             return response()->json([
                 'statut' => 'success',
                 'solde_ouverture' => $donnees['solde_ouverture'],
-                'mouvements' => $donnees['mouvements'],
-                'total_debit' => $donnees['total_debit'],
-                'total_credit' => $donnees['total_credit'],
-                'solde_cloture' => $donnees['solde_cloture'],
-                'synthese' => $donnees['mouvements']->groupBy('type_versement')
-                    ->map(fn($items) => [
-                        'debit' => $items->sum('montant_debit'),
-                        'credit' => $items->sum('montant_credit'),
-                        'count' => $items->count()
-                    ])
+                'groupes' => $groupes->values(),
+                'total_general_debit' => $donnees['total_debit'],
+                'total_general_credit' => $donnees['total_credit'],
+                'solde_cloture' => $donnees['solde_cloture']
             ]);
 
         } catch (Exception $e) {
-            return response()->json([
-                'statut' => 'error',
-                'message' => $e->getMessage()
-            ], 400);
+            return response()->json(['statut' => 'error', 'message' => $e->getMessage()], 400);
         }
     }
 
+    /**
+     * Exporte le journal de caisse en PDF avec regroupement par type
+     */
+   public function exportPdf(Request $request)
+{
+    $request->validate([
+        'caisse_id'   => 'required|exists:caisses,id',
+        'code_agence' => 'required|string',
+        'date_debut'  => 'required|date',
+        'date_fin'    => 'required|date|after_or_equal:date_debut',
+    ]);
 
-    public function exportPdf(Request $request)
-    {
-        // Validation des filtres pour Postman
-        $request->validate([
-            'caisse_id'   => 'required|exists:caisses,id',
-            'code_agence' => 'required|string',
-            'date_debut'  => 'required|date',
-            'date_fin'    => 'required|date|after_or_equal:date_debut',
-        ]);
+    try {
+        // 1. On récupère les données déjà groupées du service
+        $donnees = $this->caisseService->obtenirJournalCaisseComplet($request->all());
+        $caisse = DB::table('caisses')->where('id', $request->caisse_id)->first();
 
-        $caisse = \DB::table('caisses')->where('id', $request->caisse_id)->first();
+        /**
+         * 2. On adapte la structure 'journal_groupe' pour qu'elle corresponde 
+         * aux noms de variables attendus par votre vue Blade (date, entree, sortie)
+         */
+  $groupesMouvements = collect($donnees['journal_groupe'])->map(function ($mouvements, $typeFlux) {
+    return $mouvements->map(function ($mvt) use ($typeFlux) {
+        // On détermine le montant à utiliser (on prend le débit ou le crédit selon ce qui est rempli)
+        $valeur = ($mvt->montant_debit > 0) ? $mvt->montant_debit : $mvt->montant_credit;
 
-        try {
-            $filtres = $request->all();
+        return (object)[
+            'date'      => $mvt->date_mouvement,
+            'reference' => $mvt->reference_operation,
+            'tiers'     => $mvt->tiers_nom,
+            'libelle'   => $mvt->libelle_mouvement,
             
-            // Récupération des données via le service
-            $donnees = $this->caisseService->obtenirJournalCaisseComplet($filtres);
+            // Si le groupe est VERSEMENTS, on met le montant en entrée, sinon 0
+            'entree'    => ($typeFlux === 'VERSEMENTS') ? $valeur : 0,
+            
+            // Si le groupe est RETRAITS, on met le montant en sortie, sinon 0
+            'sortie'    => ($typeFlux === 'RETRAITS') ? $valeur : 0,
+        ];
+    });
+});
 
-            // Calcul de la synthèse par type de versement
-            $synthese = [];
-            if (isset($donnees['mouvements'])) {
-                $grouped = $donnees['mouvements']->groupBy('type_versement');
-                foreach ($grouped as $type => $items) {
-                    $synthese[$type] = [
-                        'debit' => $items->sum('montant_debit'),
-                        'credit' => $items->sum('montant_credit'),
-                        'count' => $items->count()
-                    ];
-                }
-            }
+        // 3. Préparation du PDF avec les clés attendues par votre Blade
+        
+        $pdf = Pdf::loadView('pdf.journal_caisse', [
+            'ouverture'          => $donnees['solde_ouverture'], // Pour {{ $ouverture }} (compatibilité)
+            'journal_groupe'     => $groupesMouvements,          // Pour la boucle principale
+            'groupes_mouvements' => $groupesMouvements,          // Pour la boucle dans votre Blade
+            'total_debit'        => $donnees['total_debit'],
+            'total_credit'       => $donnees['total_credit'],
+            'solde_cloture'      => $donnees['solde_cloture'],
+            'cloture'            => $donnees['solde_cloture'],
+            'filtres'            => $request->all(),
+            'code_caisse'        => $caisse->code_caisse ?? 'N/A'
+        ])->setPaper('a4', 'landscape');
 
-            // Génération du PDF
-            $pdf = Pdf::loadView('pdf.journal_caisse', [
-                'ouverture'    => $donnees['solde_ouverture'],
-                'mouvements'   => $donnees['mouvements'],
-                'total_debit'  => $donnees['total_debit'],
-                'total_credit' => $donnees['total_credit'],
-                'cloture'      => $donnees['solde_cloture'],
-                'synthese'     => $donnees['mouvements']->groupBy('type_versement')->map(fn($items) => $items->sum('montant_debit')),
-                'filtres'      => $filtres,
-                'code_caisse'  => $caisse->code_caisse ?? 'N/A',
-                'synthese'     => $synthese,
-                'filtres'      => $filtres
-            ])->setPaper('a4', 'landscape');
+        return $pdf->download("journal_caisse_{$caisse->code_caisse}.pdf");
 
-            return $pdf->download('journal_caisse.pdf');
-
-        } catch (Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 400);
-        }
+    } catch (Exception $e) {
+        // En cas d'erreur, il est préférable de logguer pour le debug
+        \Log::error("Erreur PDF: " . $e->getMessage());
+        return response()->json(['error' => "Erreur lors de la génération : " . $e->getMessage()], 400);
     }
+}
 }

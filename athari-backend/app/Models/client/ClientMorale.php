@@ -1,8 +1,9 @@
 <?php
-namespace App\Models\Client;
+namespace App\Models\client;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ClientMorale extends Model
 {
@@ -18,15 +19,6 @@ class ClientMorale extends Model
         // Gérant 2
         'nom_gerant2', 'telephone_gerant2', 'photo_gerant2',
         
-        // Signataire 1
-        'nom_signataire', 'telephone_signataire', 'photo_signataire', 'signature_signataire',
-        
-        // Signataire 2
-        'nom_signataire2', 'telephone_signataire2', 'photo_signataire2', 'signature_signataire2',
-        
-        // Signataire 3
-        'nom_signataire3', 'telephone_signataire3', 'photo_signataire3', 'signature_signataire3',
-        
         // Documents administratifs - Images
         'extrait_rccm_image',
         'titre_patente_image',
@@ -41,6 +33,9 @@ class ClientMorale extends Model
         // Documents administratifs - PDF
         'acte_designation_signataires_pdf',
         'liste_conseil_administration_pdf',
+        
+        // NOUVEAUX CHAMPS COMMUNS
+        'liste_membres_pdf',
         
         // Plans de localisation signataires
         'plan_localisation_signataire1_image',
@@ -68,29 +63,86 @@ class ClientMorale extends Model
         return $this->belongsTo(Client::class);
     }
 
+    /**
+     * Relation avec les signataires
+     */
+    public function signataires(): HasMany
+    {
+        return $this->hasMany(ClientSignataire::class, 'client_morale_id');
+    }
+
+    /**
+     * Helper pour obtenir un signataire spécifique
+     */
+    public function signataire($numero)
+    {
+        return $this->signataires()->where('numero_signataire', $numero)->first();
+    }
+
+    /**
+     * Helper pour obtenir le premier signataire
+     */
+    public function getSignataire1Attribute()
+    {
+        return $this->signataire('1');
+    }
+
+    /**
+     * Helper pour obtenir le deuxième signataire
+     */
+    public function getSignataire2Attribute()
+    {
+        return $this->signataire('2');
+    }
+
+    /**
+     * Helper pour obtenir le troisième signataire
+     */
+    public function getSignataire3Attribute()
+    {
+        return $this->signataire('3');
+    }
+
     // Ajout des accesseurs pour les URLs
     protected $appends = [
-        'photo_gerant_url', 'photo_gerant2_url',
-        'photo_signataire_url', 'photo_signataire2_url', 'photo_signataire3_url',
-        'signature_signataire_url', 'signature_signataire2_url', 'signature_signataire3_url',
+        'photo_gerant_url', 
+        'photo_gerant2_url',
         
         // URLs des documents administratifs images
-        'extrait_rccm_image_url', 'titre_patente_image_url', 'niu_image_url',
-        'statuts_image_url', 'pv_agc_image_url', 'attestation_non_redevance_image_url',
-        'proces_verbal_image_url', 'registre_coop_gic_image_url', 'recepisse_declaration_association_image_url',
+        'extrait_rccm_image_url', 
+        'titre_patente_image_url', 
+        'niu_image_url',
+        'statuts_image_url', 
+        'pv_agc_image_url', 
+        'attestation_non_redevance_image_url',
+        'proces_verbal_image_url', 
+        'registre_coop_gic_image_url', 
+        'recepisse_declaration_association_image_url',
         
         // URLs des plans de localisation signataires
-        'plan_localisation_signataire1_image_url', 'plan_localisation_signataire2_image_url', 'plan_localisation_signataire3_image_url',
+        'plan_localisation_signataire1_image_url', 
+        'plan_localisation_signataire2_image_url', 
+        'plan_localisation_signataire3_image_url',
         
         // URLs des factures signataires
-        'facture_eau_signataire1_image_url', 'facture_eau_signataire2_image_url', 'facture_eau_signataire3_image_url',
-        'facture_electricite_signataire1_image_url', 'facture_electricite_signataire2_image_url', 'facture_electricite_signataire3_image_url',
+        'facture_eau_signataire1_image_url', 
+        'facture_eau_signataire2_image_url', 
+        'facture_eau_signataire3_image_url',
+        'facture_electricite_signataire1_image_url', 
+        'facture_electricite_signataire2_image_url', 
+        'facture_electricite_signataire3_image_url',
         
         // URLs localisation siège
-        'plan_localisation_siege_image_url', 'facture_eau_siege_image_url', 'facture_electricite_siege_image_url',
+        'plan_localisation_siege_image_url', 
+        'facture_eau_siege_image_url', 
+        'facture_electricite_siege_image_url',
         
         // URLs des PDF
-        'acte_designation_signataires_pdf_url', 'liste_conseil_administration_pdf_url'
+        'acte_designation_signataires_pdf_url', 
+        'liste_conseil_administration_pdf_url',
+        
+        // NOUVEAUX URLS
+        'liste_membres_pdf_url', 
     ];
 
     /**
@@ -110,56 +162,6 @@ class ClientMorale extends Model
     {
         if ($this->photo_gerant2) {
             return asset('storage/' . $this->photo_gerant2);
-        }
-        return null;
-    }
-
-    // Signataires - photos
-    public function getPhotoSignataireUrlAttribute()
-    {
-        if ($this->photo_signataire) {
-            return asset('storage/' . $this->photo_signataire);
-        }
-        return null;
-    }
-
-    public function getPhotoSignataire2UrlAttribute()
-    {
-        if ($this->photo_signataire2) {
-            return asset('storage/' . $this->photo_signataire2);
-        }
-        return null;
-    }
-
-    public function getPhotoSignataire3UrlAttribute()
-    {
-        if ($this->photo_signataire3) {
-            return asset('storage/' . $this->photo_signataire3);
-        }
-        return null;
-    }
-
-    // Signataires - signatures
-    public function getSignatureSignataireUrlAttribute()
-    {
-        if ($this->signature_signataire) {
-            return asset('storage/' . $this->signature_signataire);
-        }
-        return null;
-    }
-
-    public function getSignatureSignataire2UrlAttribute()
-    {
-        if ($this->signature_signataire2) {
-            return asset('storage/' . $this->signature_signataire2);
-        }
-        return null;
-    }
-
-    public function getSignatureSignataire3UrlAttribute()
-    {
-        if ($this->signature_signataire3) {
-            return asset('storage/' . $this->signature_signataire3);
         }
         return null;
     }
@@ -353,4 +355,14 @@ class ClientMorale extends Model
         }
         return null;
     }
+
+    // NOUVEAUX PDF COMMUNS
+    public function getListeMembresPdfUrlAttribute()
+    {
+        if ($this->liste_membres_pdf) {
+            return asset('storage/' . $this->liste_membres_pdf);
+        }
+        return null;
+    }
+
 }

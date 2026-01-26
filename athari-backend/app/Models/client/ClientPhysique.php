@@ -11,12 +11,12 @@ class ClientPhysique extends Model
     protected $fillable = [
         'client_id', 'nom_prenoms', 'sexe', 'date_naissance', 
         'lieu_naissance', 'nationalite', 'photo', 'signature', 'nui',
-        'niu_image', // NOUVEAU
+        'niu_image',
         'cni_numero', 'cni_delivrance', 'cni_expiration', 'cni_recto', 'cni_verso',
         'nom_pere', 'nom_mere', 'nationalite_pere', 'nationalite_mere',
         'profession', 'employeur', 'situation_familiale', 'regime_matrimonial', 
         'nom_conjoint', 'date_naissance_conjoint', 'cni_conjoint',
-        'profession_conjoint', 'salaire', 'tel_conjoint'
+        'profession_conjoint', 'salaire', 'tel_conjoint',
     ];
 
     public function client(): BelongsTo
@@ -30,7 +30,7 @@ class ClientPhysique extends Model
         'signature_url', 
         'cni_recto_url', 
         'cni_verso_url',
-        'niu_image_url' // NOUVEAU
+        'niu_image_url',
     ];
 
     /**
@@ -87,4 +87,5 @@ class ClientPhysique extends Model
         }
         return null;
     }
+
 }

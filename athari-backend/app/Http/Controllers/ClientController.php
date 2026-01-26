@@ -3,6 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Client\Client;
+use App\Models\Client\ClientMorale;
+use App\Models\Client\ClientPhysique;
+use App\Models\Client\ClientSignataire;
 use App\Services\ClientNumberService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -86,8 +89,9 @@ class ClientController extends Controller
             'photo_localisation_domicile' => 'nullable|image|max:2048',
             'photo_localisation_activite' => 'nullable|image|max:2048',
             // Champs ajoutés pour le client physique
-            'nui_image' => 'nullable|image|max:2048',
-            'attestation_conformite_pdf' => 'nullable|mimes:pdf|max:5120'
+            'niu_image' => 'nullable|image|max:2048',
+            'attestation_conformite_pdf' => 'nullable|mimes:pdf|max:5120',
+            // NOUVEAUX CHAMPS COMMUNS (sans liste_membres)
         ]);
 
         if ($validator->fails()) {
@@ -176,6 +180,7 @@ class ClientController extends Controller
                 $clientData['photo_localisation_activite'] = $request->file('photo_localisation_activite')->store('clients/localisation/activite', 'public');
             }
 
+            // Gestion des fichiers PDF communs pour le client principal
             $client = Client::create($clientData);
 
             // Création des détails physiques
@@ -224,8 +229,8 @@ class ClientController extends Controller
             }
 
             // Gestion du fichier NUI pour le client physique
-            if ($request->hasFile('nui_image')) {
-                $physiqueData['nui_image'] = $request->file('nui_image')->store('clients/nui', 'public');
+            if ($request->hasFile('niu_image')) {
+                $physiqueData['niu_image'] = $request->file('niu_image')->store('clients/nui', 'public');
             }
 
             // Gestion du fichier attestation de conformité PDF
@@ -248,7 +253,7 @@ class ClientController extends Controller
     }
 
     /**
-     * CRÉATION CLIENT MORAL - VERSION COMPLÈTE
+     * CRÉATION CLIENT MORAL - VERSION CORRIGÉE
      */
     public function storeMorale(Request $request)
     {
@@ -258,8 +263,9 @@ class ClientController extends Controller
             'raison_sociale' => 'required|string|max:255',
             'forme_juridique' => 'required|string',
             'type_entreprise' => 'required|in:entreprise,association',
-            'rccm' => 'required|string|unique:clients_morales,rccm',
-            'nom_gerant' => 'required|string',
+            'rccm' => 'nullable|string|unique:clients_morales,rccm',
+            'nui' => 'required|string',
+            'nom_gerant' => 'nullable|string',
             'telephone_gerant' => 'nullable|string',
             'photo_gerant' => 'nullable|image|max:2048',
             
@@ -268,31 +274,12 @@ class ClientController extends Controller
             'telephone_gerant2' => 'nullable|string',
             'photo_gerant2' => 'nullable|image|max:2048',
             
-            // Signataire 1
-            'nom_signataire' => 'nullable|string',
-            'telephone_signataire' => 'nullable|string',
-            'photo_signataire' => 'nullable|image|max:2048',
-            'signature_signataire' => 'nullable|image|max:2048',
-            
-            // Signataire 2
-            'nom_signataire2' => 'nullable|string',
-            'telephone_signataire2' => 'nullable|string',
-            'photo_signataire2' => 'nullable|image|max:2048',
-            'signature_signataire2' => 'nullable|image|max:2048',
-            
-            // Signataire 3
-            'nom_signataire3' => 'nullable|string',
-            'telephone_signataire3' => 'nullable|string',
-            'photo_signataire3' => 'nullable|image|max:2048',
-            'signature_signataire3' => 'nullable|image|max:2048',
-            
             // Informations de contact
             'telephone' => 'required|string',
             'adresse_ville' => 'required|string',
             'adresse_quartier' => 'required|string',
             'email' => 'nullable|email',
             'sigle' => 'nullable|string',
-            'nui' => 'nullable|string',
             'lieu_dit_domicile' => 'nullable|string',
             'lieu_dit_activite' => 'nullable|string',
             'ville_activite' => 'nullable|string',
@@ -322,6 +309,9 @@ class ClientController extends Controller
             'acte_designation_signataires_pdf' => 'nullable|mimes:pdf|max:5120',
             'liste_conseil_administration_pdf' => 'nullable|mimes:pdf|max:5120',
             'attestation_conformite_pdf' => 'nullable|mimes:pdf|max:5120',
+            
+            // NOUVEAUX CHAMPS COMMUNS
+            'liste_membres_pdf' => 'nullable|mimes:pdf|max:5120',
             
             // Plans de localisation signataires
             'plan_localisation_signataire1_image' => 'nullable|image|max:2048',
@@ -375,7 +365,7 @@ class ClientController extends Controller
             $doublonRccm = DB::table('clients_morales')
                 ->where('rccm', $request->rccm)
                 ->exists();
-            
+        
             if ($doublonRccm) {
                 return response()->json([
                     'success' => false,
@@ -388,11 +378,158 @@ class ClientController extends Controller
                 $doublonNui = DB::table('clients_morales')
                     ->where('nui', $request->nui)
                     ->exists();
-                
+            
                 if ($doublonNui) {
                     return response()->json([
                         'success' => false,
                         'message' => 'Une entreprise avec le même numéro NUI existe déjà'
+                    ], 422);
+                }
+            }
+
+            // Récupération des signataires de la requête FormData
+            $signataires = [];
+
+            // Méthode 1: Si votre frontend envoie les signataires sous forme de tableau
+            if ($request->has('signataires') && is_array($request->signataires)) {
+                foreach ($request->signataires as $index => $signataire) {
+                    if (!empty($signataire['nom'])) {
+                        $signataires[$index + 1] = [
+                            'numero_signataire' => $index + 1,
+                            'nom' => $signataire['nom'] ?? null,
+                            'sexe' => $signataire['sexe'] ?? null,
+                            'ville' => $signataire['ville'] ?? null,
+                            'quartier' => $signataire['quartier'] ?? null,
+                            'lieu_domicile' => $signataire['lieu_domicile'] ?? null,
+                            'lieu_dit_domicile' => $signataire['lieu_dit_domicile'] ?? null,
+                            'telephone' => $signataire['telephone'] ?? null,
+                            'email' => $signataire['email'] ?? null,
+                            'cni' => $signataire['cni'] ?? null,
+                            'nui' => $signataire['nui'] ?? null,
+                        ];
+                    
+                        // Gestion des fichiers pour chaque signataire
+                        $fileFields = [
+                            'photo' => "signataires.{$index}.photo",
+                            'signature' => "signataires.{$index}.signature",
+                            'lieu_dit_domicile_photo' => "signataires.{$index}.lieu_dit_domicile_photo",
+                            'photo_localisation_domicile' => "signataires.{$index}.photo_localisation_domicile",
+                            'cni_photo_recto' => "signataires.{$index}.cni_photo_recto",
+                            'cni_photo_verso' => "signataires.{$index}.cni_photo_verso",
+                            'nui_image' => "signataires.{$index}.nui_image",
+                            'plan_localisation_image' => "signataires.{$index}.plan_localisation_image",
+                            'facture_eau_image' => "signataires.{$index}.facture_eau_image",
+                            'facture_electricite_image' => "signataires.{$index}.facture_electricite_image",
+                        ];
+                    
+                        foreach ($fileFields as $dbField => $requestField) {
+                            if ($request->hasFile($requestField)) {
+                                $signataires[$index + 1][$dbField] = $request->file($requestField)->store("clients/signataires/{$dbField}", 'public');
+                            }
+                        }
+                    }
+                }
+            } 
+            // Méthode 2: Si votre frontend envoie les signataires individuellement (signataire1, signataire2, etc.)
+            else {
+                for ($i = 1; $i <= 3; $i++) {
+                    $nomField = "nom_signataire" . ($i > 1 ? $i : '');
+                    if ($request->filled($nomField)) {
+                        $signataires[$i] = [
+                            'numero_signataire' => $i,
+                            'nom' => $request->input($nomField),
+                            'sexe' => $request->input("sexe_signataire" . ($i > 1 ? $i : '')),
+                            'ville' => $request->input("ville_signataire" . ($i > 1 ? $i : '')),
+                            'quartier' => $request->input("quartier_signataire" . ($i > 1 ? $i : '')),
+                            'lieu_domicile' => $request->input("lieu_domicile_signataire" . ($i > 1 ? $i : '')),
+                            'lieu_dit_domicile' => $request->input("lieu_dit_domicile_signataire" . ($i > 1 ? $i : '')),
+                            'telephone' => $request->input("telephone_signataire" . ($i > 1 ? $i : '')),
+                            'email' => $request->input("email_signataire" . ($i > 1 ? $i : '')),
+                            'cni' => $request->input("cni_signataire" . ($i > 1 ? $i : '')),
+                            'nui' => $request->input("nui_signataire" . ($i > 1 ? $i : '')),
+                        ];
+                    
+                        // Gestion des fichiers pour chaque signataire
+                        $fileMappings = [
+                            1 => [
+                                'photo' => 'photo_signataire',
+                                'signature' => 'signature_signataire',
+                                'lieu_dit_domicile_photo' => 'lieu_dit_domicile_photo_signataire',
+                                'photo_localisation_domicile' => 'photo_localisation_domicile_signataire',
+                                'cni_photo_recto' => 'cni_photo_recto_signataire',
+                                'cni_photo_verso' => 'cni_photo_verso_signataire',
+                                'nui_image' => 'nui_image_signataire',
+                                'plan_localisation_image' => 'plan_localisation_signataire1_image',
+                                'facture_eau_image' => 'facture_eau_signataire1_image',
+                                'facture_electricite_image' => 'facture_electricite_signataire1_image',
+                            ],
+                            2 => [
+                                'photo' => 'photo_signataire2',
+                                'signature' => 'signature_signataire2',
+                                'lieu_dit_domicile_photo' => 'lieu_dit_domicile_photo_signataire2',
+                                'photo_localisation_domicile' => 'photo_localisation_domicile_signataire2',
+                                'cni_photo_recto' => 'cni_photo_recto_signataire2',
+                                'cni_photo_verso' => 'cni_photo_verso_signataire2',
+                                'nui_image' => 'nui_image_signataire2',
+                                'plan_localisation_image' => 'plan_localisation_signataire2_image',
+                                'facture_eau_image' => 'facture_eau_signataire2_image',
+                                'facture_electricite_image' => 'facture_electricite_signataire2_image',
+                            ],
+                            3 => [
+                                'photo' => 'photo_signataire3',
+                                'signature' => 'signature_signataire3',
+                                'lieu_dit_domicile_photo' => 'lieu_dit_domicile_photo_signataire3',
+                                'photo_localisation_domicile' => 'photo_localisation_domicile_signataire3',
+                                'cni_photo_recto' => 'cni_photo_recto_signataire3',
+                                'cni_photo_verso' => 'cni_photo_verso_signataire3',
+                                'nui_image' => 'nui_image_signataire3',
+                                'plan_localisation_image' => 'plan_localisation_signataire3_image',
+                                'facture_eau_image' => 'facture_eau_signataire3_image',
+                                'facture_electricite_image' => 'facture_electricite_signataire3_image',
+                            ]
+                        ];
+                    
+                        foreach ($fileMappings[$i] as $dbField => $requestField) {
+                            if ($request->hasFile($requestField)) {
+                                $signataires[$i][$dbField] = $request->file($requestField)->store("clients/signataires/{$dbField}", 'public');
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Vérification de doublon par CNI des signataires
+            foreach ($signataires as $signataire) {
+                if (!empty($signataire['cni'])) {
+                    $doublonCni = DB::table('client_signataires')
+                        ->where('cni', $signataire['cni'])
+                        ->exists();
+                
+                    if ($doublonCni) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => "Un signataire avec le numéro de CNI {$signataire['cni']} existe déjà"
+                        ], 422);
+                    }
+                }
+            }
+
+            // Vérification de doublon par CNI des signataires
+            $signataireCNIs = array_filter([
+                $request->input('cni_signataire'),
+                $request->input('cni_signataire2'),
+                $request->input('cni_signataire3')
+            ]);
+        
+            foreach ($signataireCNIs as $cni) {
+                $doublonCni = DB::table('client_signataires')
+                    ->where('cni', $cni)
+                    ->exists();
+            
+                if ($doublonCni) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Un signataire avec le numéro de CNI {$cni} existe déjà"
                     ], 422);
                 }
             }
@@ -419,6 +556,8 @@ class ClientController extends Controller
                 'immobiliere' => $request->immobiliere,
                 'autres_biens' => $request->autres_biens,
                 'etat' => Client::ETAT_PRESENT,
+                // NOUVEAUX CHAMPS COMMUNS
+                'liste_membres_pdf' => null,
             ];
 
             // Gestion des fichiers uploadés du client principal
@@ -430,6 +569,12 @@ class ClientController extends Controller
             if ($request->hasFile('photo_localisation_activite')) {
                 $clientData['photo_localisation_activite'] = $request->file('photo_localisation_activite')
                     ->store('clients/localisation/activite', 'public');
+            }
+
+            // Gestion des fichiers PDF communs pour le client principal
+            if ($request->hasFile('liste_membres_pdf')) {
+                $clientData['liste_membres_pdf'] = $request->file('liste_membres_pdf')
+                    ->store('clients/documents/liste_membres', 'public');
             }
 
             $client = Client::create($clientData);
@@ -444,35 +589,20 @@ class ClientController extends Controller
                 'nui' => $request->nui,
                 'nom_gerant' => $request->nom_gerant,
                 'telephone_gerant' => $request->telephone_gerant,
-                
+            
                 // Gérant 2
                 'nom_gerant2' => $request->nom_gerant2,
                 'telephone_gerant2' => $request->telephone_gerant2,
-                
-                // Signataire 1
-                'nom_signataire' => $request->nom_signataire,
-                'telephone_signataire' => $request->telephone_signataire,
-                
-                // Signataire 2
-                'nom_signataire2' => $request->nom_signataire2,
-                'telephone_signataire2' => $request->telephone_signataire2,
-                
-                // Signataire 3
-                'nom_signataire3' => $request->nom_signataire3,
-                'telephone_signataire3' => $request->telephone_signataire3,
+            
+                // NOUVEAUX CHAMPS COMMUNS
+                'liste_membres_pdf' => $clientData['liste_membres_pdf'] ?? null,
             ];
 
             // Gestion des fichiers pour les photos existantes
             $photoFields = [
                 'photo_gerant' => 'clients/gerants',
                 'photo_gerant2' => 'clients/gerants',
-                'photo_signataire' => 'clients/signataires/photos',
-                'photo_signataire2' => 'clients/signataires/photos',
-                'photo_signataire3' => 'clients/signataires/photos',
-                'signature_signataire' => 'clients/signataires/signatures',
-                'signature_signataire2' => 'clients/signataires/signatures',
-                'signature_signataire3' => 'clients/signataires/signatures',
-                
+            
                 // Documents administratifs - Images
                 'extrait_rccm_image' => 'clients/documents/extrait_rccm',
                 'titre_patente_image' => 'clients/documents/titre_patente',
@@ -483,19 +613,19 @@ class ClientController extends Controller
                 'proces_verbal_image' => 'clients/documents/proces_verbal',
                 'registre_coop_gic_image' => 'clients/documents/registre_coop_gic',
                 'recepisse_declaration_association_image' => 'clients/documents/recepisse_declaration',
-                
+            
                 // Plans de localisation
                 'plan_localisation_signataire1_image' => 'clients/localisation/signataires',
                 'plan_localisation_signataire2_image' => 'clients/localisation/signataires',
                 'plan_localisation_signataire3_image' => 'clients/localisation/signataires',
                 'plan_localisation_siege_image' => 'clients/localisation/siege',
-                
+            
                 // Factures eau
                 'facture_eau_signataire1_image' => 'clients/factures/eau/signataires',
                 'facture_eau_signataire2_image' => 'clients/factures/eau/signataires',
                 'facture_eau_signataire3_image' => 'clients/factures/eau/signataires',
                 'facture_eau_siege_image' => 'clients/factures/eau/siege',
-                
+            
                 // Factures électricité
                 'facture_electricite_signataire1_image' => 'clients/factures/electricite/signataires',
                 'facture_electricite_signataire2_image' => 'clients/factures/electricite/signataires',
@@ -509,24 +639,33 @@ class ClientController extends Controller
                     $moraleData[$field] = $request->file($field)->store($path, 'public');
                 }
             }
-            
+        
             // Traitement des fichiers PDF
             $pdfFields = [
                 'acte_designation_signataires_pdf' => 'clients/documents/actes',
                 'liste_conseil_administration_pdf' => 'clients/documents/conseil',
                 'attestation_conformite_pdf' => 'clients/attestations/conformite',
             ];
-            
+        
             foreach ($pdfFields as $field => $path) {
                 if ($request->hasFile($field)) {
                     $moraleData[$field] = $request->file($field)->store($path, 'public');
                 }
             }
 
-            $client->morale()->create($moraleData);
+            $clientMorale = $client->morale()->create($moraleData);
+            
+            // CORRECTION ICI - Création des signataires avec client_id
+            foreach ($signataires as $signataireData) {
+                // Ajouter client_id aux données du signataire
+                $signataireData['client_id'] = $client->id;
+                
+                // Créer le signataire
+                $clientMorale->signataires()->create($signataireData);
+            } 
 
             // Charger les relations pour la réponse
-            $client->load('morale');
+            $client->load(['morale.signataires']);
 
             return response()->json([
                 'success'    => true,
@@ -548,7 +687,7 @@ class ClientController extends Controller
             return response()->json(['message' => 'Accès non autorisé'], 403);
         }
 
-        $client = Client::with(['physique', 'morale', 'agency'])->findOrFail($id);
+        $client = Client::with(['physique', 'morale.signataires', 'agency'])->findOrFail($id);
 
         return response()->json([
             'success' => true,
@@ -569,16 +708,33 @@ class ClientController extends Controller
             }
 
             // 1. Charger le client avec ses relations
-            $client = Client::with(['physique', 'morale'])->findOrFail($id);
+            $client = Client::with(['physique', 'morale.signataires'])->findOrFail($id);
 
             // 2. Valider les données selon le type de client
             $validationRules = $this->getValidationRulesForUpdate($client->type_client);
             
-            // Ajouter les règles pour les fichiers communs
+            // Ajouter les règles pour les fichiers communs du client principal
             $fileRules = [
                 'photo_localisation_domicile' => 'nullable|image|max:2048',
-                'photo_localisation_activite' => 'nullable|image|max:2048'
+                'photo_localisation_activite' => 'nullable|image|max:2048',
+                // NOUVEAUX FICHIERS COMMUNS
             ];
+            
+            // Ajouter liste_membres_pdf seulement pour les clients moraux
+            if ($client->type_client === 'morale') {
+                $fileRules['liste_membres_pdf'] = 'nullable|mimes:pdf|max:5120';
+                
+                // Règles pour les signataires
+                for ($i = 1; $i <= 3; $i++) {
+                    $fileRules["photo_signataire{$i}"] = 'nullable|image|max:2048';
+                    $fileRules["signature_signataire{$i}"] = 'nullable|image|max:2048';
+                    $fileRules["lieu_dit_domicile_photo_signataire{$i}"] = 'nullable|image|max:2048';
+                    $fileRules["photo_localisation_domicile_signataire{$i}"] = 'nullable|image|max:2048';
+                    $fileRules["cni_photo_recto_signataire{$i}"] = 'nullable|image|max:2048';
+                    $fileRules["cni_photo_verso_signataire{$i}"] = 'nullable|image|max:2048';
+                    $fileRules["nui_image_signataire{$i}"] = 'nullable|image|max:2048';
+                }
+            }
             
             // Ajouter les règles pour les fichiers spécifiques
             if ($client->type_client === 'physique') {
@@ -598,12 +754,6 @@ class ClientController extends Controller
                 $moralFileRules = [
                     'photo_gerant' => 'nullable|image|max:2048',
                     'photo_gerant2' => 'nullable|image|max:2048',
-                    'photo_signataire' => 'nullable|image|max:2048',
-                    'photo_signataire2' => 'nullable|image|max:2048',
-                    'photo_signataire3' => 'nullable|image|max:2048',
-                    'signature_signataire' => 'nullable|image|max:2048',
-                    'signature_signataire2' => 'nullable|image|max:2048',
-                    'signature_signataire3' => 'nullable|image|max:2048',
                     
                     // Documents administratifs - Images
                     'extrait_rccm_image' => 'nullable|image|max:2048',
@@ -661,6 +811,15 @@ class ClientController extends Controller
                         Rule::unique('clients_physiques', 'nui')->ignore($client->physique->id)
                     ];
                 }
+                
+                if ($request->has('cni_conjoint')) {
+                    $validationRules['cni_conjoint'] = [
+                        'nullable',
+                        'string',
+                        'max:50',
+                        Rule::unique('clients_physiques', 'cni_conjoint')->ignore($client->physique->id)
+                    ];
+                }
             }
             
             if ($client->type_client === 'morale' && $client->morale) {
@@ -680,6 +839,17 @@ class ClientController extends Controller
                         'max:50',
                         Rule::unique('clients_morales', 'nui')->ignore($client->morale->id)
                     ];
+                }
+                
+                // Validation pour les CNI des signataires
+                for ($i = 1; $i <= 3; $i++) {
+                    if ($request->has("cni_signataire{$i}")) {
+                        $validationRules["cni_signataire{$i}"] = [
+                            'nullable',
+                            'string',
+                            'max:50',
+                        ];
+                    }
                 }
             }
 
@@ -727,6 +897,17 @@ class ClientController extends Controller
                 $clientData['photo_localisation_activite'] = $request->file('photo_localisation_activite')
                     ->store('clients/localisation/activite', 'public');
             }
+
+            // Gestion des fichiers PDF communs pour le client principal
+            if ($request->hasFile('liste_membres_pdf') && $client->type_client === 'morale') {
+                // Supprimer l'ancien fichier si il existe
+                if ($client->liste_membres_pdf && Storage::disk('public')->exists($client->liste_membres_pdf)) {
+                    Storage::disk('public')->delete($client->liste_membres_pdf);
+                }
+                $clientData['liste_membres_pdf'] = $request->file('liste_membres_pdf')
+                    ->store('clients/documents/liste_membres', 'public');
+            }
+
 
             // Mettre à jour le client principal
             if (!empty($clientData)) {
@@ -788,9 +969,9 @@ class ClientController extends Controller
                     'raison_sociale', 'sigle', 'forme_juridique', 'type_entreprise',
                     'rccm', 'nui', 'nom_gerant', 'telephone_gerant',
                     'nom_gerant2', 'telephone_gerant2',
-                    'nom_signataire', 'telephone_signataire',
-                    'nom_signataire2', 'telephone_signataire2',
-                    'nom_signataire3', 'telephone_signataire3',
+                    
+                    // NOUVEAUX CHAMPS COMMUNS
+                    'liste_membres_pdf',
                     
                     // Documents administratifs - Images
                     'extrait_rccm_image', 'titre_patente_image', 'nui_image',
@@ -824,12 +1005,6 @@ class ClientController extends Controller
                 $moralFileFields = [
                     'photo_gerant' => 'clients/gerants',
                     'photo_gerant2' => 'clients/gerants',
-                    'photo_signataire' => 'clients/signataires/photos',
-                    'photo_signataire2' => 'clients/signataires/photos',
-                    'photo_signataire3' => 'clients/signataires/photos',
-                    'signature_signataire' => 'clients/signataires/signatures',
-                    'signature_signataire2' => 'clients/signataires/signatures',
-                    'signature_signataire3' => 'clients/signataires/signatures',
                     
                     // Documents administratifs - Images
                     'extrait_rccm_image' => 'clients/documents/extrait_rccm',
@@ -874,16 +1049,71 @@ class ClientController extends Controller
                             Storage::disk('public')->delete($oldFile);
                         }
                         $moraleData[$field] = $request->file($field)->store($path, 'public');
+                    } elseif (in_array($field, ['liste_membres_pdf']) && isset($clientData[$field])) {
+                        $moraleData[$field] = $clientData[$field];
                     }
                 }
                 
+                // Mettre à jour les détails du client moral
                 if (!empty($moraleData)) {
                     $client->morale->update($moraleData);
+                }
+                
+                // MISE À JOUR DES SIGNATAIRES
+                for ($i = 1; $i <= 3; $i++) {
+                    if ($request->has("nom_signataire{$i}")) {
+                        $signataireData = [
+                            'nom' => $request->input("nom_signataire{$i}"),
+                            'sexe' => $request->input("sexe_signataire{$i}"),
+                            'ville' => $request->input("ville_signataire{$i}"),
+                            'quartier' => $request->input("quartier_signataire{$i}"),
+                            'lieu_domicile' => $request->input("lieu_domicile_signataire{$i}"),
+                            'lieu_dit_domicile' => $request->input("lieu_dit_domicile_signataire{$i}"),
+                            'telephone' => $request->input("telephone_signataire{$i}"),
+                            'email' => $request->input("email_signataire{$i}"),
+                            'cni' => $request->input("cni_signataire{$i}"),
+                            'nui' => $request->input("nui_signataire{$i}"),
+                        ];
+                        
+                        // Chercher le signataire existant
+                        $signataire = $client->morale->signataires()->where('numero_signataire', $i)->first();
+                        
+                        // Gestion des fichiers pour le signataire
+                        $signataireFileFields = [
+                            "photo_signataire{$i}" => 'photo',
+                            "signature_signataire{$i}" => 'signature',
+                            "lieu_dit_domicile_photo_signataire{$i}" => 'lieu_dit_domicile_photo',
+                            "photo_localisation_domicile_signataire{$i}" => 'photo_localisation_domicile',
+                            "cni_photo_recto_signataire{$i}" => 'cni_photo_recto',
+                            "cni_photo_verso_signataire{$i}" => 'cni_photo_verso',
+                            "nui_image_signataire{$i}" => 'nui_image',
+                        ];
+                        
+                        foreach ($signataireFileFields as $requestField => $dbField) {
+                            if ($request->hasFile($requestField)) {
+                                // Supprimer l'ancien fichier si il existe
+                                if ($signataire && $signataire->$dbField && Storage::disk('public')->exists($signataire->$dbField)) {
+                                    Storage::disk('public')->delete($signataire->$dbField);
+                                }
+                                $signataireData[$dbField] = $request->file($requestField)->store("clients/signataires/{$dbField}", 'public');
+                            }
+                        }
+                        
+                        if ($signataire) {
+                            // Mettre à jour le signataire existant
+                            $signataire->update($signataireData);
+                        } elseif (!empty($signataireData['nom'])) {
+                            // Créer un nouveau signataire
+                            $signataireData['numero_signataire'] = $i;
+                            $signataireData['client_id'] = $client->id; // AJOUTER client_id
+                            $client->morale->signataires()->create($signataireData);
+                        }
+                    }
                 }
             }
 
             // Recharger les relations pour la réponse
-            $client->load(['physique', 'morale', 'agency']);
+            $client->load(['physique', 'morale.signataires', 'agency']);
 
             return response()->json([
                 'success' => true,
@@ -957,15 +1187,21 @@ class ClientController extends Controller
             'telephone_gerant' => 'nullable|string|max:20',
             'nom_gerant2' => 'nullable|string|max:255',
             'telephone_gerant2' => 'nullable|string|max:20',
-            
-            // Signataires
-            'nom_signataire' => 'nullable|string|max:255',
-            'telephone_signataire' => 'nullable|string|max:20',
-            'nom_signataire2' => 'nullable|string|max:255',
-            'telephone_signataire2' => 'nullable|string|max:20',
-            'nom_signataire3' => 'nullable|string|max:255',
-            'telephone_signataire3' => 'nullable|string|max:20',
         ];
+
+        // Ajouter les règles pour les signataires
+        for ($i = 1; $i <= 3; $i++) {
+            $moraleRules["nom_signataire{$i}"] = 'nullable|string|max:255';
+            $moraleRules["sexe_signataire{$i}"] = 'nullable|in:M,F';
+            $moraleRules["ville_signataire{$i}"] = 'nullable|string|max:100';
+            $moraleRules["quartier_signataire{$i}"] = 'nullable|string|max:100';
+            $moraleRules["lieu_domicile_signataire{$i}"] = 'nullable|string|max:200';
+            $moraleRules["lieu_dit_domicile_signataire{$i}"] = 'nullable|string|max:200';
+            $moraleRules["email_signataire{$i}"] = 'nullable|email|max:100';
+            $moraleRules["cni_signataire{$i}"] = 'nullable|string|max:20';
+            $moraleRules["telephone_signataire{$i}"] = 'nullable|string|max:20';
+            $moraleRules["nui_signataire{$i}"] = 'nullable|string|max:20';
+        }
 
         return array_merge($commonRules, $moraleRules);
     }
@@ -1014,7 +1250,7 @@ class ClientController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Client restauré avec succès',
-            'data'    => $client->load(['physique', 'morale', 'agency'])
+            'data'    => $client->load(['physique', 'morale.signataires', 'agency'])
         ]);
     }
 
@@ -1029,7 +1265,7 @@ class ClientController extends Controller
             return response()->json(['message' => 'Accès non autorisé'], 403);
         }
 
-        $clients = Client::with(['physique', 'morale', 'agency'])
+        $clients = Client::with(['physique', 'morale.signataires', 'agency'])
             ->supprimes()
             ->latest()
             ->get();
@@ -1074,7 +1310,7 @@ class ClientController extends Controller
             ], 400);
         }
 
-        $clients = Client::with(['physique', 'morale', 'agency'])
+        $clients = Client::with(['physique', 'morale.signataires', 'agency'])
             ->actifs()
             ->where(function ($query) use ($search) {
                 $query->where('num_client', 'LIKE', "%{$search}%")
@@ -1089,7 +1325,14 @@ class ClientController extends Controller
                         $q->where('raison_sociale', 'LIKE', "%{$search}%")
                           ->orWhere('rccm', 'LIKE', "%{$search}%")
                           ->orWhere('sigle', 'LIKE', "%{$search}%")
-                          ->orWhere('nui', 'LIKE', "%{$search}%");
+                          ->orWhere('nui', 'LIKE', "%{$search}%")
+                          ->orWhereHas('signataires', function ($sq) use ($search) {
+                              $sq->where('nom', 'LIKE', "%{$search}%")
+                                ->orWhere('cni', 'LIKE', "%{$search}%")
+                                ->orWhere('nui', 'LIKE', "%{$search}%")
+                                ->orWhere('telephone', 'LIKE', "%{$search}%")
+                                ->orWhere('email', 'LIKE', "%{$search}%");
+                          });
                     });
             })
             ->latest()
@@ -1100,5 +1343,177 @@ class ClientController extends Controller
             'count'   => $clients->count(),
             'data'    => $clients
         ]);
+    }
+
+    /**
+     * SUPPRIMER UN SIGNATAIRE
+     */
+    public function destroySignataire($clientId, $signataireId)
+    {
+        $user = Auth::user();
+        
+        if (!$user || !$user->can('gestion des clients')) {
+            return response()->json(['message' => 'Accès non autorisé'], 403);
+        }
+
+        $client = Client::findOrFail($clientId);
+        
+        if ($client->type_client !== 'morale') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Seuls les clients moraux ont des signataires'
+            ], 422);
+        }
+
+        $signataire = ClientSignataire::where('client_morale_id', $client->morale->id)
+            ->findOrFail($signataireId);
+
+        // Supprimer les fichiers associés
+        $filesToDelete = [
+            'photo', 'signature', 'lieu_dit_domicile_photo', 
+            'photo_localisation_domicile', 'cni_photo_recto', 
+            'cni_photo_verso', 'nui_image'
+        ];
+        
+        foreach ($filesToDelete as $fileField) {
+            if ($signataire->$fileField && Storage::disk('public')->exists($signataire->$fileField)) {
+                Storage::disk('public')->delete($signataire->$fileField);
+            }
+        }
+
+        $signataire->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Signataire supprimé avec succès'
+        ]);
+    }
+
+    /**
+     * AJOUTER OU METTRE À JOUR UN SIGNATAIRE
+     */
+    public function storeOrUpdateSignataire(Request $request, $clientId)
+    {
+        $user = Auth::user();
+        
+        if (!$user || !$user->can('gestion des clients')) {
+            return response()->json(['message' => 'Accès non autorisé'], 403);
+        }
+
+        $client = Client::with('morale')->findOrFail($clientId);
+        
+        if ($client->type_client !== 'morale') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Seuls les clients moraux ont des signataires'
+            ], 422);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'numero_signataire' => 'required|in:1,2,3',
+            'nom' => 'required|string|max:255',
+            'sexe' => 'nullable|in:M,F',
+            'ville' => 'nullable|string|max:100',
+            'quartier' => 'nullable|string|max:100',
+            'lieu_domicile' => 'nullable|string|max:200',
+            'lieu_dit_domicile' => 'nullable|string|max:200',
+            'telephone' => 'nullable|string|max:20',
+            'email' => 'nullable|email|max:100',
+            'cni' => 'nullable|string|max:20',
+            'nui' => 'nullable|string|max:20',
+            'photo' => 'nullable|image|max:2048',
+            'signature' => 'nullable|image|max:2048',
+            'lieu_dit_domicile_photo' => 'nullable|image|max:2048',
+            'photo_localisation_domicile' => 'nullable|image|max:2048',
+            'cni_photo_recto' => 'nullable|image|max:2048',
+            'cni_photo_verso' => 'nullable|image|max:2048',
+            'nui_image' => 'nullable|image|max:2048',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        return DB::transaction(function () use ($request, $client) {
+            $numero = $request->numero_signataire;
+            
+            // Vérifier l'unicité de la CNI
+            if ($request->has('cni') && $request->cni) {
+                $existingCni = ClientSignataire::where('cni', $request->cni)
+                    ->where('id', '!=', $request->input('signataire_id'))
+                    ->exists();
+                
+                if ($existingCni) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Un signataire avec le numéro de CNI {$request->cni} existe déjà"
+                    ], 422);
+                }
+            }
+
+            $signataireData = [
+                'numero_signataire' => $numero,
+                'nom' => $request->nom,
+                'sexe' => $request->sexe,
+                'ville' => $request->ville,
+                'quartier' => $request->quartier,
+                'lieu_domicile' => $request->lieu_domicile,
+                'lieu_dit_domicile' => $request->lieu_dit_domicile,
+                'telephone' => $request->telephone,
+                'email' => $request->email,
+                'cni' => $request->cni,
+                'nui' => $request->nui,
+                'client_id' => $client->id, // AJOUTER client_id
+            ];
+
+            // Chercher le signataire existant
+            $signataire = $client->morale->signataires()
+                ->where('numero_signataire', $numero)
+                ->first();
+
+            // Gestion des fichiers
+            $fileFields = [
+                'photo' => 'photo',
+                'signature' => 'signature',
+                'lieu_dit_domicile_photo' => 'lieu_dit_domicile_photo',
+                'photo_localisation_domicile' => 'photo_localisation_domicile',
+                'cni_photo_recto' => 'cni_photo_recto',
+                'cni_photo_verso' => 'cni_photo_verso',
+                'nui_image' => 'nui_image',
+            ];
+
+            foreach ($fileFields as $requestField => $dbField) {
+                if ($request->hasFile($requestField)) {
+                    // Supprimer l'ancien fichier si il existe
+                    if ($signataire && $signataire->$dbField && Storage::disk('public')->exists($signataire->$dbField)) {
+                        Storage::disk('public')->delete($signataire->$dbField);
+                    }
+                    $signataireData[$dbField] = $request->file($requestField)->store("clients/signataires/{$dbField}", 'public');
+                }
+            }
+
+            if ($signataire) {
+                // Mettre à jour le signataire existant
+                $signataire->update($signataireData);
+                $message = 'Signataire mis à jour avec succès';
+            } else {
+                // Créer un nouveau signataire
+                $signataireData['client_id'] = $client->id; // S'assurer que client_id est présent
+                $client->morale->signataires()->create($signataireData);
+                $message = 'Signataire ajouté avec succès';
+            }
+
+            // Recharger les relations
+            $client->load(['morale.signataires']);
+
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'data'    => $client
+            ]);
+        });
     }
 }

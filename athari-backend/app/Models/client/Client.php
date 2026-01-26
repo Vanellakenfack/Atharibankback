@@ -15,9 +15,10 @@ class Client extends Model
         'adresse_ville', 'adresse_quartier', 'lieu_dit_domicile', 
         'photo_localisation_domicile', 'lieu_dit_activite','nui', 
         'photo_localisation_activite', 'ville_activite', 'quartier_activite',
-        'bp', 'pays_residence', 'etat', 'solde_initial', 'immobiliere', 'autres_biens'
+        'bp', 'pays_residence', 'etat', 'solde_initial', 'immobiliere', 'autres_biens',
+        // NOUVEAUX CHAMPS COMMUNS
+        'liste_membres_pdf', 'demande_ouverture_pdf', 'formulaire_ouverture_pdf'
     ];
-
 
     const ETAT_PRESENT = 'present';
     const ETAT_SUPPRIME = 'supprime';
@@ -87,4 +88,14 @@ class Client extends Model
         }
         return null;
     }
+
+    // NOUVEAUX ACCESSORS
+    public function getListeMembresPdfUrlAttribute()
+    {
+        if ($this->liste_membres_pdf) {
+            return asset('storage/' . $this->liste_membres_pdf);
+        }
+        return null;
+    }
+
 }

@@ -91,6 +91,10 @@ return new class extends Migration
 
     public function down(): void
     {
+Schema::disableForeignKeyConstraints();
+        
         Schema::dropIfExists('parametrage_frais');
-    }
+        
+        // On les réactive après
+        Schema::enableForeignKeyConstraints();    }
 };

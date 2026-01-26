@@ -16,6 +16,7 @@ use App\Models\User;
 use App\Notifications\RetraitDepassementPlafond; 
 use Illuminate\Support\Facades\Log;            
 use Exception;
+use App\Models\compte\FraisEnAttente;
 use Barryvdh\DomPDF\Facade\Pdf;
 
 class CaisseService
@@ -23,7 +24,7 @@ class CaisseService
     /**
      * Traite toute opération de caisse avec triple validation
      */
-   public function traiterOperation(string $type, array $data, array $billetage)
+public function traiterOperation(string $type, array $data, array $billetage)
 {
     return DB::transaction(function () use ($type, $data, $billetage) {
         $user = auth()->user();
@@ -66,8 +67,8 @@ class CaisseService
                 ->lockForUpdate()
                 ->first();
                 
-            $this->verifierStatutCompte($compte);
-        }
+// LIGNE 70 : Remplacez par ceci
+$this->verifierStatutCompte($type, $compte);        }
 
         // 4. Contrôle de Provision
         $this->validerEligibilite($type, $compte, $data['montant_brut']);
@@ -107,16 +108,32 @@ class CaisseService
 
         // 9. Mise à jour du Solde Client
         $this->actualiserSoldeCompte($type, $compte, $data['net_a_percevoir_payer'] ?? $data['montant_brut']);
+         // --- NOUVEAU : RÉCUPÉRATION DES DETTES (Si Versement) ---
+            if ($type === 'VERSEMENT' && $compte) {
+                $this->apurerFraisEnAttente($compte, $dateBancaire);
+            }
 
+            // --- NOUVEAU : REBLOCAGE APRÈS RETRAIT (Si Compte à terme/Bloqué) ---
+            if ($type === 'RETRAIT' && $compte && !$compte->typeCompte->a_vue) {
+                $this->gererRenouvellementBlocage($compte);
+            }
        
         if ($typeVersement === 'ESPECE') {
             $this->actualiserSoldesFinanciers($type, $session, $data['montant_brut']);
         }
 
+        $commission = 0;
+        if ($type === 'RETRAIT' && $compte && $compte->typeCompte->chapitre_commission_retrait_id) {
+            $commission = $this->calculerCommissionRetrait($compte, $data['montant_brut']);
+            // On injecte la commission calculée dans le tableau $data pour enregistrerTransactionCaisse
+            $data['commissions'] = $commission;
+        }
+
         return $transaction;
     });
 }
-        private function enregistrerTransactionCaisse($type, $data, $dateBancaire, $session) {
+
+private function enregistrerTransactionCaisse($type, $data, $dateBancaire, $session) {
             $caisse = $session->caisse;
             $guichet = $caisse->guichet;
             $agence = $guichet->agence; 
@@ -161,21 +178,62 @@ class CaisseService
         $session->caisse->$operation('solde_actuel', $montant);
     }
 
-    private function verifierStatutCompte($compte) {
-        if (!$compte || $compte->statut !== 'actif') {
-            throw new Exception("Désaccord : Compte client inexistant, bloqué ou fermé (FRME).");
-        }
+ private function verifierStatutCompte($type,$compte) {
+    if (!$compte) throw new Exception("Compte inexistant.");
+    if ($type === 'RETRAIT' ) {
+    // Bloque si le compte est encore "en attente" ou "sous opposition"
+    if ($compte->statut === 'en_attente' || $compte->est_en_opposition) {
+        throw new Exception(
+            "Opération refusée : Compte en attente de validation juridique (NUI) " . 
+            "ou accord du Chef d'Agence."
+        );
+    }
     }
 
-    private function validerEligibilite($type, $compte, $montant) {
-        if ($type === 'RETRAIT' && $compte) {
-            $soldeDispo = (float)$compte->solde - (float)$compte->montant_indisponible + (float)$compte->autorisation_decouvert;
-            if ($montant > $soldeDispo) {
-                throw new Exception("Désaccord : Provision insuffisante sur le compte (SPRV).");
-            }
+    if ($compte->statut !== 'actif') {
+        throw new Exception("Désaccord : Compte non actif.");
+    }
+}
+
+   private function validerEligibilite($type, $compte, $montant) {
+    if ($type === 'RETRAIT' && $compte) {
+        $commission = 0;
+        // Si le type de compte prévoit une commission de retrait
+        if ($compte->typeCompte->chapitre_commission_retrait_id) {
+            // Exemple : calcul dynamique (à adapter selon vos colonnes taux/fixe)
+            $commission = $this->calculerCommissionRetrait($compte, $montant);
+        }
+
+        $totalNecessaire = $montant + $commission;
+        $soldeDispo = (float)$compte->solde - (float)$compte->montant_indisponible + (float)$compte->autorisation_decouvert;
+        
+        if ($totalNecessaire > $soldeDispo) {
+            throw new Exception("Désaccord : Provision insuffisante (Frais de retrait inclus).");
         }
     }
+}
+/**
+ * Calcule la commission de retrait basée sur la configuration du type de compte
+ */
+private function calculerCommissionRetrait(Compte $compte, float $montantBrut): float
+{
+    $typeCompte = $compte->typeCompte;
+    $commissionTotal = 0;
 
+    // 1. Frais fixes (ex: 500 FCFA par retrait peu importe le montant)
+    if (isset($typeCompte->commission_retrait_fixe)) {
+        $commissionTotal += (float) $typeCompte->commission_retrait_fixe;
+    }
+
+    // 2. Frais proportionnels (ex: 1% du montant)
+    if (isset($typeCompte->commission_retrait_taux) && $typeCompte->commission_retrait_taux > 0) {
+        // Supposons que le taux est stocké en entier (1 pour 1%) ou en décimal (0.01)
+        $taux = (float) $typeCompte->commission_retrait_taux;
+        $commissionTotal += ($montantBrut * ($taux / 100));
+    }
+
+    return $commissionTotal;
+}
         private function genererEcritureComptable($type, $transaction, $compte, $dateBancaire, $session) {
                 $schema = $this->getSchemaComptable($type, $transaction, $session);
 
@@ -271,15 +329,7 @@ class CaisseService
                 // SQL: UPDATE comptes SET solde = solde - montant WHERE id = ...
                 $compte->decrement('solde', $montant);
             }
-                if (in_array($type, ['VERSEMENT', 'ENTREE_CAISSE'])) {
-                    // SQL: UPDATE comptes SET solde = solde + montant WHERE id = ...
-                    $compte->increment('solde', $montant);
-                } 
-                elseif (in_array($type, ['RETRAIT', 'SORTIE_CAISSE'])) {
-                    // SQL: UPDATE comptes SET solde = solde - montant WHERE id = ...
-                    $compte->decrement('solde', $montant);
-                }
-            }
+        }
 
     /**
      * Valider la cohérence du billetage avec le montant attendu
@@ -300,8 +350,6 @@ class CaisseService
                     throw new Exception("Valeur de coupure invalide: {$valeur}");
                 }
                 
-     }
-
                 if ($quantite < 0) {
                     throw new Exception("Quantité négative non autorisée: {$quantite}");
                 }
@@ -533,5 +581,59 @@ public function obtenirJournalCaisseComplet($filtres)
         'total_credit'    => (float)$mouvements->sum('montant_credit'),
         'solde_cloture'   => (float)($soldeOuverture + $mouvements->sum('montant_debit') - $mouvements->sum('montant_credit'))
     ];
+    }
+
+
+
+
+
+
+    //
+    /**
+ * Parcourt et prélève les frais impayés si le solde le permet
+ */
+private function apurerFraisEnAttente($compte, $dateBancaire)
+{
+    $dettes = FraisEnAttente::where('compte_id', $compte->id)
+        ->where('statut', 'en_attente')
+        ->orderBy('annee', 'asc')
+        ->orderBy('mois', 'asc')
+        ->get();
+
+    foreach ($dettes as $dette) {
+        if ($compte->solde >= $dette->montant) {
+            // 1. Déduction du solde
+            $compte->decrement('solde', $dette->montant);
+            
+            // 2. Marquage de la dette
+            $dette->update(['statut' => 'recupere']);
+
+            // 3. Écriture comptable de récupération (Produit pour la banque)
+            MouvementComptable::create([
+                'compte_id'           => $compte->id,
+                'date_mouvement'      => $dateBancaire,
+                'libelle_mouvement'   => "RECUP. FRAIS IMPAYES - MOIS " . $dette->mois . "/" . $dette->annee,
+                'compte_debit_id'     => $compte->typeCompte->chapitre_defaut_id, // Client
+                'compte_credit_id'    => DB::table('plan_comptable')->where('code', '72021001')->value('id'), // Compte de produit
+                'montant_debit'       => $dette->montant,
+                'montant_credit'      => $dette->montant,
+                'reference_operation' => 'RECUP-'.$dette->id,
+                'journal'             => 'CAISSE',
+                'auteur_id'           => auth()->id(),
+            ]);
+        }
+    }
+}
+
+/**
+ * Recalcule la date d'échéance si le compte est de type bloqué
+ */
+private function gererRenouvellementBlocage($compte)
+{
+    if ($compte->duree_blocage_mois > 0) {
+        $compte->update([
+            'date_echeance' => now()->addMonths($compte->duree_blocage_mois)
+        ]);
+    }
 }
 }

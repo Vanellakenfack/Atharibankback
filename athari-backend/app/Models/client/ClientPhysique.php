@@ -6,48 +6,86 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ClientPhysique extends Model
 {
-    protected $table = 'clients_physiques'; // On précise le nom de la table
+    protected $table = 'clients_physiques';
 
-protected $fillable = [
-        'client_id', 
-        'nom_prenoms', 
-        'sexe', 
-        'date_naissance', 
-        'lieu_naissance', 
-        'nationalite', 
-        'photo',
-        'cni_numero', 
-        'cni_delivrance', 
-        'cni_expiration',
-        'nom_pere', 
-        'nom_mere', 
-        'profession', 
-        'employeur', 
-        'situation_familiale', 
-        'regime_matrimonial', 
-        'nom_conjoint',
-        'fonction_conjoint',
-        'tel_conjoint',
-        'adresse_conjoint',
-        'date_naissance_conjoint'
-    ];   public function client(): BelongsTo
+    protected $fillable = [
+        'client_id', 'nom_prenoms', 'sexe', 'date_naissance', 
+        'lieu_naissance', 'nationalite', 'photo', 'signature', 'nui',
+        'niu_image',
+        'cni_numero', 'cni_delivrance', 'cni_expiration', 'cni_recto', 'cni_verso',
+        'nom_pere', 'nom_mere', 'nationalite_pere', 'nationalite_mere',
+        'profession', 'employeur', 'situation_familiale', 'regime_matrimonial', 
+        'nom_conjoint', 'date_naissance_conjoint', 'cni_conjoint',
+        'profession_conjoint', 'salaire', 'tel_conjoint',
+    ];
+
+    public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class);
     }
 
-    protected $appends = ['photo_url'];
+    // Ajout des accesseurs pour les URLs
+    protected $appends = [
+        'photo_url', 
+        'signature_url', 
+        'cni_recto_url', 
+        'cni_verso_url',
+        'niu_image_url',
+    ];
 
     /**
-     * Accessor pour générer l'URL complète de la photo.
+     * Accesseur pour générer l'URL complète de la photo.
      */
     public function getPhotoUrlAttribute()
     {
         if ($this->photo) {
-            // Retourne l'URL complète vers le dossier storage public
             return asset('storage/' . $this->photo);
         }
-
-        // Optionnel : Retourner une image par défaut si aucune photo n'est présente
-        return asset('images/default-avatar.png'); 
+        return asset('images/default-avatar.png');
     }
+
+    /**
+     * Accesseur pour générer l'URL complète de la signature.
+     */
+    public function getSignatureUrlAttribute()
+    {
+        if ($this->signature) {
+            return asset('storage/' . $this->signature);
+        }
+        return null;
+    }
+
+    /**
+     * Accesseur pour générer l'URL complète du recto de la CNI.
+     */
+    public function getCniRectoUrlAttribute()
+    {
+        if ($this->cni_recto) {
+            return asset('storage/' . $this->cni_recto);
+        }
+        return null;
+    }
+
+    /**
+     * Accesseur pour générer l'URL complète du verso de la CNI.
+     */
+    public function getCniVersoUrlAttribute()
+    {
+        if ($this->cni_verso) {
+            return asset('storage/' . $this->cni_verso);
+        }
+        return null;
+    }
+
+    /**
+     * Accesseur pour générer l'URL complète de la photocopie NUI.
+     */
+    public function getNiuImageUrlAttribute()
+    {
+        if ($this->niu_image) {
+            return asset('storage/' . $this->niu_image);
+        }
+        return null;
+    }
+
 }

@@ -22,6 +22,7 @@ class DatabaseSeeder extends Seeder
             PermissionsSeeder::class,
             UserSeeder::class,
             TypesComptesSeeder::class,
+            //GestionnaireSeeder::class,
         ]);
     }
 }

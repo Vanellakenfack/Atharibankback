@@ -5,8 +5,7 @@ use App\Models\chapitre\PlanComptable;
 use App\Models\client\Client;
 use App\Models\frais\MouvementRubriqueMata;
 use App\Services\Frais\GestionRubriqueMataService;
-
-
+use App\Models\User;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -16,16 +15,17 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Compte extends Model
 {
     use HasFactory, SoftDeletes;
+    
 
     protected $fillable = [
         'numero_compte',
         'client_id',
         'type_compte_id',
-        'plan_comptable_id', // MODIFICATION: Remplace chapitre_comptable_id
+        'plan_comptable_id',
         'devise',
         'gestionnaire_code',
-        'gestionnaire_nom',    // DOIT ÊTRE PRÉSENT
-       'gestionnaire_prenom', // DOIT ÊTRE PRÉSENT
+        'gestionnaire_nom',
+        'gestionnaire_prenom',
         'rubriques_mata',
         'duree_blocage_mois',
         'statut',
@@ -36,6 +36,21 @@ class Compte extends Model
         'date_ouverture',
         'date_cloture',
         'observations',
+        'motif_rejet',
+        'est_en_opposition',
+        'date_rejet',
+        'rejete_par',
+        'validation_chef_agence',
+        'validation_juridique',
+        'ca_id',
+        'juriste_id',
+        'dossier_complet',
+        'checklist_juridique',
+        'date_validation_juridique',
+        
+        // AJOUT DES NOUVEAUX CHAMPS
+        'demande_ouverture_pdf',
+        'formulaire_ouverture_pdf',
     ];
 
     protected $casts = [
@@ -45,9 +60,14 @@ class Compte extends Model
         'date_acceptation_notice' => 'datetime',
         'date_ouverture' => 'datetime',
         'date_cloture' => 'datetime',
+        'validation_chef_agence' => 'boolean',
+        'validation_juridique' => 'boolean',
+        'est_en_opposition' => 'boolean',
+        'checklist_juridique' => 'array',
+        'dossier_complet' => 'boolean',
+        'date_validation_juridique' => 'datetime',
+        'date_rejet' => 'datetime',
     ];
-
-    
 
     /**
      * Relation: Compte appartient à un client
@@ -67,7 +87,6 @@ class Compte extends Model
 
     /**
      * Relation: Compte lié à un plan comptable
-     * MODIFICATION: Utilise PlanComptable au lieu de ChapitreComptable
      */
     public function planComptable()
     {
@@ -167,7 +186,7 @@ class Compte extends Model
         ];
     }
 
-     /**
+    /**
      * Relation avec les mouvements des rubriques MATA
      */
     public function mouvementsRubriquesMata()
@@ -195,10 +214,31 @@ class Compte extends Model
     {
         return MouvementRubriqueMata::getSoldeRubrique($this->id, $rubrique);
     }
+    
     public function mouvements()
     {
-        // Un compte possède plusieurs mouvements
-        // 'compte_id' est la clé étrangère dans la table mouvements_comptables
         return $this->hasMany(MouvementComptable::class, 'compte_id');
+    }
+
+    protected static function booted()
+    {
+        static::creating(function ($compte) {
+            if (!$compte->created_by) {
+                $compte->created_by = auth()->id();
+            }
+        });
+    }
+
+    public function utilisateur_createur()
+    {
+        return $this->belongsTo(\App\Models\User::class, 'created_by');
+    }
+
+    public function chefAgence() {
+        return $this->belongsTo(User::class, 'ca_id');
+    }
+
+    public function juriste() {
+        return $this->belongsTo(User::class, 'juriste_id');
     }
 }

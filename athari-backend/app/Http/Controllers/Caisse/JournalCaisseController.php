@@ -58,9 +58,7 @@ class JournalCaisseController extends Controller
         }
     }
 
-    /**
-     * Exporte le journal de caisse en PDF
-     */
+
     public function exportPdf(Request $request)
     {
         // Validation des filtres pour Postman
@@ -101,7 +99,7 @@ class JournalCaisseController extends Controller
                 'cloture'      => $donnees['solde_cloture'],
                 'synthese'     => $donnees['mouvements']->groupBy('type_versement')->map(fn($items) => $items->sum('montant_debit')),
                 'filtres'      => $filtres,
-                'code_caisse'  => $caisse->code_caisse ?? 'N/A'
+                'code_caisse'  => $caisse->code_caisse ?? 'N/A',
                 'synthese'     => $synthese,
                 'filtres'      => $filtres
             ])->setPaper('a4', 'landscape');

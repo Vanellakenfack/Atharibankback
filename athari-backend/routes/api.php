@@ -25,20 +25,18 @@ use App\Http\Controllers\Compte\DatTypeController;
 use App\Http\Controllers\DashboardController;
 
 use App\Http\Controllers\Sessions\SessionAgenceController;
-use  App\Http\Controllers\Caisse\VersementController;
-use  App\Http\Controllers\Caisse\RetraitController;
-use  App\Http\Controllers\Caisse\SupervisionController;
+use App\Http\Controllers\Caisse\VersementController;
+use App\Http\Controllers\Caisse\RetraitController;
+use App\Http\Controllers\Caisse\SupervisionController;
 use App\Models\Caisse\CaisseDemandeValidation;
 use App\Http\Controllers\Caisse\GuichetController;
 use App\Http\Controllers\Caisse\CaisseControllerC;
 use App\Http\Controllers\Caisse\CaisseDashboardController;
-
-
-
 use App\Http\Controllers\OperationDiversController;
 use App\Http\Controllers\Caisse\JournalCaisseController;
 
-
+use App\Http\Controllers\Gestionnaire\GestionnaireController;
+use App\Http\Controllers\Compte\CompteValidationController;
 /*
 |--------------------------------------------------------------------------
 | Routes publiques
@@ -62,7 +60,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me', [UserController::class, 'me']);
 
     /* ==========================================
-        Routes pour les OD (Opérations Diverses) - AJOUTER TOUT CE BLOC
+        Routes pour les OD (Opérations Diverses)
     ========================================== */ 
     Route::prefix('operation-diverses')->group(function () {
         
@@ -174,16 +172,13 @@ Route::middleware('auth:sanctum')->group(function () {
         // Routes pour les Caisses (index, create, store, show, edit, update, destroy)
         // URL: /caisse/caisses
         Route::resource('caisses', CaisseControllerC::class);
-            // Route pour récupérer le journal de caisse
-    Route::get('/journal', [JournalCaisseController::class, 'obtenirJournal']);
-    
-    // Route pour exporter en PDF
-    Route::get('/journal/export-pdf', [JournalCaisseController::class, 'exportPdf']);
-
+        
+        // Route pour récupérer le journal de caisse
+        Route::get('/journal', [JournalCaisseController::class, 'obtenirJournal']);
+        
+        // Route pour exporter en PDF
+        Route::get('/journal/export-pdf', [JournalCaisseController::class, 'exportPdf']);
     });
-    
-    // AJOUTER CETTE ROUTE POUR L'EXPORT PDF DU JOURNAL DE CAISSE
-   // Route::get('/caisse/journal/export-pdf', [JournalCaisseController::class, 'exportPdf']);
 
     /*
     |--------------------------------------------------------------------------
@@ -194,9 +189,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/physique', [ClientController::class, 'storePhysique']);
         Route::post('/morale', [ClientController::class, 'storeMorale']);
         Route::get('/', [ClientController::class, 'index']);
+        Route::get('/supprimes', [ClientController::class, 'supprimes']);
         Route::get('/{id}', [ClientController::class, 'show']);
-        Route::put('/{id}', [ClientController::class, 'update']);
+        
+        // Les deux méthodes pour plus de flexibilité
+        Route::put('/{id}', [ClientController::class, 'update']); // Pour JSON
+        Route::post('/{id}', [ClientController::class, 'update']); // Pour FormData avec _method
+        
         Route::delete('/{id}', [ClientController::class, 'destroy']);
+        Route::post('/{id}/restaurer', [ClientController::class, 'restaurer']);
     });
 
     /*
@@ -204,19 +205,21 @@ Route::middleware('auth:sanctum')->group(function () {
     | Plan comptable
     |--------------------------------------------------------------------------
     */
-    Route::prefix('plan-comptable')->group(function () {
-        // Catégories comptables
-        Route::get('categories', [CategorieComptableController::class, 'index']);
-        Route::post('categories', [CategorieComptableController::class, 'store']);
-        Route::put('categories/{id}', [CategorieComptableController::class, 'update']);
+Route::prefix('plan-comptable')->group(function () {
+    // Catégories comptables
+    Route::get('categories', [CategorieComptableController::class, 'index']);
+    Route::post('categories', [CategorieComptableController::class, 'store']);
+    Route::put('categories/{id}', [CategorieComptableController::class, 'update']);
 
-        // Comptes comptables
-        Route::get('comptes', [PlanComptableController::class, 'index']);
-        Route::post('comptes', [PlanComptableController::class, 'store']);
-        Route::get('comptes/{planComptable}', [PlanComptableController::class, 'show']);
-        Route::put('comptes/{id}', [PlanComptableController::class, 'update']);
-        Route::patch('comptes/{planComptable}/archive', [PlanComptableController::class, 'archive']);
-    });
+    // Comptes comptables
+    Route::get('comptes', [PlanComptableController::class, 'index']);
+    Route::get('comptes/options', [PlanComptableController::class, 'options']); // Pour selects légers
+    Route::get('comptes/search', [PlanComptableController::class, 'search']); // Pour autocomplete
+    Route::post('comptes', [PlanComptableController::class, 'store']);
+    Route::get('comptes/{planComptable}', [PlanComptableController::class, 'show']);
+    Route::put('comptes/{id}', [PlanComptableController::class, 'update']);
+    Route::patch('comptes/{planComptable}/archive', [PlanComptableController::class, 'archive']);
+});
 
     /*
     |--------------------------------------------------------------------------
@@ -233,13 +236,13 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::put('/{id}', [TypeCompteController::class, 'update']);
         Route::delete('/{id}', [TypeCompteController::class, 'destroy']);
-         Route::get('/{id}', [TypeCompteController::class, 'show']);
-           // Simulation
+        Route::get('/{id}', [TypeCompteController::class, 'show']);
+        
+        // Simulation
         Route::post('/{id}/simuler-frais', [TypeCompteController::class, 'simulerFrais']);
 
         // Utilitaires
         Route::get('/chapitres/disponibles', [TypeCompteController::class, 'getChapitresDisponibles']);
-
     });
 
     /*
@@ -252,7 +255,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/contracts', [DatContratController::class, 'index']); 
         Route::post('contracts', [DatContratController::class, 'store']); // Route pour créer
 
-       Route::post('{id}/valider', [DatContratController::class, 'valider']);
+        Route::post('{id}/valider', [DatContratController::class, 'valider']);
         // Liste des types (offres) pour la modale
         Route::get('/types', [DatTypeController::class, 'index']); 
         Route::post('/types', [DatTypeController::class, 'store']);
@@ -274,10 +277,10 @@ Route::middleware('auth:sanctum')->group(function () {
     */
     Route::prefix('comptes')->group(function () {
 
-         //journal ouverture de compte
-       Route::get('/journal-ouverture', [CompteController::class, 'getJournalOuvertures']);
-              Route::get('/cloture journe', [CompteController::class, 'clotureJourneeOuvertures']);
-              Route::get('/journal-pdf', [CompteController::class, 'exporterJournalPdf']);
+        //journal ouverture de compte
+        Route::get('/journal-ouverture', [CompteController::class, 'getJournalOuvertures']);
+        Route::get('/cloture journe', [CompteController::class, 'clotureJourneeOuvertures']);
+        Route::get('/journal-pdf', [CompteController::class, 'exporterJournalPdf']);
 
         // Ouverture de compte
         Route::get('/init', [CompteController::class, 'initOuverture']);
@@ -300,7 +303,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::prefix('{compte}')->group(function () {
             Route::get('/documents', [DocumentCompteController::class, 'index']);
             Route::post('/documents', [DocumentCompteController::class, 'store']);
+            Route::post('/valider', [CompteValidationController::class, 'valider']);     
+            Route::post('/rejeter', [CompteValidationController::class, 'rejeter']);
         });
+        Route::post('{id}/valider', [CompteValidationController::class, 'valider']);     
+        Route::post('{id}/rejeter', [CompteValidationController::class, 'rejeter']);
+
     });
 
     /*
@@ -415,7 +423,26 @@ Route::middleware('auth:sanctum')->group(function () {
         return \App\Models\Caisse\CaisseDemandeValidation::where('statut', 'EN_ATTENTE')->get();
     });
 
-});
+    /*
+    |--------------------------------------------------------------------------
+    | Gestionnaires
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('gestionnaires')->group(function () {
+        Route::get('/', [GestionnaireController::class, 'index']);
+        Route::get('/{id}', [GestionnaireController::class, 'show']);
+        Route::post('/', [GestionnaireController::class, 'store']);
+        Route::put('/{id}', [GestionnaireController::class, 'update']);
+        Route::delete('/{id}', [GestionnaireController::class, 'destroy']);
+        
+        // Routes supplémentaires
+        Route::get('/agence/{agenceId}', [GestionnaireController::class, 'parAgence']);
+        Route::get('/corbeille', [GestionnaireController::class, 'corbeille']);
+        Route::post('/{id}/restaurer', [GestionnaireController::class, 'restaurer']);
+        Route::delete('/{id}/force', [GestionnaireController::class, 'supprimerDefinitivement']);
+    });
+
+}); // FIN DU GROUPE auth:sanctum
 
 // AJOUTER CE GROUPE DE ROUTES POUR LES TRANSACTIONS DE CAISSE :
 Route::middleware(['auth:sanctum', 'verifier.caisse'])->prefix('caisse')->group(function () {
@@ -425,14 +452,15 @@ Route::middleware(['auth:sanctum', 'verifier.caisse'])->prefix('caisse')->group(
     
     // API Retrait
     Route::post('/retrait', [RetraitController::class, 'store']);
-    // routes/api.php
-   Route::get('/recu/{id}', [RetraitController::class, 'imprimerRecu']);
-      Route::get('/recu/{id}', [VersementController::class, 'imprimerRecu']);
-      Route::get('/dashboard', [CaisseDashboardController::class, 'index']);
+    
+    // Dashboard caisse
+    Route::get('/dashboard', [CaisseDashboardController::class, 'index']);
     Route::get('/recapitulatif/{sessionId}', [CaisseDashboardController::class, 'recapitulatifFlux']);
 
+}); // FIN DU GROUPE caisse
 
-});
-    
 // AJOUTER CETTE ROUTE POUR L'IMPRESSION DE RECU :
-Route::get('/recu/{id}', [App\Http\Controllers\Caisse\RetraitController::class, 'imprimerRecu']);
+Route::middleware(['auth:sanctum'])->group(function () {
+    Route::get('/recu/retrait/{id}', [RetraitController::class, 'imprimerRecu']);
+    Route::get('/recu/versement/{id}', [VersementController::class, 'imprimerRecu']);
+});

@@ -11,7 +11,7 @@ class StoreCompteRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true; // Ajuster selon votre logique d'autorisation
+        return true;
     }
 
     public function rules(): array
@@ -26,13 +26,13 @@ class StoreCompteRequest extends FormRequest
             'etape1.rubriques_mata.*' => 'in:SANTE,BUSINESS,FETE,FOURNITURE,IMMO,SCOLARITE',
             'etape1.duree_blocage_mois' => 'nullable|integer|between:3,12',
 
-            // Étape 2: Plan comptable (MODIFICATION)
+            // Étape 2: Plan comptable
             'etape2.plan_comptable_id' => 'required|exists:plan_comptable,id',
             'etape2.categorie_id' => 'nullable|exists:categories_comptables,id',
+            'etape2.gestionnaire_id' => 'required|exists:gestionnaires,id',
             'etape2.gestionnaire_nom' => 'nullable|string|max:255',
             'etape2.gestionnaire_prenom' => 'nullable|string|max:255',
             'etape2.gestionnaire_code' => 'nullable|string|max:20',
-
 
             // Étape 3: Mandataires
             'etape3.mandataire_1.sexe' => 'required|in:masculin,feminin',
@@ -75,10 +75,15 @@ class StoreCompteRequest extends FormRequest
 
             // Étape 4: Documents et validation
             'etape4.notice_acceptee' => 'required|boolean|accepted',
-            'documents' => 'required|array|min:1',
-            'documents.*' => 'required|file|mimes:pdf,jpg,jpeg,png|max:10240',
-            'types_documents' => 'required|array',
-            'types_documents.*' => 'required|string',
+            
+            // AJOUT DES NOUVEAUX FICHIERS PDF
+            'demande_ouverture_pdf' => 'required|file|mimes:pdf|max:5120', // 5 MB max
+            'formulaire_ouverture_pdf' => 'required|file|mimes:pdf|max:5120', // 5 MB max
+            
+            'documents' => 'nullable|array',
+            'documents.*' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
+            'types_documents' => 'nullable|array',
+            'types_documents.*' => 'nullable|string',
             'descriptions_documents' => 'nullable|array',
             'descriptions_documents.*' => 'nullable|string',
             'signature' => 'nullable|file|mimes:png,jpg,jpeg|max:2048',
@@ -92,8 +97,19 @@ class StoreCompteRequest extends FormRequest
             'etape1.client_id.exists' => 'Le client sélectionné n\'existe pas',
             'etape2.plan_comptable_id.required' => 'Le plan comptable est obligatoire',
             'etape2.plan_comptable_id.exists' => 'Le plan comptable sélectionné n\'existe pas',
+            'etape2.gestionnaire_id.required' => 'Le gestionnaire est obligatoire',
+            'etape2.gestionnaire_id.exists' => 'Le gestionnaire sélectionné n\'existe pas',
             'etape4.notice_acceptee.accepted' => 'Vous devez accepter la notice d\'engagement',
-            'documents.required' => 'Au moins un document est requis',
+            
+            // AJOUT DES MESSAGES POUR LES NOUVEAUX CHAMPS
+            'demande_ouverture_pdf.required' => 'La demande d\'ouverture en PDF est obligatoire',
+            'demande_ouverture_pdf.mimes' => 'La demande d\'ouverture doit être un fichier PDF',
+            'demande_ouverture_pdf.max' => 'La demande d\'ouverture ne doit pas dépasser 5 MB',
+            
+            'formulaire_ouverture_pdf.required' => 'Le formulaire d\'ouverture en PDF est obligatoire',
+            'formulaire_ouverture_pdf.mimes' => 'Le formulaire d\'ouverture doit être un fichier PDF',
+            'formulaire_ouverture_pdf.max' => 'Le formulaire d\'ouverture ne doit pas dépasser 5 MB',
+            
             'documents.*.max' => 'Chaque document ne doit pas dépasser 10 MB',
         ];
     }

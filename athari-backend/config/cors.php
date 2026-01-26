@@ -20,7 +20,8 @@ return [
         'frais-commissions',
         'frais-applications',
         'types-comptes',
-        'comptes/*'
+        'comptes/*',
+        'storage/*',
     ],
     'allowed_methods' => ['*'],
     'allowed_origins' => [

@@ -18,7 +18,6 @@ class CaisseTransaction extends Model
     'origine_fonds',
     'commissions',
     'taxes',
-    'frais_en_compte',
     'date_operation',
     'date_valeur',
     'caissier_id',

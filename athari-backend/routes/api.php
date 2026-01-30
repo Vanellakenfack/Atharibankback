@@ -33,6 +33,7 @@ use App\Http\Controllers\Caisse\GuichetController;
 use App\Http\Controllers\Caisse\CaisseControllerC;
 use App\Http\Controllers\Caisse\CaisseDashboardController;
 use App\Http\Controllers\Compte\CompteValidationController;
+    use App\Http\Controllers\Caisse\RetraitDistanceController;
 
 use App\Http\Controllers\OperationDiversController;
 use App\Http\Controllers\Caisse\JournalCaisseController;
@@ -173,13 +174,13 @@ Route::middleware('auth:sanctum')->group(function () {
         // Routes pour les Caisses (index, create, store, show, edit, update, destroy)
         // URL: /caisse/caisses
         Route::resource('caisses', CaisseControllerC::class);
-    Route::get('/journal', [JournalCaisseController::class, 'obtenirJournal']);
+        Route::get('/journal', [JournalCaisseController::class, 'obtenirJournal']);
 
 
 
     
-    // Route pour exporter en PDF
-    Route::get('/journal/export-pdf', [JournalCaisseController::class, 'exportPdf']);
+        // Route pour exporter en PDF
+        Route::get('/journal/export-pdf', [JournalCaisseController::class, 'exportPdf']);
 
     });
     
@@ -380,7 +381,7 @@ Route::middleware('auth:sanctum')->group(function () {
     */
     Route::prefix('sessions')->group(function () {
         Route::get('/etat-agence/{agenceSessionId}', [SessionAgenceController::class, 'getEtatAgence']);
-    Route::get('/bilan-caisse/{id}', [SessionAgenceController::class, 'getBilanCaisse']);
+        Route::get('/bilan-caisse/{id}', [SessionAgenceController::class, 'getBilanCaisse']);
     
     // ... autres routes d'ouverture/fermeture caisse ...
 
@@ -446,14 +447,27 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{id}/force', [GestionnaireController::class, 'supprimerDefinitivement']);
     });
 
+
+    // Routes pour le caissier
+    Route::post('/caisse/retrait-distance', [RetraitDistanceController::class, 'store']);
+    
+    // Routes pour le Chef d'Agence
+    Route::get('caisse/retrait-distance/en-attente', [RetraitDistanceController::class, 'enAttente']);
+    Route::post('caisse/retrait-distance/{id}/approuver', [RetraitDistanceController::class, 'approuver']);
+    Route::post('caisse/retrait-distance/{id}/rejeter', [RetraitDistanceController::class, 'rejeter']);
+    Route::post('caisse/retrait-distance/{id}/confirmer', [RetraitDistanceController::class, 'confirmer']); // Validation finale Caissière
+
+
 });
+
+
 
 // AJOUTER CE GROUPE DE ROUTES POUR LES TRANSACTIONS DE CAISSE :
 Route::middleware(['auth:sanctum', 'verifier.caisse'])->prefix('caisse')->group(function () {
     
     // API Versement (Dépôt)
     Route::post('/versement', [VersementController::class, 'store']);
-    
+   
     // API Retrait
     Route::post('/retrait', [RetraitController::class, 'store']);
     // routes/api.php
@@ -463,7 +477,8 @@ Route::middleware(['auth:sanctum', 'verifier.caisse'])->prefix('caisse')->group(
     Route::get('/recapitulatif/{sessionId}', [CaisseDashboardController::class, 'recapitulatifFlux']);
 
 
-});
+
     
 // AJOUTER CETTE ROUTE POUR L'IMPRESSION DE RECU :
 Route::get('/recu/{id}', [App\Http\Controllers\Caisse\RetraitController::class, 'imprimerRecu']);
+});

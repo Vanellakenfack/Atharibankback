@@ -39,6 +39,7 @@ class CaisseDashboardController extends Controller
             // 2. Calculer les flux de la SESSION ACTUELLE (Indépendant de la date brute)
             $flux = DB::table('caisse_transactions')
                 ->where('session_id', $session->id)
+                ->where('statut', 'VALIDE') // <--- CRUCIAL : Ne prendre que ce qui est confirmé
                 ->select(
                     'type_flux', 
                     'type_versement', 
@@ -53,6 +54,7 @@ class CaisseDashboardController extends Controller
             $transactions = DB::table('caisse_transactions as t')
                 ->leftJoin('comptes as c', 't.compte_id', '=', 'c.id')
                 ->where('t.session_id', $session->id)
+                ->where('t.statut', 'VALIDE')
                 ->select(
                     't.id', 
                     't.reference_unique as ref', 
@@ -96,6 +98,7 @@ class CaisseDashboardController extends Controller
             // 5. Préparation des données pour le graphique (Activité horaire)
             $graphique = DB::table('caisse_transactions')
                 ->where('session_id', $session->id)
+                ->where('statut', 'VALIDE') // <--- CRUCIAL : Ne prendre que ce qui est confirmé
                 ->select(
                     DB::raw("DATE_FORMAT(created_at, '%H:00') as heure"),
                     DB::raw("SUM(CASE WHEN type_flux IN ('VERSEMENT', 'ENTREE') THEN montant_brut ELSE 0 END) as entrees"),

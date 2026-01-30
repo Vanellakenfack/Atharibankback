@@ -220,13 +220,26 @@ class TypeCompteController extends Controller
         try {
             $typeCompte = TypeCompte::create($request->all());
 
+            $typeCompte->refresh();
+            $typeCompte->load([
+                'chapitreDefaut',
+                'chapitreFraisOuverture',
+                'chapitreFraisCarnet',
+                'chapitreRenouvellement',
+                'chapitrePerte',
+                'chapitreCommissionRetrait',
+                'chapitreCommissionSms',
+                'chapitreInteretCredit',
+                'chapitreFraisDeblocage',
+                'chapitrePenalite',
+                'chapitreClotureAnticipe',
+                'compteAttenteProduits',
+            ]);
+
             return response()->json([
                 'success' => true,
                 'message' => 'Type de compte créé avec succès',
-                'data' => $typeCompte->load([
-                    'chapitreDefaut',
-                    'chapitreFraisOuverture',
-                ]),
+                'data' => $typeCompte->toArray(),
             ], 201);
 
         } catch (\Exception $e) {
@@ -344,13 +357,31 @@ class TypeCompteController extends Controller
         try {
             $typeCompte->update($request->all());
 
+            // Recharger tous les données depuis la DB
+            $typeCompte->refresh();
+            
+            // Charger les relations
+            $typeCompte->load([
+                'chapitreDefaut',
+                'chapitreFraisOuverture',
+                'chapitreFraisCarnet',
+                'chapitreRenouvellement',
+                'chapitrePerte',
+                'chapitreCommissionRetrait',
+                'chapitreCommissionSms',
+                'chapitreInteretCredit',
+                'chapitreFraisDeblocage',
+                'chapitrePenalite',
+                'chapitreClotureAnticipe',
+                'compteAttenteProduits',
+            ]);
+
+            $data = $typeCompte->toArray();
+
             return response()->json([
                 'success' => true,
                 'message' => 'Type de compte mis à jour avec succès',
-                'data' => $typeCompte->fresh()->load([
-                    'chapitreDefaut',
-                    'chapitreFraisOuverture',
-                ]),
+                'data' => $data,
             ]);
 
         } catch (\Exception $e) {

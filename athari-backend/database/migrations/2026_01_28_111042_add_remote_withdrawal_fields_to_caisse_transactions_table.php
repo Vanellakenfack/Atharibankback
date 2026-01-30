@@ -1,33 +1,14 @@
 <?php
-
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
-        Schema::create('transaction_billetages', function (Blueprint $table) {
-            $table->id();
-            
-            // Liaison avec la transaction de caisse
-            $table->foreignId('transaction_id')
-                  ->constrained('caisse_transactions')
-                  ->onDelete('cascade');
-
-            // Détails du billetage
-            // On stocke la valeur faciale (ex: 10000) et la quantité (ex: 5)
-            $table->integer('valeur_coupure')->comment('Valeur du billet ou de la pièce');
-            $table->integer('quantite')->comment('Nombre d\'unités');
-            
-            // Champ calculé pour faciliter les requêtes de reporting (valeur * quantite)
-            $table->decimal('sous_total', 15, 2);
-
-              // --- INDICATEUR DE TYPE ---
+        Schema::table('caisse_transactions', function (Blueprint $table) {
+            // --- INDICATEUR DE TYPE ---
             $table->boolean('is_retrait_distance')->default(false);
 
             // --- PIÈCES JOINTES (Stockage des chemins de fichiers) ---
@@ -49,20 +30,24 @@ return new class extends Migration
             // --- CONTRAINTES D'INTÉGRITÉ ---
             $table->foreign('gestionnaire_id')->references('id')->on('gestionnaires')->onDelete('set null');
             $table->foreign('chef_agence_id')->references('id')->on('users')->onDelete('set null');
-
-            // Audit
-            $table->timestamps();
-
-            // Index pour la performance des rapports de caisse
-            $table->index(['transaction_id', 'valeur_coupure']);
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::dropIfExists('transaction_billetages');
+        Schema::table('caisse_transactions', function (Blueprint $table) {
+            $table->dropForeign(['gestionnaire_id']);
+            $table->dropForeign(['chef_agence_id']);
+            $table->dropColumn([
+                'is_retrait_distance',
+                'pj_demande_retrait',
+                'pj_procuration',
+                'gestionnaire_id',
+                'chef_agence_id',
+                'statut_workflow',
+                'date_validation_ca',
+                'motif_rejet_ca'
+            ]);
+        });
     }
 };

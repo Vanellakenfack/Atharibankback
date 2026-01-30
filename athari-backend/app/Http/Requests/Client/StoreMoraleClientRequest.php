@@ -25,8 +25,6 @@ class StoreMoraleClientRequest extends FormRequest
 
     /**
      * Get the validation rules that apply to the request.
-     *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
@@ -46,23 +44,62 @@ class StoreMoraleClientRequest extends FormRequest
             'telephone_gerant2' => 'nullable|string',
             'photo_gerant2' => 'nullable|image|max:2048',
             
-            // Signataire 1
+            // SIGNATAIRE 1 - NOUVEAUX CHAMPS
             'nom_signataire' => 'nullable|string',
-            'telephone_signataire' => 'nullable|string',
+            'sexe_signataire' => 'nullable|in:M,F',
+            'ville_signataire' => 'nullable|string',
+            'quartier_signataire' => 'nullable|string',
+            'lieu_domicile_signataire' => 'nullable|string',
+            'lieu_dit_domicile_signataire' => 'nullable|string',
+            'lieu_dit_domicile_photo_signataire' => 'nullable|image|max:2048',
+            'photo_localisation_domicile_signataire' => 'nullable|image|max:2048',
+            'email_signataire' => 'nullable|email',
+            'cni_signataire' => 'nullable|string',
+            'cni_photo_recto_signataire' => 'nullable|image|max:2048',
+            'cni_photo_verso_signataire' => 'nullable|image|max:2048',
             'photo_signataire' => 'nullable|image|max:2048',
             'signature_signataire' => 'nullable|image|max:2048',
+            'nui_signataire' => 'nullable|string',
+            'nui_image_signataire' => 'nullable|image|max:2048',
+            'telephone_signataire' => 'nullable|string',
             
-            // Signataire 2
+            // SIGNATAIRE 2 - NOUVEAUX CHAMPS
             'nom_signataire2' => 'nullable|string',
-            'telephone_signataire2' => 'nullable|string',
+            'sexe_signataire2' => 'nullable|in:M,F',
+            'ville_signataire2' => 'nullable|string',
+            'quartier_signataire2' => 'nullable|string',
+            'lieu_domicile_signataire2' => 'nullable|string',
+            'lieu_dit_domicile_signataire2' => 'nullable|string',
+            'lieu_dit_domicile_photo_signataire2' => 'nullable|image|max:2048',
+            'photo_localisation_domicile_signataire2' => 'nullable|image|max:2048',
+            'email_signataire2' => 'nullable|email',
+            'cni_signataire2' => 'nullable|string',
+            'cni_photo_recto_signataire2' => 'nullable|image|max:2048',
+            'cni_photo_verso_signataire2' => 'nullable|image|max:2048',
             'photo_signataire2' => 'nullable|image|max:2048',
             'signature_signataire2' => 'nullable|image|max:2048',
+            'nui_signataire2' => 'nullable|string',
+            'nui_image_signataire2' => 'nullable|image|max:2048',
+            'telephone_signataire2' => 'nullable|string',
             
-            // Signataire 3
+            // SIGNATAIRE 3 - NOUVEAUX CHAMPS
             'nom_signataire3' => 'nullable|string',
-            'telephone_signataire3' => 'nullable|string',
+            'sexe_signataire3' => 'nullable|in:M,F',
+            'ville_signataire3' => 'nullable|string',
+            'quartier_signataire3' => 'nullable|string',
+            'lieu_domicile_signataire3' => 'nullable|string',
+            'lieu_dit_domicile_signataire3' => 'nullable|string',
+            'lieu_dit_domicile_photo_signataire3' => 'nullable|image|max:2048',
+            'photo_localisation_domicile_signataire3' => 'nullable|image|max:2048',
+            'email_signataire3' => 'nullable|email',
+            'cni_signataire3' => 'nullable|string',
+            'cni_photo_recto_signataire3' => 'nullable|image|max:2048',
+            'cni_photo_verso_signataire3' => 'nullable|image|max:2048',
             'photo_signataire3' => 'nullable|image|max:2048',
             'signature_signataire3' => 'nullable|image|max:2048',
+            'nui_signataire3' => 'nullable|string',
+            'nui_image_signataire3' => 'nullable|image|max:2048',
+            'telephone_signataire3' => 'nullable|string',
             
             // Informations de contact
             'telephone' => 'required|string',
@@ -87,6 +124,9 @@ class StoreMoraleClientRequest extends FormRequest
             // Documents administratifs - PDF
             'liste_conseil_administration_pdf' => 'nullable|mimes:pdf|max:5120',
             'attestation_conformite_pdf' => 'required|mimes:pdf|max:5120',
+            
+            // NOUVEAUX CHAMPS COMMUNS
+            'liste_membres_pdf' => 'nullable|mimes:pdf|max:5120',
             
             // Plans de localisation signataires
             'plan_localisation_signataire1_image' => 'nullable|image|max:2048',
@@ -173,6 +213,10 @@ class StoreMoraleClientRequest extends FormRequest
             'attestation_conformite_pdf.required' => 'L\'attestation de conformité est obligatoire.',
             'attestation_conformite_pdf.max' => 'L\'attestation de conformité ne doit pas dépasser 5 Mo.',
             'attestation_conformite_pdf.mimes' => 'L\'attestation de conformité doit être un fichier PDF.',
+            
+            // NOUVEAUX PDF COMMUNS
+            'liste_membres_pdf.max' => 'La liste des membres ne doit pas dépasser 5 Mo.',
+            'liste_membres_pdf.mimes' => 'La liste des membres doit être un fichier PDF.',
             
             // Plans
             'plan_localisation_signataire1_image.max' => 'Le plan de localisation du signataire 1 ne doit pas dépasser 2 Mo.',

@@ -3,6 +3,7 @@ namespace App\Models\Caisse;
 
 use Illuminate\Database\Eloquent\Model;
 use App\Models\compte\Compte;
+use App\Models\Gestionnaire;
 class CaisseTransaction extends Model
 {
    protected $fillable = [
@@ -27,7 +28,17 @@ class CaisseTransaction extends Model
     'code_desaccord',
     'caissier_id',
     'approbateur_id',
-    'statut'
+    'statut',
+    'is_retrait_distance',
+    'statut_workflow',
+    'pj_demande_retrait',
+    'pj_procuration',
+    'bordereau_rerait',
+    'gestionnaire_id',
+    'chef_agence_id',
+    'motif_rejet_ca',
+    'date_validation_ca',
+    'code_validation',
 ];
 
     // Relation vers le compte client
@@ -68,4 +79,10 @@ public function demandeValidation()
     // On lie la transaction à la demande via le montant, la caissière et le statut EXECUTE
     return $this->hasOne(CaisseDemandeValidation::class, 'payload_data->reference_unique', 'reference_unique');
 }
+
+public function gestionnaire()
+    {
+        // Vérifie bien le nom de la classe et la clé étrangère
+        return $this->belongsTo(Gestionnaire::class, 'gestionnaire_id');
+    }
 }

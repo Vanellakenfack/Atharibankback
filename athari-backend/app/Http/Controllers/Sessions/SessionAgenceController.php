@@ -9,6 +9,7 @@ use App\Models\SessionAgence\AgenceSession; // Vérifiez votre chemin de modèle
 use App\Models\SessionAgence\GuichetSession; // Vérifiez votre chemin de modèle
 use App\Models\SessionAgence\BilanJournalierAgence;
 use Illuminate\Support\Facades\DB;
+use App\Models\SessionAgence\CaisseSession;
 use Exception;
 
 class SessionAgenceController extends Controller
@@ -325,5 +326,33 @@ public function imprimerBrouillard($jourId)
     $pdf = \PDF::loadView('reports.brouillard_agence', $data);
     
     return $pdf->download("Brouillard_{$bilan->date_comptable->format('d_m_Y')}.pdf");
+}
+
+/**
+ * Récupérer la session active du caissier connecté
+ * GET /api/caisse/session-active
+ */
+public function getSessionActive()
+{
+    try {
+        $session = CaisseSession::where('caissier_id', auth()->id())
+            ->whereIn('statut', ['OU', 'RE']) // Ouvert ou Réouvert
+            ->with(['caisse']) // Charger les infos de la caisse si besoin
+            ->first();
+
+        if (!$session) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Aucune session active trouvée.'
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $session
+        ]);
+    } catch (Exception $e) {
+        return response()->json(['error' => $e->getMessage()], 500);
+    }
 }
 }

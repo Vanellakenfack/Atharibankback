@@ -15,7 +15,6 @@ class StorePhysiqueClientRequest extends FormRequest
 
         if (!$user) return false;
 
-        // Utilisation de hasAnyRole (méthode Spatie)
         return $user->hasAnyRole([
             'DG', 
             'Chef d\Agence (CA)', 
@@ -51,7 +50,7 @@ class StorePhysiqueClientRequest extends FormRequest
             'lieu_naissance'      => 'nullable|string',
             'nationalite'         => 'nullable|string',
             'nui'                 => 'nullable|string|unique:clients_physiques,nui', 
-            'niu_image'           => 'nullable|image|mimes:jpeg,png,jpg|max:2048', // NOUVEAU
+            'niu_image'           => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
             'photo'               => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
             'signature'           => 'nullable|image|mimes:jpeg,png,jpg|max:2048', 
             'photo_localisation_domicile' => 'nullable|image|mimes:jpeg,png,jpg|max:2048', 
@@ -87,6 +86,7 @@ class StorePhysiqueClientRequest extends FormRequest
             'solde_initial'       => 'nullable|decimal:0,2|min:0',
             'immobiliere'         => 'nullable|string',
             'autres_biens'        => 'nullable|string',
+
         ];
     }
 
@@ -99,7 +99,7 @@ class StorePhysiqueClientRequest extends FormRequest
             'nom_prenoms.required' => 'Le nom complet est obligatoire.',
             'cni_numero.unique' => 'Ce numéro de CNI est déjà utilisé par un autre client.',
             'nui.unique' => 'Ce NUI est déjà utilisé par un autre client.',
-            'niu_image.max' => 'La photocopie NUI ne doit pas dépasser 2 Mo.', // NOUVEAU
+            'niu_image.max' => 'La photocopie NUI ne doit pas dépasser 2 Mo.',
             'photo.max' => 'La photo ne doit pas dépasser 2 Mo.',
             'signature.max' => 'La signature ne doit pas dépasser 2 Mo.',
             'photo_localisation_domicile.max' => 'La photo de localisation du domicile ne doit pas dépasser 2 Mo.',

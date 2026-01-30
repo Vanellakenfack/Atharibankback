@@ -4,7 +4,7 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use App\Models\Compte\Compte;
-use App\Models\FraisEnAttente;
+use App\Models\compte\FraisEnAttente;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 

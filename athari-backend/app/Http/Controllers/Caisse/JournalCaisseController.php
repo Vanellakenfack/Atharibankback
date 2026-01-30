@@ -22,48 +22,50 @@ class JournalCaisseController extends Controller
      * Récupère le journal de caisse via JSON (pour l'affichage Vue/React)
      */
     public function obtenirJournal(Request $request)
-    {
-        try {
-            $request->validate([
-                'caisse_id'   => 'required|exists:caisses,id',
-                'code_agence' => 'required|string',
-                'date_debut'  => 'required|date',
-                'date_fin'    => 'required|date|after_or_equal:date_debut',
-            ]);
+{
+    try {
+        $request->validate([
+            'caisse_id'   => 'required|exists:caisses,id',
+            'code_agence' => 'required|string',
+            'date_debut'  => 'required|date',
+            'date_fin'    => 'required|date|after_or_equal:date_debut',
+        ]);
 
-            $donnees = $this->caisseService->obtenirJournalCaisseComplet($request->all());
+        $donnees = $this->caisseService->obtenirJournalCaisseComplet($request->all());
 
-            // Transformation pour le JSON : Regroupement par type d'opération
-            $groupes = $donnees['mouvements']->groupBy('type_versement')->map(function ($items, $type) {
-                return [
-                    'type' => $type,
-                    'total_entree' => $items->sum('montant_debit'),
-                    'total_sortie' => $items->sum('montant_credit'),
-                    'operations' => $items->map(fn($m) => [
-                        'date' => $m->date_mouvement,
-                        'ref' => $m->reference_operation,
-                        'tiers' => $m->tiers_nom,
-                        'libelle' => $m->libelle_mouvement,
-                        'entree' => $m->montant_debit > 0 ? $m->montant_debit : 0,
-                        'sortie' => $m->montant_credit > 0 ? $m->montant_credit : 0,
-                    ])
-                ];
-            });
+        // On récupère journal_groupe (qui contient VERSEMENTS et RETRAITS)
+        // et on fusionne tout en une seule collection pour le traitement JSON
+        $tousLesMouvements = collect($donnees['journal_groupe'])->flatten();
 
-            return response()->json([
-                'statut' => 'success',
-                'solde_ouverture' => $donnees['solde_ouverture'],
-                'groupes' => $groupes->values(),
-                'total_general_debit' => $donnees['total_debit'],
-                'total_general_credit' => $donnees['total_credit'],
-                'solde_cloture' => $donnees['solde_cloture']
-            ]);
+        $groupes = $tousLesMouvements->groupBy('type_versement')->map(function ($items, $type) {
+            return [
+                'type' => $type,
+                'total_entree' => $items->sum('montant_debit'),
+                'total_sortie' => $items->sum('montant_credit'),
+                'operations' => $items->map(fn($m) => [
+                    'date' => $m->date_mouvement,
+                    'ref' => $m->reference_operation,
+                    'tiers' => $m->tiers_nom,
+                    'libelle' => $m->libelle_mouvement,
+                    'entree' => $m->montant_debit > 0 ? $m->montant_debit : 0,
+                    'sortie' => $m->montant_credit > 0 ? $m->montant_credit : 0,
+                ])
+            ];
+        });
 
-        } catch (Exception $e) {
-            return response()->json(['statut' => 'error', 'message' => $e->getMessage()], 400);
-        }
+        return response()->json([
+            'statut' => 'success',
+            'solde_ouverture' => $donnees['solde_ouverture'],
+            'groupes' => $groupes->values(),
+            'total_general_debit' => $donnees['total_debit'],
+            'total_general_credit' => $donnees['total_credit'],
+            'solde_cloture' => $donnees['solde_cloture']
+        ]);
+
+    } catch (Exception $e) {
+        return response()->json(['statut' => 'error', 'message' => $e->getMessage()], 400);
     }
-
+}
     /**
      * Exporte le journal de caisse en PDF avec regroupement par type
      */

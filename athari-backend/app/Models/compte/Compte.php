@@ -4,6 +4,7 @@ namespace App\Models\compte;
 use App\Models\chapitre\PlanComptable;
 use App\Models\client\Client;
 use App\Models\frais\MouvementRubriqueMata;
+use App\Models\Gestionnaire;
 use App\Services\Frais\GestionRubriqueMataService;
 use App\Models\User;
 
@@ -70,7 +71,10 @@ class Compte extends Model
         'date_rejet' => 'datetime',
     ];
 
-    
+    public function gestionnaire()
+    {
+        return $this->belongsTo(Gestionnaire::class);
+    }
 
     /**
      * Relation: Compte appartient à un client

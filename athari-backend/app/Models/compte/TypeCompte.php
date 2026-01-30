@@ -14,6 +14,8 @@ class TypeCompte extends Model
     use HasFactory, SoftDeletes;
 
     protected $table = 'types_comptes';
+    
+    protected $appends = [];
 
     protected $fillable = [
         'code',

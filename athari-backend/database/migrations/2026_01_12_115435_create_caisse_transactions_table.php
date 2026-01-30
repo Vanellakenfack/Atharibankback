@@ -40,10 +40,11 @@ return new class extends Migration
         $table->date('date_valeur');
         $table->date('date_indisponible')->nullable();
         $table->string('type_versement')->after('code_caisse')->nullable(); 
+            $table->string('code_validation', 6)->nullable()->after('statut_workflow');
 
         // Gestion des Désaccords (Workflow)
         $table->string('code_desaccord')->nullable(); // SPRV, SLIV, CHIN, FRME
-        $table->enum('statut', ['SAISIE', 'ATTENTE_FORCAGE', 'VALIDE', 'ANNULE'])->default('SAISIE');
+        $table->enum('statut', ['SAISIE', 'en_attente', 'VALIDE', 'ANNULE','APPROUVE_CA'])->default('SAISIE');
         
         $table->foreignId('caissier_id')->constrained('users')->onDelete('cascade');
         $table->unsignedBigInteger('session_id')->nullable();

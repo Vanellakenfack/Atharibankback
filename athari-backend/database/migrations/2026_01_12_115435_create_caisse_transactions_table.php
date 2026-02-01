@@ -27,13 +27,13 @@ return new class extends Migration
         $table->decimal('commissions', 15, 2)->default(0);
         $table->decimal('taxes', 15, 2)->default(0);
         $table->boolean('frais_en_compte')->default(false);
-        $table->string('origine_fonds')->nullable()->after('montant_brut');
-        
+        $table->string('origine_fonds')->nullable();
+
         // Numéro de bordereau physique
-        $table->string('numero_bordereau')->nullable()->after('origine_fonds');
-        
+        $table->string('numero_bordereau')->nullable();
+
         // Type de bordereau (ex: GUICHET, CHÈQUE, TRANSFERT)
-        $table->string('type_bordereau')->nullable()->after('numero_bordereau');
+        $table->string('type_bordereau')->nullable();
         
         // Dates bancaires
         $table->date('date_operation');
@@ -48,14 +48,9 @@ return new class extends Migration
         $table->foreignId('approbateur_id')->nullable()->constrained('users');
         $table->timestamps();
         $table->index('numero_bordereau');
-       $table->enum('type_versement', [
-            'ESPECE', 
-            'ORANGE_MONEY', 
-            'MOBILE_MONEY', 
-        ])->default('ESPECE')->change();
-                
-            // Optionnel : Ajouter une colonne pour la référence externe (ID transaction OM/MoMo)
-            $table->string('reference_externe')->nullable();
+
+        // Optionnel : Ajouter une colonne pour la référence externe (ID transaction OM/MoMo)
+        $table->string('reference_externe')->nullable();
     });
 }
 

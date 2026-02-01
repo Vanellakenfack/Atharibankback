@@ -18,6 +18,8 @@ class DatabaseSeeder extends Seeder
         // Exécute les seeders essentiels dans le bon ordre
         // 1) Permissions (rôles & permissions)
         // 2) Utilisateurs (qui s'appuient sur les rôles créés)
+        $this->call(CreditProductSeeder::class);
+
         $this->call([
             PermissionsSeeder::class,
             UserSeeder::class,

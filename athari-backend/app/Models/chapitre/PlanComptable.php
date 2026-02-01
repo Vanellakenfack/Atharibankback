@@ -76,4 +76,14 @@ class PlanComptable extends Model
     {
         return "{$this->code} - {$this->libelle}";
     }
+
+    public function creditTypes(): BelongsToMany
+{
+    return $this->belongsToMany(
+        CreditType::class,
+        'credit_type_plan_comptable',
+        'plan_comptable_id',
+        'credit_type_id'
+    );
+}
 }

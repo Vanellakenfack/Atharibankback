@@ -119,6 +119,13 @@ class PermissionsSeeder extends Seeder
         $roleAC = Role::firstOrCreate(['name' => 'Assistant Comptable (AC)', 'guard_name' => 'web']);
         $roleAC->syncPermissions(['saisir od', 'generer etats financiers', 'saisir dat']);
 
+        // Agent de Crédit
+        $roleAgentCredit = Role::firstOrCreate(['name' => 'agent_credit', 'guard_name' => 'web']);
+        $roleAgentCredit->syncPermissions([
+            'gestion des clients',
+            'consulter logs',
+        ]);
+
         // Autres rôles
         Role::firstOrCreate(['name' => 'Caissière', 'guard_name' => 'web'])->syncPermissions(['saisir depot retrait']);
         Role::firstOrCreate(['name' => 'Agent de Crédit (AC)', 'guard_name' => 'web'])->syncPermissions(['consulter logs']);

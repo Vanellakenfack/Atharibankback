@@ -21,7 +21,7 @@ return new class extends Migration
             // Suivi du solde en temps réel
             $table->decimal('solde_actuel', 15, 2)->default(0);
             $table->decimal('plafond_max', 15, 2)->nullable(); // Alerte si trop d'espèces
-            
+            $table->decimal('plafond_autonomie_caissiere', 15, 2)->default(500000);
             $table->boolean('est_active')->default(true);
             $table->timestamps();
         });

@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('operation_diverses', function (Blueprint $table) {
             $table->id();
             $table->string('numero_od', 20)->unique()->comment('Format: OD-YYYY-MM-NNNN');
-            $table->foreignId('agence_id')->constrained('agencies');
+            $table->foreignId('agence_id')->constrained('agencies')->onDelete('restrict');
             $table->date('date_operation');
             $table->date('date_valeur')->nullable()->comment('Date de valeur');
             $table->enum('type_operation', ['DEPOT','RETRAIT','VIREMENT','FRAIS','COMMISSION','REGULARISATION','AUTRE']);
@@ -21,12 +21,12 @@ return new class extends Migration
             $table->enum('devise', ['FCFA','EURO','DOLLAR','POUND'])->default('FCFA');
             
             // Liens comptables
-            $table->foreignId('compte_debit_id')->constrained('plan_comptable');
-            $table->foreignId('compte_credit_id')->constrained('plan_comptable');
+            $table->foreignId('compte_debit_id')->constrained('plan_comptable')->onDelete('restrict');
+            $table->foreignId('compte_credit_id')->constrained('plan_comptable')->onDelete('restrict');
             
             // Pour virements entre comptes clients
-            $table->foreignId('compte_client_debiteur_id')->nullable()->constrained('comptes');
-            $table->foreignId('compte_client_crediteur_id')->nullable()->constrained('comptes');
+            $table->foreignId('compte_client_debiteur_id')->nullable()->constrained('comptes')->onDelete('set null');
+            $table->foreignId('compte_client_crediteur_id')->nullable()->constrained('comptes')->onDelete('set null');
             
             // Validation et workflow
             $table->enum('statut', ['BROUILLON','SAISI','VALIDE','ANNULE','REJETE'])->default('BROUILLON');
@@ -34,9 +34,9 @@ return new class extends Migration
             $table->string('numero_piece', 50)->nullable()->comment('Numéro de pièce comptable');
             
             // Personnes impliquées
-            $table->foreignId('saisi_par')->constrained('users')->comment('User qui a saisi l\'OD');
-            $table->foreignId('valide_par')->nullable()->constrained('users')->comment('User qui a validé');
-            $table->foreignId('comptabilise_par')->nullable()->constrained('users')->comment('User qui a comptabilisé');
+            $table->foreignId('saisi_par')->constrained('users')->onDelete('restrict')->comment('User qui a saisi l\'OD');
+            $table->foreignId('valide_par')->nullable()->constrained('users')->onDelete('set null')->comment('User qui a validé');
+            $table->foreignId('comptabilise_par')->nullable()->constrained('users')->onDelete('set null')->comment('User qui a comptabilisé');
             
             // Dates importantes
             $table->timestamp('date_saisie')->useCurrent();

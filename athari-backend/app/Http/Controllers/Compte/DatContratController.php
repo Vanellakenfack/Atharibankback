@@ -11,85 +11,68 @@ use Illuminate\Http\JsonResponse;
 use Exception;
 use Illuminate\Support\Facades\Auth;
 
-// Importations obligatoires pour les middlewares dans Laravel 12
-use Illuminate\Routing\Controllers\HasMiddleware;
-use Illuminate\Routing\Controllers\Middleware;
-
-class DatContratController extends Controller implements HasMiddleware
+class DatContratController extends Controller
 {
     protected $datService;
 
+    /**
+     * Constructeur unique
+     * Gestion des injections et des middlewares (Sécurité)
+     */
     public function __construct(DATService $datService)
     {
         $this->datService = $datService;
+
+        // Protection des routes par permissions
+        $this->middleware('can:saisir dat')->only(['store', 'simulate']);
+        $this->middleware('can:valider dat')->only(['valider']);
+        $this->middleware('can:cloturer dat')->only(['cloturer']);
     }
 
     /**
-     * Définition des middlewares pour Laravel 12
+     * Liste tous les contrats (avec filtrage par agence pour les agents)
      */
-    public static function middleware(): array
+    public function index(): JsonResponse
     {
-        return [
-            // Seuls ceux qui ont 'saisir dat' accèdent à store et simulate
-            new Middleware('can:saisir dat', only: ['store', 'simulate']),
-            
-            // Seuls ceux qui ont 'valider dat' accèdent à la validation
-            new Middleware('can:valider dat', only: ['valider']),
-            
-            // Seuls ceux qui ont 'cloturer dat' accèdent à la clôture
-            new Middleware('can:cloturer dat', only: ['cloturer']),
-        ];
-    }
+        try {
+            /** @var \App\Models\User $user */
+            $user = Auth::user();
 
-    /**
-     * Liste tous les contrats (avec filtrage par agence)
- */
-      public function index(): JsonResponse
-{
-    try {
-        /** @var \App\Models\User $user */
-        $user = Auth::user();
+            $query = ContratDat::with([
+                'type', 
+                'clientSourceAccount.client', 
+                'destinationInteret', 
+                'destinationCapital',
+                'compte.client'
+            ]);
 
-        $query = ContratDat::with([
-            'type', 
-            'clientSourceAccount.client', 
-            'destinationInteret', 
-            'destinationCapital',
-            'compte.client'
-        ]);
+            // Filtrage multi-agences
+            if (!$user->hasAnyRole(['Admin', 'DG'])) {
+                if (!$user->agency_id) {
+                    return response()->json([
+                        'success' => false, 
+                        'message' => "Accès restreint : Votre profil n'est rattaché à aucune agence."
+                    ], 403);
+                }
 
-        // 1. On vérifie si l'utilisateur est un simple agent (ni Admin, ni DG)
-        if (!$user->hasAnyRole(['Admin', 'DG'])) {
-            
-            // 2. Si c'est un agent, il DOIT avoir une agence pour filtrer
-            if (!$user->agency_id) {
-                return response()->json([
-                    'success' => false, 
-                    'message' => "Accès restreint : Votre profil agent n'est rattaché à aucune agence."
-                ], 403);
+                $query->whereHas('compte.client', function($q) use ($user) {
+                    $q->where('agency_id', $user->agency_id);
+                });
             }
 
-            // 3. On applique le filtre par agence
-            $query->whereHas('compte.client', function($q) use ($user) {
-                $q->where('clients.agency_id', $user->agency_id);
-            });
+            $contracts = $query->orderBy('created_at', 'desc')->get();
+            
+            return response()->json([
+                'success' => true,
+                'donnees'  => $contracts
+            ]);
+        } catch (Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
-        
-        // Si c'est un Admin ou DG, le code saute le bloc IF et récupère TOUT.
-
-        $contracts = $query->orderBy('created_at', 'desc')->get();
-        
-        return response()->json([
-            'success' => true,
-            'donnees' => $contracts
-        ]);
-    } catch (Exception $e) {
-        return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
     }
-}
 
     /**
-     * ÉTAPE 1 : Souscription (Saisie - Statut EN_ATTENTE)
+     * ÉTAPE 1 : Souscription (Saisie initiale)
      */
     public function store(Request $request): JsonResponse
     {
@@ -107,15 +90,14 @@ class DatContratController extends Controller implements HasMiddleware
                 'is_jours_reels'           => 'nullable|boolean',
                 'date_execution'           => 'required|date',
                 'date_maturite'            => 'required|date',
-                  'date_valeur'            => 'nullable|date',
-
+                'date_valeur'              => 'nullable|date',
             ]);
 
             $contrat = $this->datService->creerContratEnAttente($validated);
 
             return response()->json([
                 'success' => true,
-                'message' => 'Contrat saisi avec succès. En attente de validation comptable.',
+                'message' => 'Contrat saisi avec succès. En attente de validation.',
                 'donnees' => $contrat
             ], 201);
 
@@ -125,7 +107,7 @@ class DatContratController extends Controller implements HasMiddleware
     }
 
     /**
-     * ÉTAPE 2 : Validation (Activation et mouvements comptables)
+     * ÉTAPE 2 : Validation (Activation et flux comptables)
      */
     public function valider($id): JsonResponse
     {
@@ -133,14 +115,17 @@ class DatContratController extends Controller implements HasMiddleware
             $contrat = ContratDat::findOrFail($id);
 
             if ($contrat->statut !== 'EN_ATTENTE') {
-                return response()->json(['success' => false, 'message' => 'Ce contrat ne peut plus être validé (statut actuel: '.$contrat->statut.').'], 400);
+                return response()->json([
+                    'success' => false, 
+                    'message' => "Statut invalide pour validation : {$contrat->statut}."
+                ], 400);
             }
 
             $resultat = $this->datService->validerEtActiver($contrat);
 
             return response()->json([
                 'success' => true,
-                'message' => 'Le contrat a été validé et activé avec succès.',
+                'message' => 'Contrat activé et fonds transférés avec succès.',
                 'donnees' => $resultat
             ]);
         } catch (Exception $e) {
@@ -149,26 +134,27 @@ class DatContratController extends Controller implements HasMiddleware
     }
 
     /**
-     * Simulation rapide avant création
+     * Simulation rapide avant souscription
      */
     public function simulate(Request $request): JsonResponse
     {
         $request->validate([
-            'montant' => 'required|numeric|min:0',
+            'montant'     => 'required|numeric|min:0',
             'dat_type_id' => 'required|exists:dat_types,id'
         ]);
 
         try {
             $type = DatType::findOrFail($request->dat_type_id);
-            $gain_brut = ($request->montant * ($type->taux_interet ) * $type->duree_mois) / 12;
+            // Calcul simplifié : (Capital * Taux * Mois) / 12
+            $gain_brut = ($request->montant * $type->taux_interet * $type->duree_mois) / 12;
 
             return response()->json([
-                'success' => true,
+                'success'    => true,
                 'simulation' => [
-                    'gain_net' => round($gain_brut, 0),
+                    'gain_net'       => round($gain_brut, 0),
                     'total_echeance' => round($request->montant + $gain_brut, 0),
-                    'date_fin' => now()->addMonths($type->duree_mois)->format('d/m/Y'),
-                    'taux' => $type->taux_interet
+                    'date_fin'       => now()->addMonths($type->duree_mois)->format('d/m/Y'),
+                    'taux'           => $type->taux_interet
                 ]
             ]);
         } catch (Exception $e) {
@@ -177,7 +163,7 @@ class DatContratController extends Controller implements HasMiddleware
     }
 
     /**
-     * Clôture définitive du contrat
+     * Clôture du contrat (À maturité ou anticipée)
      */
     public function cloturer($id): JsonResponse
     {
@@ -201,7 +187,7 @@ class DatContratController extends Controller implements HasMiddleware
     }
 
     /**
-     * Affichage des détails d'un contrat spécifique
+     * Détails et calculs de sortie en temps réel
      */
     public function show($id): JsonResponse
     {

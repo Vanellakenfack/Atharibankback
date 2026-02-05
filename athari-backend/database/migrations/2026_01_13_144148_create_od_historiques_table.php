@@ -10,8 +10,8 @@ return new class extends Migration
     {
         Schema::create('od_historique', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('operation_diverse_id')->constrained('operation_diverses');
-            $table->foreignId('user_id')->constrained('users')->comment('User qui a fait l\'action');
+            $table->foreignId('operation_diverse_id')->constrained('operation_diverses')->onDelete('cascade');
+            $table->foreignId('user_id')->constrained('users')->onDelete('restrict')->comment('User qui a fait l\'action');
             $table->enum('action', ['CREATION','MODIFICATION','VALIDATION','COMPTABILISATION','REJET','ANNULATION']);
             $table->string('ancien_statut', 50)->nullable();
             $table->string('nouveau_statut', 50)->nullable();

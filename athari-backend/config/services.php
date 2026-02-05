@@ -34,5 +34,9 @@ return [
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
     ],
+    'sms' => [
+    'key' => env('SMS_API_KEY'),
+    'sender' => env('SMS_SENDER_NAME', 'MICROFINANCE'),
+],
 
 ];

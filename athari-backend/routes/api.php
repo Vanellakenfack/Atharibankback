@@ -27,14 +27,17 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Sessions\SessionAgenceController;
 use  App\Http\Controllers\Caisse\VersementController;
 use  App\Http\Controllers\Caisse\RetraitController;
-use App\Http\Controllers\Caisse\SupervisionController;
+use  App\Http\Controllers\Caisse\SupervisionController;
 use App\Models\Caisse\CaisseDemandeValidation;
 use App\Http\Controllers\Caisse\GuichetController;
 use App\Http\Controllers\Caisse\CaisseControllerC;
+use App\Http\Controllers\Caisse\CaisseDashboardController;
+use App\Http\Controllers\Compte\CompteValidationController;
+    use App\Http\Controllers\Caisse\RetraitDistanceController;
 
-// AJOUTER CE CONTROLLER :
-use App\Http\Controllers\OperationDiversController; // <-- AJOUTER
-
+use App\Http\Controllers\OperationDiversController;
+use App\Http\Controllers\Caisse\JournalCaisseController;
+use App\Http\Controllers\Gestionnaire\GestionnaireController;
 
 /*
 |--------------------------------------------------------------------------
@@ -162,17 +165,28 @@ Route::middleware('auth:sanctum')->group(function () {
     // ==========================================
     
     // Routes pour les guichets
-Route::prefix('caisse')->name('caisse.')->group(function () {
+    Route::prefix('caisse')->name('caisse.')->group(function () {
+        
+        // Routes pour les Guichets (index, create, store, show, edit, update, destroy)
+        // URL: /caisse/guichets
+        Route::resource('guichets', GuichetController::class);
+
+        // Routes pour les Caisses (index, create, store, show, edit, update, destroy)
+        // URL: /caisse/caisses
+        Route::resource('caisses', CaisseControllerC::class);
+        Route::get('/journal', [JournalCaisseController::class, 'obtenirJournal']);
+
+
+
     
-    // Routes pour les Guichets (index, create, store, show, edit, update, destroy)
-    // URL: /caisse/guichets
-    Route::resource('guichets', GuichetController::class);
+        // Route pour exporter en PDF
+        Route::get('/journal/export-pdf', [JournalCaisseController::class, 'exportPdf']);
 
-    // Routes pour les Caisses (index, create, store, show, edit, update, destroy)
-    // URL: /caisse/caisses
-    Route::resource('caisses', CaisseControllerC::class);
+    });
+    
+    // AJOUTER CETTE ROUTE POUR L'EXPORT PDF DU JOURNAL DE CAISSE
+   // Route::get('/caisse/journal/export-pdf', [JournalCaisseController::class, 'exportPdf']);
 
-});
     /*
     |--------------------------------------------------------------------------
     | Clients
@@ -261,6 +275,7 @@ Route::prefix('caisse')->name('caisse.')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::prefix('comptes')->group(function () {
+      Route::get('/en-instruction', [CompteValidationController::class, 'getComptesEnInstruction']);
 
          //journal ouverture de compte
        Route::get('/journal-ouverture', [CompteController::class, 'getJournalOuvertures']);
@@ -288,7 +303,12 @@ Route::prefix('caisse')->name('caisse.')->group(function () {
         Route::prefix('{compte}')->group(function () {
             Route::get('/documents', [DocumentCompteController::class, 'index']);
             Route::post('/documents', [DocumentCompteController::class, 'store']);
-        });
+              });
+
+
+         Route::post('{id}/valider', [CompteValidationController::class, 'valider']);    
+
+         Route::post('{id}/rejeter', [CompteValidationController::class, 'rejeter']);
     });
 
     /*
@@ -360,7 +380,15 @@ Route::prefix('caisse')->name('caisse.')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::prefix('sessions')->group(function () {
-        
+        Route::get('/etat-agence/{agenceSessionId}', [SessionAgenceController::class, 'getEtatAgence']);
+        Route::get('/bilan-caisse/{id}', [SessionAgenceController::class, 'getBilanCaisse']);
+    
+    // ... autres routes d'ouverture/fermeture caisse ...
+
+    // --- AJOUTER CETTE ROUTE POUR LE TFJ ---
+    Route::post('/traiter-bilan-agence', [SessionAgenceController::class, 'executerTraitementFinJournee'])
+    ->middleware('permission:ouverture/fermeture agence');
+
         // Sécurité pour l'Agence
         Route::post('/ouvrir-agence', [SessionAgenceController::class, 'ouvrirAgence'])
              ->middleware('permission:ouverture/fermeture agence');
@@ -385,13 +413,12 @@ Route::prefix('caisse')->name('caisse.')->group(function () {
 
         // AJOUTER CETTE ROUTE (utilisée dans getBilanCaisse) :
         Route::get('/caisses/{caisse_session_id}/bilan', [SessionAgenceController::class, 'getBilanCaisse']);
-        
-        // AJOUTER CETTE ROUTE (pour solde informatique) :
-        Route::get('/caisses/{code_caisse}/solde-informatique', [SessionAgenceController::class, 'getSoldeInformatique']);
 
         // Clôture finale
         Route::post('/fermer-agence', [SessionAgenceController::class, 'fermerAgence'])
              ->middleware('permission:ouverture/fermeture agence');
+
+        Route::get('/imprimer-brouillard/{id}', [SessionAgenceController::class, 'imprimerBrouillard']);
     });
 
     // AJOUTER CE GROUPE DE ROUTES POUR LA SUPERVISION DE CAISSE :
@@ -406,18 +433,52 @@ Route::prefix('caisse')->name('caisse.')->group(function () {
         return \App\Models\Caisse\CaisseDemandeValidation::where('statut', 'EN_ATTENTE')->get();
     });
 
+    Route::prefix('gestionnaires')->group(function () {
+        Route::get('/', [GestionnaireController::class, 'index']);
+        Route::get('/{id}', [GestionnaireController::class, 'show']);
+        Route::post('/', [GestionnaireController::class, 'store']);
+        Route::put('/{id}', [GestionnaireController::class, 'update']);
+        Route::delete('/{id}', [GestionnaireController::class, 'destroy']);
+        
+        // Routes supplémentaires
+        Route::get('/agence/{agenceId}', [GestionnaireController::class, 'parAgence']);
+        Route::get('/corbeille', [GestionnaireController::class, 'corbeille']);
+        Route::post('/{id}/restaurer', [GestionnaireController::class, 'restaurer']);
+        Route::delete('/{id}/force', [GestionnaireController::class, 'supprimerDefinitivement']);
+    });
+
+
+    // Routes pour le caissier
+    Route::post('/caisse/retrait-distance', [RetraitDistanceController::class, 'store']);
+    
+    // Routes pour le Chef d'Agence
+    Route::get('caisse/retrait-distance/en-attente', [RetraitDistanceController::class, 'enAttente']);
+    Route::post('caisse/retrait-distance/{id}/approuver', [RetraitDistanceController::class, 'approuver']);
+    Route::post('caisse/retrait-distance/{id}/rejeter', [RetraitDistanceController::class, 'rejeter']);
+    Route::post('caisse/retrait-distance/{id}/confirmer', [RetraitDistanceController::class, 'confirmer']); // Validation finale Caissière
+
+
 });
+
+
 
 // AJOUTER CE GROUPE DE ROUTES POUR LES TRANSACTIONS DE CAISSE :
 Route::middleware(['auth:sanctum', 'verifier.caisse'])->prefix('caisse')->group(function () {
     
     // API Versement (Dépôt)
     Route::post('/versement', [VersementController::class, 'store']);
-    
+   
     // API Retrait
     Route::post('/retrait', [RetraitController::class, 'store']);
-    
-    // AJOUTER CETTE ROUTE POUR L'IMPRESSION DE RECU :
-    Route::get('/recu/{id}', [App\Http\Controllers\Caisse\RetraitController::class, 'imprimerRecu']);
+    // routes/api.php
+   Route::get('/recu/{id}', [RetraitController::class, 'imprimerRecu']);
+      Route::get('/recu/{id}', [VersementController::class, 'imprimerRecu']);
+      Route::get('/dashboard', [CaisseDashboardController::class, 'index']);
+    Route::get('/recapitulatif/{sessionId}', [CaisseDashboardController::class, 'recapitulatifFlux']);
 
+
+
+    
+// AJOUTER CETTE ROUTE POUR L'IMPRESSION DE RECU :
+Route::get('/recu/{id}', [App\Http\Controllers\Caisse\RetraitController::class, 'imprimerRecu']);
 });

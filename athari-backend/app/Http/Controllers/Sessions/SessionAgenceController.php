@@ -5,7 +5,11 @@ namespace App\Http\Controllers\Sessions;
 use App\Http\Controllers\Controller;
 use App\Services\SessionBancaireService;
 use Illuminate\Http\Request;
+use App\Models\SessionAgence\AgenceSession; // Vérifiez votre chemin de modèle
+use App\Models\SessionAgence\GuichetSession; // Vérifiez votre chemin de modèle
+use App\Models\SessionAgence\BilanJournalierAgence;
 use Illuminate\Support\Facades\DB;
+use App\Models\SessionAgence\CaisseSession;
 use Exception;
 
 class SessionAgenceController extends Controller
@@ -97,7 +101,7 @@ class SessionAgenceController extends Controller
             'guichet_session_id' => 'required|exists:guichet_sessions,id',
             'caisse_id'          => 'required|exists:caisses,id',
             'billetage'          => 'required|array', 
-            'solde_saisi'        => 'required|numeric'
+            'solde_ouverture'        => 'required|numeric'
         ]);
 
         try {
@@ -106,7 +110,7 @@ class SessionAgenceController extends Controller
                 $request->guichet_session_id,
                 auth()->id(),
                 $request->caisse_id,
-                (float)$request->solde_saisi,
+                (float)$request->solde_ouverture,
                 $request->billetage
             );
 
@@ -157,7 +161,9 @@ class SessionAgenceController extends Controller
             return response()->json(['error' => $e->getMessage()], 422);
         }
     }
-
+  /**
+     * POST /api/sessions/fermer-guichet
+     */
     public function fermerGuichet(Request $request)
     {
         $request->validate([
@@ -188,7 +194,6 @@ class SessionAgenceController extends Controller
             ], 422);
         }
     }
-
     /**
      * BILAN DE CLÔTURE (Visualisation avant TFJ)
      * GET /api/sessions/bilan-caisse/{id}
@@ -202,7 +207,55 @@ class SessionAgenceController extends Controller
             return response()->json(['error' => $e->getMessage()], 422);
         }
     }
+public function executerTraitementFinJournee(Request $request) 
+    {
+        $request->validate([
+            'agence_session_id' => 'required|exists:agence_sessions,id',
+            'jour_comptable_id' => 'required|exists:jours_comptables,id'
+        ]);
 
+        try {
+            $this->sessionService->traiterBilanFinJournee(
+                $request->agence_session_id, 
+                $request->jour_comptable_id
+            );
+
+            return response()->json([
+                'statut' => 'success',
+                'message' => 'Traitement des bilans (TFJ) effectué avec succès. Vous pouvez maintenant consulter le bilan global avant clôture.'
+            ]);
+        } catch (Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
+    }
+
+    public function getEtatAgence($agenceSessionId)
+    {
+        try {
+            // 1. Compter les guichets encore ouverts pour cette session d'agence
+            // On suppose que guichet_sessions a une colonne agence_session_id et un statut
+            $guichetsOuverts = GuichetSession::where('agence_session_id', $agenceSessionId)
+                ->where('statut', 'OUVERT') // ou selon votre logique de statut
+                ->count();
+
+            // 2. Récupérer les infos de la session
+            $session = AgenceSession::findOrFail($agenceSessionId);
+
+            return response()->json([
+                'statut' => 'success',
+                'guichets_ouverts' => $guichetsOuverts,
+                'statut_agence' => $session->statut, // ex: 'OUVERT'
+                'date_comptable' => $session->date_comptable,
+                'can_close' => $guichetsOuverts === 0
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'statut' => 'error',
+                'message' => 'Erreur lors de la récupération de l\'état : ' . $e->getMessage()
+            ], 500);
+        }
+    }
     /**
      * TRAITEMENT DE FIN DE JOURNÉE (TFJ)
      * POST /api/sessions/fermer-agence
@@ -229,8 +282,7 @@ class SessionAgenceController extends Controller
     }
 
     /**
-     * RÉOUVERTURE DE CAISSE (Exceptionnel)
-     * POST /api/sessions/reouvrir-caisse
+
      */
     public function reouvrirCaisse(Request $request)
     {
@@ -254,4 +306,53 @@ class SessionAgenceController extends Controller
             return response()->json(['error' => $e->getMessage()], 422);
         }
     }
+
+    // App\Http\Controllers\Sessions\SessionAgenceController.php
+
+public function imprimerBrouillard($jourId)
+{
+    $bilan = BilanJournalierAgence::with('jourComptable')
+                ->where('jour_comptable_id', $jourId)
+                ->firstOrFail();
+
+    // On prépare les données pour la vue PDF
+    $data = [
+        'bilan' => $bilan,
+        'agence' => 'Agence Centrale Athari',
+        'edite_le' => now()->format('d/m/Y H:i'),
+        'caisses' => $bilan->resume_caisses // Le JSON casté en array
+    ];
+
+    $pdf = \PDF::loadView('reports.brouillard_agence', $data);
+    
+    return $pdf->download("Brouillard_{$bilan->date_comptable->format('d_m_Y')}.pdf");
+}
+
+/**
+ * Récupérer la session active du caissier connecté
+ * GET /api/caisse/session-active
+ */
+public function getSessionActive()
+{
+    try {
+        $session = CaisseSession::where('caissier_id', auth()->id())
+            ->whereIn('statut', ['OU', 'RE']) // Ouvert ou Réouvert
+            ->with(['caisse']) // Charger les infos de la caisse si besoin
+            ->first();
+
+        if (!$session) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Aucune session active trouvée.'
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $session
+        ]);
+    } catch (Exception $e) {
+        return response()->json(['error' => $e->getMessage()], 500);
+    }
+}
 }

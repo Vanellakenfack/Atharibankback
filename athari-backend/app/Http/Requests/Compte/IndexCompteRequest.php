@@ -20,7 +20,8 @@ class IndexCompteRequest extends FormRequest
             'cloturer compte',
             'supprimer compte',
             'gestion agence',
-            'consulter logs'
+            'consulter logs',
+            'consulter compte'
         ]);
     }
 

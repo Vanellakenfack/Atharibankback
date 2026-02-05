@@ -7,6 +7,7 @@ use App\Models\client\Client;
 use App\Models\chapitre\PlanComptable;
 use App\Models\compte\TypeCompte;
 use Illuminate\Support\Facades\DB;
+use App\Notifications\CompteActiveNotification;
 use Illuminate\Support\Str;
 
 /**
@@ -102,14 +103,17 @@ class CompteService
                 'numero_compte' => $numeroCompte,
                 'client_id' => $donneesEtape1['client_id'],
                 'type_compte_id' => $donneesEtape1['type_compte_id'],
-            'plan_comptable_id'  => $donneesEtape2['plan_comptable_id'],
+               'plan_comptable_id'  => $donneesEtape2['plan_comptable_id'],
                 'devise' => $donneesEtape1['devise'],
-               'gestionnaire_nom' => $donneesEtape2['gestionnaire_nom'] ?? 'Inconnu',
-               'gestionnaire_prenom' => $donneesEtape2['gestionnaire_prenom'] ?? 'Inconnu',
-              'gestionnaire_code' => $donneesEtape2['gestionnaire_code'] ?? 'N/A',
-                'rubriques_mata' => $donneesEtape1['rubriques_mata'] ?? null,
+                'gestionnaire_id' => $donneesEtape2['gestionnaire_id'] ,
+               'created_by' => auth()->id() ?? 1, // Si pas connecté, on met l'ID 1 par défaut                'rubriques_mata' => $donneesEtape1['rubriques_mata'] ?? null,
                 'duree_blocage_mois' => $donneesEtape1['duree_blocage_mois'] ?? null,
-                'statut' => 'actif',
+                
+                'statut'             => 'en_attente', 
+                'est_en_opposition'  => true, // Bloqué jusqu'à validation CA + Juridique
+                'validation_chef_agence' => false,
+                'validation_juridique'   => false,
+
                 'solde' => $donneesEtape2['solde'] ?? 0, // <--- AJOUTEZ LE ?? 0 ICI               'notice_acceptee' => $donneesEtape4['notice_acceptee'],
                 'date_acceptation_notice' => now(),
                 'signature_path' => $donneesEtape4['signature_path'] ?? null,
@@ -163,9 +167,7 @@ class CompteService
             'type_compte_id' => 'required|exists:types_comptes,id',
             'code_type_compte' => 'required|string|size:2',
             'devise' => 'required|in:FCFA,EURO,DOLLAR,POUND',
-            'gestionnaire_nom' => 'nullable|string|max:255',
-            'gestionnaire_prenom' => 'nullable|string|max:255',
-            'gestionnaire_code' => 'nullable|string|max:20',
+        
             'rubriques_mata' => 'nullable|array',
             'rubriques_mata.*' => 'in:SANTE,BUSINESS,FETE,FOURNITURE,IMMO,SCOLARITE',
             'duree_blocage_mois' => 'nullable|integer|between:3,12',
@@ -185,6 +187,8 @@ class CompteService
         return validator($donnees, [
             'plan_comptable_id' => 'required|exists:plan_comptable,id',
             'categorie_id' => 'nullable|exists:categories_comptables,id',
+                        'gestionnaire_id' => 'required|exists:gestionnaires,id',
+
         ])->validate();
     }
 
@@ -345,10 +349,11 @@ public function traiterOuvertureComptable(Compte $compte, float $montantDepot)
     if ($type->frais_ouverture_actif) $fraisTotal += $type->frais_ouverture;
     //if ($type->commission_sms_actif) $fraisTotal += $type->commission_sms;
     if ($type->frais_carnet_actif)   $fraisTotal += $type->frais_carnet;
+    if ($type->frais_livret_actif)   $fraisTotal += $type->frais_livret;
 
     // On récupère le minimum obligatoire
     $minimumCompte = $type->minimum_compte_actif ? $type->minimum_compte : 0;
-
+     
     return DB::transaction(function () use ($compte, $type, $montantDepot, $fraisTotal, $minimumCompte) {
         
         // --- ÉTAPE 1 : DÉPÔT (0 ou plus) ---
@@ -387,7 +392,19 @@ public function traiterOuvertureComptable(Compte $compte, float $montantDepot)
                 $type->frais_carnet,
                 "Déduction Frais de carnet",
                 $type->chapitre_defaut_id,
-                $type->chapitre_frais_ouverture_id,
+                $type->chapitre_frais_carnet_id,
+                'BANQUE'
+            );
+        }
+
+        // Frais de livret
+        if ($type->frais_livret_actif && $type->frais_livret > 0) {
+            $this->enregistrerEcriture(
+                $compte,
+                $type->frais_livret,
+                "Déduction Frais de livret",
+                $type->chapitre_defaut_id,
+                $type->chapitre_frais_livret_id,
                 'BANQUE'
             );
         }
@@ -424,13 +441,148 @@ private function enregistrerEcriture($compte, $montant, $libelle, $debitId, $cre
 }
 
 
+/**
+ * Action de l'assistant juridique
+ * Vérifie si le NUI est présent dans la table client avant de valider
+
+/**
+ * Tente d'activer le compte et de lever l'opposition 
+ * si et seulement si toutes les validations sont au vert.
+ */
+private function tenterActivationFinale(Compte $compte)
+{
+    // On rafraîchit pour avoir dossier_complet mis à jour par le juriste
+    $compte->refresh();
+
+    if ($compte->validation_chef_agence && $compte->validation_juridique) {
+        
+        /**
+         * LOGIQUE MICROFINANCE :
+         * Si le dossier est complet, on lève l'opposition (false).
+         * Si des documents manquent, on maintient l'opposition (true).
+         */
+        $maintenirOpposition = ! (bool) ($compte->dossier_complet ?? false);
+
+        $compte->update([
+            'statut' => 'actif',
+            'est_en_opposition' => $maintenirOpposition, 
+            'date_activation_definitive' => now()
+        ]);
+
+        try {
+            // On ne notifie le client que si le compte est totalement prêt (sans opposition)
+            if (!$maintenirOpposition) {
+                $compte->client->notify(new CompteActiveNotification($compte));
+            }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Erreur notification : " . $e->getMessage());
+        }
+    }
+}
+/**
+ * Gère la validation par étapes pour lever l'opposition
+ */
+public function validerOuvertureCompte(int $compteId, string $roleApprobateur, array $checkboxes = [], ?string $nui = null)
+{
+    return DB::transaction(function () use ($compteId, $roleApprobateur, $checkboxes, $nui) {
+        $compte = Compte::with('client')->lockForUpdate()->findOrFail($compteId);
+
+        // --- LOGIQUE CHEF D'AGENCE ---
+        if ($roleApprobateur === "Chef d'Agence (CA)") {
+            $compte->validation_chef_agence = true;
+            $compte->ca_id = auth()->id();
+        }
+ 
+        // --- LOGIQUE ASSISTANT JURIDIQUE ---
+        if ($roleApprobateur === "Assistant Juridique (AJ)") {
+            // 1. Gestion du NUI
+            $nuiFinal = $nui ?: $compte->client->nui;
+            if (empty($nuiFinal)) {
+                throw new \Exception("Le NUI est obligatoire pour la validation juridique.");
+            }
+            if ($nui && $nui !== $compte->client->nui) {
+                $compte->client->update(['nui' => $nui]);
+            }
+
+            // 2. Gestion Spécifique des Checkboxes (uniquement pour AJ)
+            // Convertir si c'est un array simple en objet avec clés/valeurs
+            $checkboxesFormatted = [];
+            if (is_array($checkboxes)) {
+                // Si c'est un array séquentiel [0, 1, 2, ...], convertir en objet
+                if (array_keys($checkboxes) === range(0, count($checkboxes) - 1)) {
+                    // C'est un array simple, créer un objet avec les valeurs comme clés
+                    foreach ($checkboxes as $value) {
+                        $checkboxesFormatted[$value] = true;
+                    }
+                } else {
+                    // C'est déjà un objet
+                    $checkboxesFormatted = $checkboxes;
+                }
+            }
+
+            $documentsObligatoires = ['cni_valide', 'plan_localisation', 'photo_identite'];
+            $toutEstCoche = true;
+
+            foreach ($documentsObligatoires as $doc) {
+                if (!isset($checkboxesFormatted[$doc]) || $checkboxesFormatted[$doc] !== true) {
+                    $toutEstCoche = false;
+                }
+            }
+
+            $compte->checklist_juridique = $checkboxesFormatted;
+            $compte->dossier_complet = $toutEstCoche;
+            $compte->validation_juridique = true;
+            $compte->date_validation_juridique = now();
+            $compte->juriste_id = auth()->id();
+        }
+
+        $compte->save();
+
+        // Tentative d'activation
+        $this->tenterActivationFinale($compte);
+
+        return $compte->fresh(['client', 'typeCompte', 'planComptable', 'mandataires', 'documents']);
+    });
+}
+
+public function rejeterOuverture(int $compteId, string $motif)
+{
+    return DB::transaction(function () use ($compteId, $motif) {
+        $compte = Compte::findOrFail($compteId);
+$user = auth()->user(); // Récupère le Chef d'Agence ou le Juriste connecté
+        // On enregistre le rejet
+        $compte->update([
+            'statut' => 'rejete', 
+         'motif_rejet' => $motif, // On enregistre le texte du rejet
+            'date_rejet' => now(),
+            'rejete_par'   => $user?->id,  // Enregistre l'ID de l'auteur (si connecté)
+            // IMPORTANT : On réinitialise les validations
+            // Si le dossier est corrigé, tout le monde doit revérifier
+            'validation_chef_agence' => false,
+            'validation_juridique' => false,
+            'est_en_opposition' => true // On maintient le blocage
+        ]);
+
+        return $compte;
+    });
+}
+
+// Dans CompteController.php
+public function showForValidation($id)
+{
+    // On récupère le compte avec le client et tous ses documents chargés
+    $compte = Compte::with(['client', 'documents', 'mandataires', 'typeCompte'])
+                    ->findOrFail($id);
+
+    return response()->json($compte);
+}
  
  /* Récupère le journal détaillé des ouvertures de comptes
  */
    public function journalOuvertures($dateDebut = null, $dateFin = null, $codeAgence = null)
 {
     // On part de la table Compte pour ne perdre aucune ouverture
-    $query = \App\Models\Compte\Compte::with([
+    $query = Compte::with([
         'client.physique', // Charge les infos physiques
         'client.morale',
         'client.agency',

@@ -4,9 +4,9 @@ namespace App\Models\compte;
 use App\Models\chapitre\PlanComptable;
 use App\Models\client\Client;
 use App\Models\frais\MouvementRubriqueMata;
+use App\Models\Gestionnaire;
 use App\Services\Frais\GestionRubriqueMataService;
-
-
+use App\Models\User;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Compte extends Model
 {
     use HasFactory, SoftDeletes;
+    
 
     protected $fillable = [
         'numero_compte',
@@ -36,6 +37,19 @@ class Compte extends Model
         'date_ouverture',
         'date_cloture',
         'observations',
+        'motif_rejet', // <--- DOIT ÊTRE ICI
+
+        'est_en_opposition',
+        'date_rejet',
+    'rejete_par',
+    'validation_chef_agence',
+    'validation_juridique',
+    'est_en_opposition',
+    'ca_id',
+    'juriste_id',
+    'dossier_complet',
+    'checklist_juridique',
+    'date_validation_juridique'
     ];
 
     protected $casts = [
@@ -45,9 +59,22 @@ class Compte extends Model
         'date_acceptation_notice' => 'datetime',
         'date_ouverture' => 'datetime',
         'date_cloture' => 'datetime',
+        'validation_chef_agence' => 'boolean',
+    'validation_juridique' => 'boolean',
+    'est_en_opposition' => 'boolean',
+
+    'checklist_juridique' => 'array',
+        
+        'dossier_complet' => 'boolean',
+        'est_en_opposition' => 'boolean',
+        'date_validation_juridique' => 'datetime',
+        'date_rejet' => 'datetime',
     ];
 
-    
+    public function gestionnaire()
+    {
+        return $this->belongsTo(Gestionnaire::class);
+    }
 
     /**
      * Relation: Compte appartient à un client
@@ -201,4 +228,58 @@ class Compte extends Model
         // 'compte_id' est la clé étrangère dans la table mouvements_comptables
         return $this->hasMany(MouvementComptable::class, 'compte_id');
     }
+
+    protected static function booted()
+{
+    static::creating(function ($compte) {
+        if (!$compte->created_by) {
+            $compte->created_by = auth()->id() ;
+        }
+    });
+}
+
+// Cette méthode permet de récupérer l'objet User complet via created_by
+// app/Models/compte/Compte.php
+
+public function utilisateur_createur()
+{
+    // On lie created_by à l'id de la table users
+    return $this->belongsTo(\App\Models\User::class, 'created_by');
+}
+
+public function chefAgence() {
+        return $this->belongsTo(User::class, 'ca_id');
+    }
+
+    public function juriste() {
+        return $this->belongsTo(User::class, 'juriste_id');
+    }
+
+    /**
+ * Scope pour filtrer les comptes en attente ou rejetés
+ */
+public function scopeEnInstruction($query)
+{
+    return $query->whereIn('statut', ['en_attente', 'rejete']);
+}
+
+/**
+ * Scope pour filtrer par agence (via la relation client)
+ */
+public function scopeParAgence($query, $agenceId)
+{
+    return $query->whereHas('client', function($q) use ($agenceId) {
+        $q->where('agency_id', $agenceId);
+    });
+}
+
+/**
+ * Scope pour filtrer par type de compte
+ */
+public function scopeParType($query, $typeId)
+{
+    return $query->where('type_compte_id', $typeId);
+}
+
+    
 }

@@ -11,7 +11,7 @@ class StoreCompteRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true; // Ajuster selon votre logique d'autorisation
+        return true;
     }
 
     public function rules(): array
@@ -26,13 +26,13 @@ class StoreCompteRequest extends FormRequest
             'etape1.rubriques_mata.*' => 'in:SANTE,BUSINESS,FETE,FOURNITURE,IMMO,SCOLARITE',
             'etape1.duree_blocage_mois' => 'nullable|integer|between:3,12',
 
-            // Étape 2: Plan comptable (MODIFICATION)
+            // Étape 2: Plan comptable
             'etape2.plan_comptable_id' => 'required|exists:plan_comptable,id',
             'etape2.categorie_id' => 'nullable|exists:categories_comptables,id',
+            'etape2.gestionnaire_id' => 'required|exists:gestionnaires,id', // <-- Important
             'etape2.gestionnaire_nom' => 'nullable|string|max:255',
             'etape2.gestionnaire_prenom' => 'nullable|string|max:255',
             'etape2.gestionnaire_code' => 'nullable|string|max:20',
-
 
             // Étape 3: Mandataires
             'etape3.mandataire_1.sexe' => 'required|in:masculin,feminin',
@@ -73,12 +73,12 @@ class StoreCompteRequest extends FormRequest
             'etape3.mandataire_2.cni_conjoint' => 'nullable|string|max:50',
             'etape3.mandataire_2.signature_path' => 'nullable|string',
 
-            // Étape 4: Documents et validation
+            // Étape 4: Documents et validation (DOCUMENTS RENDUS OPTIONNELS)
             'etape4.notice_acceptee' => 'required|boolean|accepted',
-            'documents' => 'required|array|min:1',
-            'documents.*' => 'required|file|mimes:pdf,jpg,jpeg,png|max:10240',
-            'types_documents' => 'required|array',
-            'types_documents.*' => 'required|string',
+            'documents' => 'nullable|array', // <-- Changé: pas de min:1
+            'documents.*' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
+            'types_documents' => 'nullable|array',
+            'types_documents.*' => 'nullable|string',
             'descriptions_documents' => 'nullable|array',
             'descriptions_documents.*' => 'nullable|string',
             'signature' => 'nullable|file|mimes:png,jpg,jpeg|max:2048',
@@ -92,8 +92,9 @@ class StoreCompteRequest extends FormRequest
             'etape1.client_id.exists' => 'Le client sélectionné n\'existe pas',
             'etape2.plan_comptable_id.required' => 'Le plan comptable est obligatoire',
             'etape2.plan_comptable_id.exists' => 'Le plan comptable sélectionné n\'existe pas',
+            'etape2.gestionnaire_id.required' => 'Le gestionnaire est obligatoire',
+            'etape2.gestionnaire_id.exists' => 'Le gestionnaire sélectionné n\'existe pas',
             'etape4.notice_acceptee.accepted' => 'Vous devez accepter la notice d\'engagement',
-            'documents.required' => 'Au moins un document est requis',
             'documents.*.max' => 'Chaque document ne doit pas dépasser 10 MB',
         ];
     }

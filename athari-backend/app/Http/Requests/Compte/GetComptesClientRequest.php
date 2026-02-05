@@ -18,7 +18,8 @@ class GetComptesClientRequest extends FormRequest
             'ouvrir compte',
             'gestion des clients',
             'consulter logs',
-            'gestion agence'
+            'gestion agence',
+            'consulter compte'
         ]);
     }
 

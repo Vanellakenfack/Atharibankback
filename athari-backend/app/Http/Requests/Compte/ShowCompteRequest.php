@@ -19,7 +19,9 @@ class ShowCompteRequest extends FormRequest
             'cloturer compte',
             'supprimer compte',
             'gestion agence',
-            'consulter logs'
+            'consulter logs',
+            'consulter comptes'
+
         ]);
     }
 

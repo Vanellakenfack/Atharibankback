@@ -33,14 +33,37 @@ return new class extends Migration
             // === FRAIS DE CARNET/LIVRET/CHÉQUIER ===
             $table->decimal('frais_carnet', 15, 2)->default(0);
             $table->boolean('frais_carnet_actif')->default(false);
+             $table->boolean('frais_chequier_actif')->default(false);
+            $table->boolean('frais_cheque_guichet_actif')->default(false);
+              $table->boolean('frais_livret_actif')->default(false);
+            $table->decimal('frais_livret', 15, 2)->default(0);
+
+
+            $table->decimal('frais_chequier', 15, 2)->default(0);
+            $table->decimal('frais_cheque_guichet', 15, 2)->default(0);
+
             $table->foreignId('chapitre_frais_carnet_id')->nullable()
+                ->constrained('plan_comptable')->nullOnDelete();
+                 $table->foreignId('chapitre_frais_chequier_id')->nullable()
                 ->constrained('plan_comptable')->nullOnDelete();
             
             $table->decimal('frais_renouvellement_carnet', 15, 2)->default(0);
+              $table->decimal('frais_renouvellement_livret', 15, 2)->default(0);
             $table->boolean('frais_renouvellement_actif')->default(false);
+
             $table->foreignId('chapitre_renouvellement_id')->nullable()
                 ->constrained('plan_comptable')->nullOnDelete();
-            
+
+            $table->foreignId('chapitre_chequier_id')->nullable()
+                ->constrained('plan_comptable')->nullOnDelete();
+
+                $table->foreignId('chapitre_cheque_guichet_id')->nullable()
+                ->constrained('plan_comptable')->nullOnDelete();
+
+              
+                $table->foreignId('chapitre_livret_id')->nullable()
+                ->constrained('plan_comptable')->nullOnDelete();
+
             $table->decimal('frais_perte_carnet', 15, 2)->default(0);
             $table->boolean('frais_perte_actif')->default(false);
             $table->foreignId('chapitre_perte_id')->nullable()
@@ -48,12 +71,16 @@ return new class extends Migration
             
             // === COMMISSION MENSUELLE ===
             $table->boolean('commission_mensuelle_actif')->default(false);
-            $table->decimal('seuil_commission', 15, 2)->nullable()
+            $table->decimal('seuil_commission', 15, 2)->nullable();
+                        $table->decimal('commission_mensuel', 15, 2)->nullable()
+
                 ->comment('Seuil des versements pour commission élevée');
             $table->decimal('commission_si_superieur', 15, 2)->nullable()
                 ->comment('Commission si versements >= seuil');
             $table->decimal('commission_si_inferieur', 15, 2)->nullable()
                 ->comment('Commission si versements < seuil');
+                 $table->foreignId('chapitre_commission_mensuelle_id')->nullable()
+                ->constrained('plan_comptable')->nullOnDelete();
             
             // === COMMISSION RETRAIT ===
             $table->decimal('commission_retrait', 15, 2)->default(0);
@@ -101,7 +128,9 @@ return new class extends Migration
             // === MINIMUM EN COMPTE ===
             $table->decimal('minimum_compte', 15, 2)->default(0);
             $table->boolean('minimum_compte_actif')->default(false);
-            
+             $table->foreignId('chapitre_minimum_id')->nullable()
+                ->constrained('plan_comptable')->nullOnDelete();
+
             // === COMPTE D'ATTENTE ===
             $table->foreignId('compte_attente_produits_id')->nullable()
                 ->constrained('plan_comptable')->nullOnDelete();

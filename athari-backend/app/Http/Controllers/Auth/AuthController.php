@@ -107,6 +107,7 @@ switch ($role) {
         return response()->json([
             'token' => $token->plainTextToken,
             'token_type' => 'Bearer',
+            'refreshToken' => $token->plainTextToken, // Return same token as refresh token for Sanctum
             'user' => [
                 'name' => $user->name,
                 'email' => $user->email,
@@ -122,7 +123,7 @@ switch ($role) {
     public function logout(Request $request)
     {
         $user = $request->user();
-        
+
         // --- LOG DE DÉCONNEXION ---
         // CORRECTION : Supprimez ActivityLogger::info() et commencez par activity()
         activity()
@@ -132,8 +133,97 @@ switch ($role) {
         // --------------------------
 
         // Supprime le token spécifique utilisé pour la requête, assurant la révocation immédiate
-        $user->currentAccessToken()->delete(); 
+        $user->currentAccessToken()->delete();
 
         return response()->json(['message' => 'Déconnexion réussie']);
+    }
+
+    /**
+     * Rafraîchir le token d'accès en utilisant le refresh token.
+     */
+    public function refresh(Request $request)
+    {
+        $request->validate([
+            'refreshToken' => 'required|string',
+        ]);
+
+        // Extract the token part from the plain text token (format: id|token)
+        $tokenParts = explode('|', $request->refreshToken);
+        if (count($tokenParts) !== 2) {
+            \Log::info('Refresh token invalid format', ['token' => $request->refreshToken]);
+            return response()->json(['message' => 'Refresh token invalide'], 401);
+        }
+        $tokenValue = $tokenParts[1];
+
+        // Hash the token value to match Sanctum's storage
+        $hashedToken = hash('sha256', $tokenValue);
+
+        \Log::info('Refresh attempt', [
+            'plain_token' => $request->refreshToken,
+            'token_value' => $tokenValue,
+            'hashed_token' => $hashedToken
+        ]);
+
+        // Find the token in the database
+        $accessToken = \Laravel\Sanctum\PersonalAccessToken::findToken($hashedToken);
+
+        if (!$accessToken) {
+            \Log::info('Token not found in database', ['hashed_token' => $hashedToken]);
+            return response()->json(['message' => 'Refresh token invalide'], 401);
+        }
+
+        \Log::info('Token found', ['token_id' => $accessToken->id, 'user_id' => $accessToken->tokenable_id]);
+
+        $user = $accessToken->tokenable;
+
+        // Delete the old token
+        $accessToken->delete();
+
+        // Récupération du rôle principal de l'utilisateur
+        $role = $user->roles()->first()?->name;
+
+        // Définition des capacités basées sur le rôle
+        $abilities = [];
+        switch ($role) {
+            case 'DG':
+            case 'Admin':
+                $abilities = ['*'];
+                break;
+            case 'Chef Comptable':
+            case 'Chef d\'Agence (CA)':
+            case 'Assistant Juridique (AJ)':
+                $abilities = ['access:web', 'validate:core-banking', 'audit:logs'];
+                break;
+            case 'Assistant Comptable (AC)':
+            case 'Caissière':
+            case 'Agent de Crédit (AC)':
+                $abilities = ['access:web', 'entry:data'];
+                break;
+            case 'Collecteur':
+                $abilities = ['access:mobile', 'entry:caisse-mobile'];
+                break;
+            default:
+                $abilities = ['read:only'];
+        }
+
+        // Créer un nouveau token d'accès
+        $newToken = $user->createToken($request->device_name ?? 'default', $abilities);
+
+        // Log du rafraîchissement
+        activity()
+            ->performedOn($user)
+            ->withProperty('ip_address', $request->ip())
+            ->log('Token rafraîchi', 'auth.refresh');
+
+        return response()->json([
+            'token' => $newToken->plainTextToken,
+            'token_type' => 'Bearer',
+            'user' => [
+                'name' => $user->name,
+                'email' => $user->email,
+                'role' => $role,
+                'abilities' => $abilities,
+            ],
+        ]);
     }
 }

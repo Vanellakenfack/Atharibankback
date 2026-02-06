@@ -37,6 +37,11 @@ use App\Http\Controllers\Caisse\CaisseDashboardController;
 
 use App\Http\Controllers\OperationDiversController;
 use App\Http\Controllers\Caisse\JournalCaisseController;
+use App\Http\Controllers\CreditApplicationController;
+use App\Http\Controllers\Credit\CreditTypeController;
+use App\Http\Controllers\Credit\CreditFlashController;
+use App\Http\Controllers\Credit\AvisController;
+use App\Http\Controllers\Credit\CreditPVController;
 
 
 /*
@@ -45,6 +50,7 @@ use App\Http\Controllers\Caisse\JournalCaisseController;
 |--------------------------------------------------------------------------
 */
 Route::post('/login', [AuthController::class, 'login']);
+Route::post('/auth/refresh', [AuthController::class, 'refresh']);
 
 /*
 |--------------------------------------------------------------------------
@@ -433,6 +439,74 @@ Route::middleware(['auth:sanctum', 'verifier.caisse'])->prefix('caisse')->group(
 
 
 });
+
+
     
 // AJOUTER CETTE ROUTE POUR L'IMPRESSION DE RECU :
 Route::get('/recu/{id}', [App\Http\Controllers\Caisse\RetraitController::class, 'imprimerRecu']);
+
+// AJOUTER LES ROUTES PUBLICQUES POUR LES DEMANDES DE CRÉDIT
+Route::post('/credit-applications', [CreditApplicationController::class, 'store']);
+Route::get('/credit-applications', [CreditApplicationController::class, 'index']);
+Route::prefix('credit-types')->group(function () {
+    Route::get('/', [CreditTypeController::class, 'index']);
+    Route::get('/{id}', [CreditTypeController::class, 'show']);
+});
+    
+Route::prefix('credit-flash')->group(function () {
+    // Lister tous les crédits flash
+    Route::get('/', [CreditFlashController::class, 'index']);
+
+    // Voir un crédit flash spécifique
+    Route::get('/{id}', [CreditFlashController::class, 'show']);
+
+    // Soumettre une demande de crédit flash
+    Route::post('/demande', [CreditFlashController::class, 'store']);
+});
+
+
+Route::middleware('auth:sanctum')->group(function () {
+    // Routes pour les avis
+    Route::prefix('credit-applications/{applicationId}/avis')->group(function () {
+        Route::get('/', [AvisController::class, 'index']);
+        Route::post('/', [AvisController::class, 'store']);
+        Route::get('/expected-level', [AvisController::class, 'getExpectedLevel']);
+        Route::get('/can-give/{level}', [AvisController::class, 'canGiveOpinion']);
+    });
+    
+    Route::get('avis/{avisId}', [AvisController::class, 'show']);
+});
+
+
+Route::prefix('credit-pvs')->group(function () {
+    Route::get('/', [CreditPVController::class, 'index']); // List all PVs
+    Route::get('/{id}', [CreditPVController::class, 'show']); // Show single PV
+    Route::post('/', [CreditPVController::class, 'store']); // Create PV
+    Route::put('/{id}', [CreditPVController::class, 'update']); // Update PV
+    Route::delete('/{id}', [CreditPVController::class, 'destroy']); // Delete PV
+
+    // Optional: generate PV from committee decision
+    Route::post('/generate-from-committee/{application}', [CreditPVController::class, 'generateFromCommittee']);
+});
+
+
+Route::prefix('credit-applications')->group(function () {
+    // Routes existantes...
+    Route::get('/', [CreditApplicationController::class, 'index']);
+    Route::post('/', [CreditApplicationController::class, 'store']);
+    
+    // AJOUTER CETTE ROUTE POUR GET SINGLE
+    Route::get('/{id}', [CreditApplicationController::class, 'show'])->where('id', '[0-9]+');
+    
+    // Autres routes...
+    Route::put('/{id}/status', [CreditApplicationController::class, 'updateStatus']);
+    
+    // Routes pour les avis
+    Route::prefix('{applicationId}/avis')->group(function () {
+        Route::get('/', [AvisController::class, 'index']);
+        Route::post('/', [AvisController::class, 'store']);
+        Route::get('/expected-level', [AvisController::class, 'getExpectedLevel']);
+        Route::get('/can-give/{level}', [AvisController::class, 'canGiveOpinion']);
+    });
+});
+Route::get('/credit-pvs/{id}/download', [CreditPVController::class, 'downloadPDF']);

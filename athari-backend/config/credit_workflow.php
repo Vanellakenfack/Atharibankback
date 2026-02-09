@@ -1,37 +1,27 @@
 <?php
 
 return [
-    'levels' => [
-        'CA' => [
-            'name' => 'Chef d\'Agence',
-            'order' => 1,
-            'required_roles' => ['Chef d\'Agence (CA)'],
-            'description' => 'Première validation par le Chef d\'Agence'
+    'steps' => [
+        'INITIAL' => [
+            'required_roles' => ["Chef d'Agence (CA)", "Assistant Comptable (AC)"],
+            'required_status' => 'PENDING',
+            'next_status' => 'VALIDATED', 
+            'reject_status' => 'REJETE',
         ],
-        'ASC' => [
-            'name' => 'Assistant Comptable',
-            'order' => 2,
+        'COMITE_AGENCE' => [
+            'required_roles' => ["Chef d'Agence (CA)", "Agent de Crédit (AC)", "Assistant Comptable (AC)"],
+            'required_status' => 'VALIDATED',
+            'next_status' => 'EN_COMITE',
+            'reject_status' => 'REJETE',
+        ],
+        'MISE_EN_PLACE' => [
             'required_roles' => ['Assistant Comptable (AC)'],
-            'description' => 'Deuxième validation par l\'Assistant Comptable'
+            'required_status' => 'MISE_EN_PLACE',
+            'next_status' => 'TERMINE',
         ],
-        'COMITE' => [
-            'name' => 'Comité d\'Agence',
-            'order' => 3,
-            'required_roles' => ['Chef Comptable', 'Chef d\'Agence (CA)', 'Assistant Comptable (AC)'],
-            'description' => 'Validation finale par le Comité d\'Agence'
-        ]
     ],
-
-    'opinions' => [
-        'FAVORABLE' => 'Favorable',
-        'DEFAVORABLE' => 'Défavorable',
-        'RESERVE' => 'Réserve'
-    ],
-
     'rules' => [
-        'no_skip_levels' => true,
-        'one_opinion_per_user_per_level' => true,
-        'defavorable_rejects_immediately' => true,
-        'committee_requires_all_members' => true,
-    ]
+        'auto_pv_generation' => true,
+        'chef_agence_final_decision' => true,
+    ],
 ];

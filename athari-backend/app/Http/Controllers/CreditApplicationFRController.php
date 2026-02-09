@@ -11,7 +11,7 @@ use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Validator; // Ajout de l'import manquant
 
 class CreditApplicationController extends Controller
 {
@@ -61,7 +61,7 @@ class CreditApplicationController extends Controller
     /**
      * Calcule les frais d'étude selon les paliers du Flash 24H
      */
-  private function calculateFraisEtudeFlash24($montant)
+    private function calculateFraisEtudeFlash24($montant)
     {
         if ($montant <= 25000) {
             return 500;
@@ -110,7 +110,7 @@ class CreditApplicationController extends Controller
     /**
      * Calcule la pénalité par jour selon les paliers du Flash 24H
      */
-   private function calculatePenaliteFlash24($montant)
+    private function calculatePenaliteFlash24($montant)
     {
         if ($montant <= 25000) {
             return 500;
@@ -125,48 +125,59 @@ class CreditApplicationController extends Controller
         }
         return 0;
     }
+
     /**
      * Crée une nouvelle demande de crédit
      */
- public function store(Request $request)
+    public function store(Request $request)
     {
         try {
             \Log::info('=== NOUVELLE DEMANDE DE CRÉDIT ===');
             \Log::info('Données reçues:', $request->all());
             
             // Validation complète
-            $validator = Validator::make($request->all(), [
-                'compte_id' => 'required|exists:comptes,id',
-                'credit_type_id' => 'required|exists:credit_types,id',
-                'montant' => 'required|numeric|min:1',
-                'duree' => 'required|integer|min:1',
-                'source_revenus' => 'required|string|max:255',
-                'revenus_mensuels' => 'required|numeric|min:0',
-                'autres_revenus' => 'nullable|numeric|min:0',
-                'montant_dettes' => 'nullable|numeric|min:0',
-                'description_dette' => 'nullable|string|max:500',
-                'nom_banque' => 'nullable|string|max:100',
-                'numero_banque' => 'nullable|string|max:50',
-                'numero_personne_contact' => 'required|string|max:20',
-                'urgence' => 'nullable|in:normale,urgente,tres_urgente',
-                'garantie' => 'nullable|string|max:255',
-                'plan_epargne' => 'nullable|boolean',
-                'observation' => 'nullable|string|max:1000',
-                
-                // Documents validation
-                'demande_credit_img' => 'required|file|mimes:pdf,jpg,jpeg,png,doc,docx|max:5120',
-                'photocopie_cni' => 'required|file|mimes:pdf,jpg,jpeg,png|max:5120',
-                'geolocalisation_img' => 'required|file|mimes:jpg,jpeg,png|max:5120',
-                'plan_localisation_domicile' => 'required|file|mimes:pdf,jpg,jpeg,png|max:5120',
-                'geolocalisation_domicile' => 'required|file|mimes:jpg,jpeg,png|max:5120',
-                'photo_domicile_1' => 'required|file|mimes:jpg,jpeg,png|max:2048',
-                'photo_domicile_2' => 'nullable|file|mimes:jpg,jpeg,png|max:2048',
-                'photo_domicile_3' => 'nullable|file|mimes:jpg,jpeg,png|max:2048',
-                'photo_activite_1' => 'required|file|mimes:jpg,jpeg,png|max:2048',
-                'photo_activite_2' => 'nullable|file|mimes:jpg,jpeg,png|max:2048',
-                'photo_activite_3' => 'nullable|file|mimes:jpg,jpeg,png|max:2048',
-                'lettre_non_remboursement' => 'required|file|mimes:pdf,jpg,jpeg,png|max:5120',
-            ]);
+           // Remplacer la validation complète par :
+$validator = Validator::make($request->all(), [
+    'compte_id' => 'required|exists:comptes,id',
+    'credit_type_id' => 'required|exists:credit_types,id',
+    'montant' => 'required|numeric|min:1',
+    'duree' => 'required|integer|min:1',
+    'source_revenus' => 'required|string|max:255',
+    'revenus_mensuels' => 'required|numeric|min:0',
+    'autres_revenus' => 'nullable|numeric|min:0',
+    'montant_dettes' => 'nullable|numeric|min:0',
+    'description_dette' => 'nullable|string|max:500',
+    'nom_banque' => 'nullable|string|max:100',
+    'numero_banque' => 'nullable|string|max:50',
+    'numero_personne_contact' => 'required|string|max:20',
+    'urgence' => 'nullable|in:normale,urgente,tres_urgente',
+    'garantie' => 'nullable|string|max:255',
+    'plan_epargne' => 'nullable|boolean',
+    'observation' => 'nullable|string|max:1000',
+    'description_domicile' => 'nullable|string|max:1000', // Changé en string
+    'description_activite' => 'nullable|string|max:1000', // Changé en string
+    
+    // Documents validation (uniquement les fichiers)
+    'demande_credit_img' => 'required|file|mimes:pdf,jpg,jpeg,png,doc,docx|max:5120',
+    'photocopie_cni' => 'required|file|mimes:pdf,jpg,jpeg,png|max:5120',
+    'photo_4x4' => 'required|file|mimes:jpg,jpeg,png|max:2048',
+    'plan_localisation' => 'required|file|mimes:pdf,jpg,jpeg,png|max:5120',
+    'facture_electricite' => 'required|file|mimes:pdf,jpg,jpeg,png|max:5120',
+    'casier_judiciaire' => 'required|file|mimes:pdf,jpg,jpeg,png|max:5120',
+    'historique_compte' => 'required|file|mimes:pdf,jpg,jpeg,png|max:5120',
+    'geolocalisation_img' => 'required|file|mimes:jpg,jpeg,png|max:5120',
+    'plan_localisation_activite_img' => 'required|file|mimes:pdf,jpg,jpeg,png|max:5120',
+    'photo_activite_img' => 'required|file|mimes:jpg,jpeg,png|max:2048',
+    'plan_localisation_domicile' => 'required|file|mimes:pdf,jpg,jpeg,png|max:5120',
+    'geolocalisation_domicile' => 'required|file|mimes:jpg,jpeg,png|max:5120',
+    'photo_domicile_1' => 'required|file|mimes:jpg,jpeg,png|max:2048',
+    'photo_domicile_2' => 'nullable|file|mimes:jpg,jpeg,png|max:2048',
+    'photo_domicile_3' => 'nullable|file|mimes:jpg,jpeg,png|max:2048',
+    'photo_activite_1' => 'required|file|mimes:jpg,jpeg,png|max:2048',
+    'photo_activite_2' => 'nullable|file|mimes:jpg,jpeg,png|max:2048',
+    'photo_activite_3' => 'nullable|file|mimes:jpg,jpeg,png|max:2048',
+    'lettre_non_remboursement' => 'required|file|mimes:pdf,jpg,jpeg,png|max:5120',
+]);
 
             if ($validator->fails()) {
                 \Log::error('Validation errors:', $validator->errors()->toArray());
@@ -306,9 +317,10 @@ class CreditApplicationController extends Controller
         }
     }
 
-
-// Ajoutez cette méthode privée dans la classe
-private function calculateCreditDetails($creditType, $montant, $duree)
+    /**
+     * Calcule les détails du crédit
+     */
+    private function calculateCreditDetails($creditType, $montant, $duree)
     {
         if (($creditType->code ?? '') === 'FLASH_24H') {
             $frais = $this->calculateFraisEtudeFlash24($montant);
@@ -344,6 +356,7 @@ private function calculateCreditDetails($creditType, $montant, $duree)
             'details' => ['type' => 'standard']
         ];
     }
+
     /**
      * Détermine le palier pour Flash 24H
      */

@@ -19,127 +19,127 @@ class CreditFlashWorkflowService
     }
 
     /**
-     * DÉTERMINER L'ÉTAPE ATTENDUE
-     */
-    public function getExpectedLevel(CreditApplication $creditApplication): ?string
-    {
-        $statut = trim($creditApplication->statut);
-
-        switch ($statut) {
-            case 'SOUMIS':
-                return 'CHEF_AGENCE';
-            case 'CA_VALIDE':
-                return 'ASSISTANT_COMPTABLE';
-            case 'ASSISTANT_COMPTABLE_VALIDE':
-                return 'COMITE_AGENCE';
-            case 'APPROUVE':
-                return 'MISE_EN_PLACE';
-            default:
-                return null;
-        }
-    }
-
-    /**
-     * VÉRIFIER SI L'UTILISATEUR PEUT DONNER SON AVIS
+     * Vérifie si l'utilisateur a le droit de donner son avis selon le niveau et le statut actuel.
      */
     public function canUserGiveOpinion(CreditApplication $creditApplication, string $level, User $user): bool
-    {
-        if (!isset($this->config['steps'][$level])) {
-            Log::error("Workflow : Niveau [$level] inexistant dans la config.");
-            return false;
-        }
-
-        $stepConfig = $this->config['steps'][$level];
-
-        $userRoles = array_map(fn($role) => trim(strtoupper($role)), $user->getRoleNames()->toArray());
-        $requiredRoles = array_map(fn($role) => trim(strtoupper($role)), $stepConfig['required_roles']);
-        
-        $hasRole = !empty(array_intersect($userRoles, $requiredRoles));
-
-        if (!$hasRole) {
-            Log::warning("Workflow [REFUS ROLE] : User ID {$user->id} n'a pas les droits pour $level.");
-            return false;
-        }
-
-        $statutActuel = trim($creditApplication->statut);
-        $statutRequis = trim($stepConfig['required_status']);
-
-        if ($statutActuel !== $statutRequis) {
-            Log::warning("Workflow [REFUS STATUT] : Dossier #{$creditApplication->id}. Actuel: [$statutActuel], Requis: [$statutRequis]");
-            return false;
-        }
-
-        return true;
+{
+    if (!isset($this->config['steps'][$level])) {
+        Log::error("Workflow: Niveau d'avis '$level' non trouvé dans la config.");
+        return false;
     }
 
+    $stepConfig = $this->config['steps'][$level];
+    
+    // 1. Nettoyage des rôles pour éviter les erreurs d'espaces ou de majuscules
+    $userRoles = array_map(fn($r) => trim(strtoupper($r)), $user->getRoleNames()->toArray());
+    $requiredRoles = array_map(fn($r) => trim(strtoupper($r)), $stepConfig['required_roles']);
+    
+    // Log pour voir ce qui se passe dans storage/logs/laravel.log
+    Log::info("Vérification Workflow", [
+        'user_id' => $user->id,
+        'user_roles' => $userRoles,
+        'roles_requis' => $requiredRoles,
+        'statut_actuel' => $creditApplication->statut,
+        'niveau_demande' => $level
+    ]);
+
+    $hasRole = !empty(array_intersect($userRoles, $requiredRoles));
+    
+    if (!$hasRole) {
+        return false;
+    }
+
+    $statutActuel = trim($creditApplication->statut);
+    $statutRequis = trim($stepConfig['required_status']);
+
+    if ($level === 'COMITE_AGENCE') {
+        $autorises = [$statutRequis, 'VALIDATED_BY_ASSISTANT', 'VALIDATED_BY_AGENT', 'EN_ANALYSE'];
+        return in_array($statutActuel, $autorises);
+    }
+
+    return $statutActuel === $statutRequis;
+}
+
     /**
-     * METTRE À JOUR LE STATUT APRÈS L'AVIS ET GÉNÉRER LE PV
+     * Met à jour le statut après un avis et gère la logique de transition.
      */
     public function updateCreditStatusAfterOpinion(CreditApplication $creditApplication, AvisCredit $avis): void
     {
         DB::transaction(function () use ($creditApplication, $avis) {
-            $stepConfig = $this->config['steps'][$avis->niveau_avis] ?? null;
+            $user = $avis->user;
 
-            // LOGIQUE SPÉCIFIQUE COMITÉ D'AGENCE
+            // --- PHASE 1 : SOUMIS -> EN_ANALYSE ---
+            if ($avis->niveau_avis === 'INITIAL') {
+                $avisInitialCount = $creditApplication->avis()->where('niveau_avis', 'INITIAL')->count();
+                // Si on a les 2 avis requis (CA et AC), on passe en analyse
+                if ($avisInitialCount >= 2 && $creditApplication->statut === 'SOUMIS') {
+                    $creditApplication->update(['statut' => 'EN_ANALYSE']);
+                }
+            }
+
+            // --- PHASE 2 : COMITÉ (EN_ANALYSE -> APPROUVE/REJETE) ---
             if ($avis->niveau_avis === 'COMITE_AGENCE') {
-                
-                // 1. Déterminer le statut final (APPROUVE ou REJETE)
-                $nouveauStatut = ($avis->opinion === 'DEFAVORABLE') ? 'REJETE' : 'APPROUVE';
-
-                // 2. GÉNÉRER LE PV SYSTÉMATIQUEMENT (Même si c'est un refus)
-                $this->generatePV($creditApplication, $nouveauStatut);
-
-                // 3. Mettre à jour la demande
-                $creditApplication->update(['statut' => $nouveauStatut]);
-                
-                Log::info("Workflow Comité : Dossier #{$creditApplication->id} passé à [$nouveauStatut] avec PV généré.");
-
-            } else {
-                // LOGIQUE POUR LES AUTRES ÉTAPES (Chef Agence, Assistant)
-                if ($avis->opinion === 'DEFAVORABLE') {
-                    $creditApplication->update(['statut' => $stepConfig['reject_status'] ?? 'REJETE']);
+                if ($user->hasRole("Chef d'Agence (CA)")) {
+                    if ($avis->opinion === 'FAVORABLE') {
+                        // Le CA a le dernier mot : passage à APPROUVE (statut de ta migration)
+                        $creditApplication->update(['statut' => 'APPROUVE']);
+                        $this->generatePV($creditApplication, 'APPROUVE');
+                    } else {
+                        $creditApplication->update(['statut' => 'REJETE']);
+                    }
                 } else {
-                    $creditApplication->update(['statut' => $stepConfig['next_status']]);
+                    // Pour l'Assistant ou l'Agent, on marque juste leur passage pour ne pas bloquer le statut
+                    $nouveauStatut = $user->hasRole("Assistant Comptable (AC)") 
+                        ? 'VALIDATED_BY_ASSISTANT' 
+                        : 'VALIDATED_BY_AGENT';
+                    
+                    $creditApplication->update(['statut' => $nouveauStatut]);
                 }
             }
         });
     }
 
     /**
-     * GÉNÉRATION DU PROCÈS-VERBAL
+     * Finalise la vérification physique pour passer au décaissement.
+     */
+    public function validatePhysicalVerification(CreditApplication $creditApplication, User $user, array $data = []): bool
+    {
+        // Seul l'Assistant peut valider quand c'est APPROUVE
+        if (!$user->hasRole('Assistant Comptable (AC)') || $creditApplication->statut !== 'APPROUVE') {
+            return false;
+        }
+
+        return DB::transaction(function () use ($creditApplication, $data) {
+            $creditApplication->update([
+                'statut' => 'MIS_EN_PLACE', // Statut final de ta migration
+                'observation' => $data['observation'] ?? $creditApplication->observation
+            ]);
+            return true;
+        });
+    }
+
+    /**
+     * Génère le PV de crédit.
      */
     protected function generatePV($creditApplication, $statutFinal = 'GENERE') 
     {
-        // 1. Récupérer tous les avis (y compris celui en cours de traitement)
         $tousLesAvis = $creditApplication->avis()->with('user')->get();
+        $historiqueAvis = $tousLesAvis->map(fn($a) => [
+            'role' => $a->role,
+            'opinion' => $a->opinion,
+            'user' => $a->user->name ?? 'Anonyme',
+            'date' => $a->created_at->format('d/m/Y')
+        ])->toJson();
 
-        // 2. Formater l'historique pour le document PDF
-        $historiqueAvis = $tousLesAvis->map(function ($a) {
-            return [
-                'niveau' => $a->niveau_avis,
-                'user' => $a->user->name ?? 'Anonyme',
-                'opinion' => $a->opinion,
-                'commentaire' => $a->commentaire
-            ];
-        })->toJson();
-
-        // 3. Déterminer le résumé de décision pour le document
-        $resume = ($statutFinal === 'REJETE') 
-            ? "Demande de crédit rejetée après délibération du comité d'agence." 
-            : "Demande de crédit approuvée après délibération du comité d'agence.";
-
-        // 4. Création de l'enregistrement en base de données
         return CreditPV::create([
             'credit_application_id' => $creditApplication->id,
-            'numero_pv' => 'PV-' . date('Ymd') . '-' . str_pad($creditApplication->id, 4, '0', STR_PAD_LEFT),
+            'numero_pv' => 'PV-' . date('Ymd') . '-' . $creditApplication->id,
             'date_pv' => now(),
-            'lieu_pv' => 'Siège / Agence',
             'montant_approuvee' => $creditApplication->montant,
             'duree_approuvee' => $creditApplication->duree,
-            'nom_garantie' => $creditApplication->garantie ?? 'Non spécifiée',
-            'resume_decision' => $resume,
+            'resume_decision' => "Approuvé par le comité d'agence.",
             'details_avis_membres' => $historiqueAvis,
-            'genere_par' => auth()->id() ?? $tousLesAvis->last()->user_id,
+            'genere_par' => auth()->id() ?? ($tousLesAvis->last()->user_id ?? null),
             'statut' => $statutFinal,
         ]);
     }

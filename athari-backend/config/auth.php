@@ -35,9 +35,15 @@ return [
     |
     */
 
-    'guards' => [
+   'guards' => [
         'web' => [
             'driver' => 'session',
+            'provider' => 'users',
+        ],
+
+        // AJOUTE CETTE SECTION :
+        'api' => [
+            'driver' => 'sanctum',
             'provider' => 'users',
         ],
     ],

@@ -42,6 +42,8 @@ use App\Http\Controllers\Credit\CreditTypeController;
 use App\Http\Controllers\Credit\CreditFlashController;
 use App\Http\Controllers\Credit\AvisController;
 use App\Http\Controllers\Credit\CreditPVController;
+use App\Http\Controllers\Api\CreditReviewController;
+use App\Http\Controllers\Api\CreditWorkflowController;
 
 
 /*
@@ -51,7 +53,12 @@ use App\Http\Controllers\Credit\CreditPVController;
 */
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/auth/refresh', [AuthController::class, 'refresh']);
-
+Route::post('/test-token', function (Request $request) {
+    return response()->json([
+        'user' => auth('sanctum')->user(),
+        'check' => auth('sanctum')->check()
+    ]);
+});
 /*
 |--------------------------------------------------------------------------
 | Routes protégées (auth:sanctum)
@@ -465,6 +472,7 @@ Route::prefix('credit-flash')->group(function () {
 });
 
 
+
 Route::middleware('auth:sanctum')->group(function () {
     // Routes pour les avis
     Route::prefix('credit-applications/{applicationId}/avis')->group(function () {
@@ -510,3 +518,106 @@ Route::prefix('credit-applications')->group(function () {
     });
 });
 Route::get('/credit-pvs/{id}/download', [CreditPVController::class, 'downloadPDF']);
+// Routes pour les avis de crédit
+Route::prefix('credits/applications')->group(function () {
+    // ... routes existantes ...
+    
+    // Route pour soumettre un avis (existe déjà)
+    Route::post('/{applicationId}/avis', [AvisController::class, 'store'])
+        ->name('credits.applications.avis.store');
+    
+    // NOUVELLE ROUTE : Finaliser la vérification physique
+    Route::post('/{id}/valider-physique', [AvisController::class, 'finaliserVerifPhysique'])
+        ->name('credits.applications.valider-physique')
+        ->middleware('auth:sanctum');
+    
+    // NOUVELLE ROUTE : Lister les vérifications physiques en attente
+    Route::get('/verifications-physiques', [AvisController::class, 'listVerificationsPhysiques'])
+        ->name('credits.applications.verifications-physiques')
+        ->middleware('auth:sanctum');
+});
+
+// Routes pour les PV de crédit
+Route::prefix('credit-pvs')->group(function () {
+    Route::get('/', [CreditPVController::class, 'index']);
+    Route::get('/{id}', [CreditPVController::class, 'show']);
+    Route::post('/', [CreditPVController::class, 'store']);
+    Route::get('/{id}/download', [CreditPVController::class, 'downloadPDF']);
+    Route::delete('/{id}', [CreditPVController::class, 'destroy']);
+});
+Route::middleware('auth:sanctum')->group(function () {
+    
+    // 1. Enregistrer un avis (INITIAL ou COMITE)
+    Route::post('/credits/{id}/avis', [AvisController::class, 'store']);
+    
+    // 2. Finaliser la vérification physique (Assistant Comptable)
+    Route::post('/credits/{id}/finaliser-verif', [AvisController::class, 'finaliserVerifPhysique']);
+    
+    // 3. Exécuter la mise en place finale (Décaissement)
+    Route::post('/credits/{id}/mise-en-place', [AvisController::class, 'executerMiseEnPlace']);
+    
+});
+
+Route::middleware('auth:sanctum')->group(function () {
+    
+    // 1. Phase d'Analyse : Pré-avis (Chef d'Agence & Assistant Comptable)
+    Route::post('/credit-applications/{id}/pre-avis', [CreditReviewController::class, 'donnerPreAvis']);
+
+    // 2. Phase de Comité : Vote et Décision finale (Membres du comité)
+    Route::post('/credit-applications/{id}/vote-comite', [CreditReviewController::class, 'voterComite']);
+
+    // 3. Phase de Mise en Place : Déblocage (Assistant ou Chef Comptable selon montant)
+    Route::post('/credit-applications/{id}/finaliser-mise-en-place', [CreditReviewController::class, 'finaliserMiseEnPlace']);
+
+    // 4. Route Bonus : Télécharger le PV généré
+    // SUPPRIMER LA LIGNE DUPLIQUÉE CI-DESSOUS
+    // Route::get('/credit-applications/{id}/download-pv', [CreditReviewController::class, 'downloadPV']);
+    
+    // Gardez seulement cette ligne :
+    Route::get('/credit-applications/{id}/download-pv', [CreditReviewController::class, 'downloadPV']);
+});
+
+
+
+
+Route::get('/test-auth', function (Request $request) {
+    return response()->json([
+        'user' => auth('sanctum')->user(),
+        'header' => $request->header('Authorization')
+    ]);
+})->middleware('auth:sanctum');
+
+/*
+    |--------------------------------------------------------------------------
+    | WORKFLOW CRÉDIT COMPLET (Agence -> Siège -> DG -> Mise en place)
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('credit-workflow')->group(function () {
+        
+        // 1. AVIS AGENCE (AAR ou Chef d'Agence)
+        // URL: /api/credit-workflow/{id}/avis-agence
+        Route::post('/{id}/avis-agence', [App\Http\Controllers\Api\CreditWorkflowController::class, 'donnerAvisAgence']);
+
+        // 2. VALIDATION COMITÉ AGENCE
+        // URL: /api/credit-workflow/{id}/valider-agence
+        Route::post('/{id}/valider-agence', [App\Http\Controllers\Api\CreditWorkflowController::class, 'validerComiteAgence']);
+
+        // 3. VÉRIFICATION SIÈGE (Juridique & Chef Comptable)
+        // URL: /api/credit-workflow/{id}/avis-siege
+        Route::post('/{id}/avis-siege', [App\Http\Controllers\Api\CreditWorkflowController::class, 'verificationSiege']);
+
+        // 4. VALIDATION FINALE DG
+        // URL: /api/credit-workflow/{id}/valider-dg
+        Route::post('/{id}/valider-dg', [App\Http\Controllers\Api\CreditWorkflowController::class, 'validerDG']);
+
+        // 5. GESTION ASSISTANT COMPTABLE (Vérification pièces + ZIP)
+        // URL: /api/credit-workflow/{id}/download-dossier
+        Route::get('/{id}/download-dossier', [App\Http\Controllers\Api\CreditWorkflowController::class, 'downloadDossierAssistant']);
+        
+        // URL: /api/credit-workflow/{id}/valider-docs-assistant
+        Route::post('/{id}/valider-docs-assistant', [App\Http\Controllers\Api\CreditWorkflowController::class, 'validerDocumentsAssistant']);
+
+        // 6. MISE EN PLACE FINALE (Chef Comptable - Décaissement)
+        // URL: /api/credit-workflow/{id}/mise-en-place-finale
+        Route::post('/{id}/mise-en-place-finale', [App\Http\Controllers\Api\CreditWorkflowController::class, 'miseEnPlaceFinale']);
+    });

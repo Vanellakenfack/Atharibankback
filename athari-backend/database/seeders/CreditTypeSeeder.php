@@ -32,6 +32,7 @@ class CreditTypeSeeder extends Seeder
             '715300012',  // Frais étude
             '713100005',  // Pénalité
             '715300006',  // Frais mise en place
+            '32229000' ,
         ];
         
         // Créer un mapping des codes
@@ -132,7 +133,7 @@ class CreditTypeSeeder extends Seeder
             [
                 'credit_characteristics' => 'CREDIT FLASH 24H',
                 'code' => 'FLASH_24H',
-                'description' => 'Crédit express accordé en 24h maximum avec une durée de remboursement ne dépassant pas 14 jours. Frais et intérêts calculés selon une grille par palier.',
+                'description' => 'Crédit flash 24h maximum avec une durée de remboursement ne dépassant pas 14 jours. Frais et intérêts calculés selon une grille par palier.',
                 'category' => 'credit_flash',
                 'taux_interet' => 0.00, // Taux spécifique dans la grille
                 'duree' => 14, // en jours (converti en mois pour la structure: 14/30 ≈ 0.47 mois)
@@ -141,7 +142,9 @@ class CreditTypeSeeder extends Seeder
                 'chapitre_comptable' => json_encode([
                     'frais_etude' => $mappingCodes['715400002'] ?? null,
                     'interet' => $mappingCodes['714000003'] ?? null,
-                    'penalite' => $mappingCodes['713100007'] ?? null
+                    'penalite' => $mappingCodes['713100007'] ?? null,
+                    'frais_mise_en_place' => $mappingCodes['32229000'] ?? null // Pas de frais de mise en place pour ce type
+                    
                 ]),
                 'frais_dossier' => 0.00, // Géré dans la grille
                 'penalite' => 0.00, // Géré dans la grille

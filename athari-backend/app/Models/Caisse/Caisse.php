@@ -37,6 +37,13 @@ class Caisse extends Model
         return $this->hasMany(CaisseSession::class);
     }
 
+
+    // Dans App\Models\Caisse\Caisse.php
+
+public function digitales()
+{
+    return $this->hasMany(CaisseDigitale::class, 'caisse_id');
+}
     public function compteComptable()
 {
     return $this->belongsTo(PlanComptable::class, 'compte_comptable_id');

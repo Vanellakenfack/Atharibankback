@@ -4,8 +4,11 @@ namespace App\Models\Caisse;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\compte\Compte;
 use App\Models\Gestionnaire;
+use App\Models\Concerns\UsesDateComptable;
+
 class CaisseTransaction extends Model
 {
+    use UsesDateComptable;
    protected $fillable = [
     'reference_unique',
     'compte_id',
@@ -39,6 +42,8 @@ class CaisseTransaction extends Model
     'motif_rejet_ca',
     'date_validation_ca',
     'code_validation',
+    'date_comptable',
+    'jours_comptable_id'
 ];
 
     // Relation vers le compte client

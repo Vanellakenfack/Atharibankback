@@ -42,9 +42,9 @@ return new class extends Migration
 
             // --- WORKFLOW DE VALIDATION ---
             // Valeurs possibles : 'NORMAL' (retrait direct), 'EN_ATTENTE_CA', 'VALIDE_CA', 'REJETE_CA'
-            $table->string('statut_workflow')->default('NORMAL')->after('statut');
-            $table->timestamp('date_validation_ca')->nullable()->after('statut_workflow');
-            $table->text('motif_rejet_ca')->nullable()->after('date_validation_ca');
+            $table->string('statut_workflow')->default('NORMAL');
+            $table->timestamp('date_validation_ca')->nullable();
+            $table->text('motif_rejet_ca')->nullable();
 
             // --- CONTRAINTES D'INTÉGRITÉ ---
             $table->foreign('gestionnaire_id')->references('id')->on('gestionnaires')->onDelete('set null');

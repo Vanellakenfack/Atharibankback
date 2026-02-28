@@ -21,25 +21,27 @@ class CaisseDashboardController extends Controller
     public function index()
     {
         try {
+            // On récupère l'utilisateur actuel (facultatif pour la session, mais utile pour le nom)
             $user = auth()->user();
 
-            // 1. Récupérer la session active
+            // 1. RÉCUPÉRATION DE LA SESSION : On cherche simplement la session ouverte la plus récente
+            // Cela évite de bloquer si l'auth est instable ou si on veut voir la session en cours
             $session = DB::table('caisse_sessions')
-                ->where('caissier_id', $user->id)
                 ->where('statut', 'OU')
+                ->orderBy('created_at', 'desc')
                 ->first();
 
             if (!$session) {
                 return response()->json([
                     'statut' => 'error',
-                    'message' => 'Aucune session de caisse ouverte.'
+                    'message' => 'Aucune session de caisse ouverte sur le système.'
                 ], 404);
             }
 
-            // 2. Calculer les flux de la SESSION ACTUELLE (Indépendant de la date brute)
+            // 2. CALCUL DES FLUX (Basé sur l'ID de la session trouvée)
             $flux = DB::table('caisse_transactions')
                 ->where('session_id', $session->id)
-                ->where('statut', 'VALIDE') // <--- CRUCIAL : Ne prendre que ce qui est confirmé
+                ->where('statut', 'VALIDE')
                 ->select(
                     'type_flux', 
                     'type_versement', 
@@ -49,8 +51,7 @@ class CaisseDashboardController extends Controller
                 ->groupBy('type_flux', 'type_versement')
                 ->get();
 
-            // 3. RÉCUPÉRER LES TRANSACTIONS RÉCENTES
-            // On utilise 'reference_unique' selon votre migration
+            // 3. TRANSACTIONS RÉCENTES
             $transactions = DB::table('caisse_transactions as t')
                 ->leftJoin('comptes as c', 't.compte_id', '=', 'c.id')
                 ->where('t.session_id', $session->id)
@@ -64,7 +65,7 @@ class CaisseDashboardController extends Controller
                     't.created_at',
                     't.compte_id',
                     't.statut',
-                    'c.est_en_opposition' // On récupère l'info d'opposition
+                    'c.est_en_opposition'
                 )
                 ->orderBy('t.created_at', 'desc')
                 ->limit(10)
@@ -84,7 +85,7 @@ class CaisseDashboardController extends Controller
                     ];
                 });
 
-            // 4. Bilan Espèces (Coffre physique)
+            // 4. BILAN ESPÈCES
             $soldeOuverture = (float)($session->solde_ouverture ?? 0);
             $entreesEspeces = (float)$flux->where('type_versement', 'ESPECE')
                                          ->whereIn('type_flux', ['VERSEMENT', 'ENTREE'])
@@ -95,10 +96,10 @@ class CaisseDashboardController extends Controller
 
             $soldeTheorique = ($soldeOuverture + $entreesEspeces) - $sortiesEspeces;
 
-            // 5. Préparation des données pour le graphique (Activité horaire)
+            // 5. GRAPHIQUE HORAIRE
             $graphique = DB::table('caisse_transactions')
                 ->where('session_id', $session->id)
-                ->where('statut', 'VALIDE') // <--- CRUCIAL : Ne prendre que ce qui est confirmé
+                ->where('statut', 'VALIDE')
                 ->select(
                     DB::raw("DATE_FORMAT(created_at, '%H:00') as heure"),
                     DB::raw("SUM(CASE WHEN type_flux IN ('VERSEMENT', 'ENTREE') THEN montant_brut ELSE 0 END) as entrees"),
@@ -108,13 +109,13 @@ class CaisseDashboardController extends Controller
                 ->orderBy('heure', 'asc')
                 ->get();
 
-            // 6. Réponse finale harmonisée pour le frontend
+            // 6. RÉPONSE FINALE HARMONISÉE
             return response()->json([
                 'statut' => 'success',
                 'dashboard' => [
                     'session' => [
                         'caisse' => 'Caisse N°' . ($session->caisse_id ?? '---'),
-                        'code' => $user->name,
+                        'code' => $user ? $user->name : 'Système', // Sécurisé si user null
                         'ouvert_le' => $session->created_at,
                         'duree' => Carbon::parse($session->created_at)->diffForHumans()
                     ],
@@ -128,8 +129,8 @@ class CaisseDashboardController extends Controller
                     'transactions_recentes' => $transactions,
                     'graphique' => $graphique,
                     'validations_en_cours' => DB::table('caisse_demandes_validation')
-                        ->where('caissiere_id', $user->id)
                         ->where('statut', 'EN_ATTENTE')
+                        // On ne filtre par user que si nécessaire, sinon on compte tout pour la session
                         ->count()
                 ]
             ]);
@@ -137,14 +138,11 @@ class CaisseDashboardController extends Controller
         } catch (Exception $e) {
             return response()->json([
                 'statut' => 'error',
-                'message' => 'Erreur lors de la récupération : ' . $e->getMessage()
+                'message' => 'Erreur technique : ' . $e->getMessage()
             ], 500);
         }
     }
 
-    /**
-     * Formate les flux OM/MTN pour le frontend
-     */
     private function formaterFluxDigitaux($flux)
     {
         return $flux->where('type_versement', '!=', 'ESPECE')

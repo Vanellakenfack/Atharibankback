@@ -1,10 +1,13 @@
 <?php
 
-namespace App\Models;
+namespace App\Models\OD;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-
+use App\Models\Compte\MouvementComptable;
+use App\Models\Agency;
+use App\Models\User;
+Use App\Models\compte\Compte;
 class OdSignature extends Model
 {
     protected $table = 'od_signatures';

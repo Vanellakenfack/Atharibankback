@@ -9,22 +9,15 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('caisse_transactions', function (Blueprint $table) {
-           
-
-            // 2. Le code secret à 6 chiffres pour la validation finale en caisse
-            $table->string('code_validation', 6)->nullable()->after('statut_workflow');
-
-      
+            // Ajout des colonnes après le caissier_id pour la traçabilité comptable
+            $table->date('date_comptable')->nullable();
         });
     }
 
     public function down(): void
     {
         Schema::table('caisse_transactions', function (Blueprint $table) {
-            $table->dropColumn([
-                'code_validation',
-               
-            ]);
+            $table->dropColumn([ 'date_comptable']);
         });
     }
 };

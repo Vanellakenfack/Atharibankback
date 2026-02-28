@@ -5,9 +5,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use App\Models\Agency;
+use App\Models\Concerns\UsesDateComptable;
 
 class Client extends Model
 {
+    use UsesDateComptable;
     protected $appends = ['nom_complet'];
     
     protected $fillable = [
@@ -17,7 +19,9 @@ class Client extends Model
         'photo_localisation_activite', 'ville_activite', 'quartier_activite',
         'bp', 'pays_residence', 'etat', 'solde_initial', 'immobiliere', 'autres_biens',
         // NOUVEAUX CHAMPS COMMUNS
-        'liste_membres_pdf', 'demande_ouverture_pdf', 'formulaire_ouverture_pdf'
+        'liste_membres_pdf', 'demande_ouverture_pdf', 'formulaire_ouverture_pdf',
+        // AUTO-INJECTION DATE_COMPTABLE
+        'date_comptable', 'jours_comptable_id'
     ];
 
     const ETAT_PRESENT = 'present';

@@ -88,6 +88,8 @@ class TypesComptesSeeder extends Seeder
                 'necessite_duree' => false,
                 'actif' => true,
                 'minimum_compte' => 0,
+                'frais_renouvellement_actif' => true,
+                'frais_renouvellement_carnet' => 500,
                 'minimum_compte_actif' => false,
                 'frais_perte_actif' => true,
                'frais_perte_carnet'=>500,
@@ -402,6 +404,8 @@ class TypesComptesSeeder extends Seeder
                 'penalite_actif' => true,
                 // Chapitres comptables
                 'chapitre_defaut_id' => $chapitres['37321000'] ?? null, // COMPTES D'ÉPARGNE PARTICIPATIVE
+                        'chapitre_frais_ouverture_id' => $chapitres['720100011'] ?? null, // FRAIS OUVERTURE C/C ASSOCIATION
+
                 'chapitre_interet_credit_id' => $chapitres['70200000'] ?? null, // INTÉRÊTS SUR PLACEMENTS ET DÉPÔTS
                 'chapitre_penalite_id' => $chapitres['72064001'] ?? null, // PÉNALITÉ BLOCAGE ÉPARGNE PARTICIPATIVE
                 'compte_attente_produits_id' => $chapitres['47120001'] ?? null, // PRODUITS A RECEVOIR COMMISSION MATA BOOST

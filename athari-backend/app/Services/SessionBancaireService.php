@@ -10,6 +10,7 @@ use App\Models\Caisse\Caisse;
 use App\Models\Caisse\Guichet;
 use Illuminate\Support\Facades\DB;
 use App\Models\SessionAgence\BilanJournalierAgence;
+use Illuminate\Support\Facades\Log;
 use Exception;
 
 class SessionBancaireService
@@ -17,38 +18,51 @@ class SessionBancaireService
     /**
      * ÉTAPE 1 : OUVERTURE DE LA JOURNÉE COMPTABLE
      */
-    public function ouvrirJourneeComptable($agenceId, $dateSaisie, $utilisateurId)
-    {
-        return DB::transaction(function () use ($agenceId, $dateSaisie, $utilisateurId) {
+    
+   public function ouvrirJourneeComptable($agenceId, $dateSaisie, $utilisateurId, $forceRattrapage = false)
+{
+    // 1. On transforme la chaîne en objet Carbon immédiatement
+    $dateAUtiliser = \Carbon\Carbon::parse($dateSaisie)->startOfDay();
+
+    // 2. On passe $dateAUtiliser dans le 'use'
+    return DB::transaction(function () use ($agenceId, $dateAUtiliser, $utilisateurId, $forceRattrapage) {
+        
+        // Vérification si une journée est déjà ouverte
+        $journeeActive = JourComptable::where('agence_id', $agenceId)
+            ->where('statut', 'OUVERT')
+            ->first();
+
+        if ($journeeActive) {
+            throw new Exception("Une journée comptable est déjà en cours pour cette agence.");
+        }
+
+        // Récupération de la dernière journée pour la chronologie
+        $derniereJournee = JourComptable::where('agence_id', $agenceId)
+            ->orderBy('date_du_jour', 'desc')
+            ->first();
+
+        // Logique de rattrapage
+        if ($derniereJournee && $dateAUtiliser->lte(\Carbon\Carbon::parse($derniereJournee->date_du_jour))) {
             
-            $journeeActive = JourComptable::where('agence_id', $agenceId)
-                ->where('statut', 'OUVERT')
-                ->first();
-
-            if ($journeeActive) {
-                throw new Exception("Une journée comptable est déjà en cours pour cette agence.");
+            if (!$forceRattrapage) {
+                throw new Exception("La nouvelle date doit être supérieure à la dernière date clôturée (" . $derniereJournee->date_du_jour . ").");
             }
 
-            $derniereJournee = JourComptable::where('agence_id', $agenceId)
-                ->orderBy('date_du_jour', 'desc')
-                ->first();
+            // Log d'audit
+            \Illuminate\Support\Facades\Log::warning("RATTRAPAGE : Utilisateur ID {$utilisateurId} a forcé le {$dateAUtiliser->toDateString()} sur l'agence {$agenceId}.");
+        }
 
-            if ($derniereJournee && $dateSaisie <= $derniereJournee->date_du_jour) {
-                throw new Exception("La nouvelle date doit être supérieure à la dernière date clôturée.");
-            }
-
-            return JourComptable::create([
-                'agence_id' => $agenceId,
-                'date_du_jour' => $dateSaisie,
-                'date_precedente' => $derniereJournee?->date_du_jour,
-                'statut' => 'OUVERT',
-                'ouvert_at' => now(),
-                'execute_par' => $utilisateurId
-            ]);
-        });
-    }
-
-    /**
+        // Création avec la variable validée
+        return JourComptable::create([
+            'agence_id' => $agenceId,
+            'date_du_jour' => $dateAUtiliser->toDateString(), 
+            'date_precedente' => $derniereJournee?->date_du_jour,
+            'statut' => 'OUVERT',
+            'ouvert_at' => now(),
+            'execute_par' => $utilisateurId
+        ]);
+    });
+}    /**
      * ÉTAPE 2 : OUVERTURE DE L'AGENCE
      */
     public function ouvrirAgenceSession($agenceId, $jourComptableId, $utilisateurId)
@@ -61,6 +75,7 @@ class SessionBancaireService
 
         return AgenceSession::create([
             'agence_id' => $agenceId,
+            'jours_comptable_id'  => $jour->id, // <--- AJOUTE OU VÉRIFIE CECI
             'date_comptable' => $jour->date_du_jour,
             'statut' => 'OU',
             'heure_ouverture' => now(),
@@ -91,7 +106,6 @@ class SessionBancaireService
 
         return GuichetSession::create([
             'agence_session_id' => $agenceSessionId,
-            'guichet_id' => $guichetId,
             'guichet_id' => $guichetId, 
             'statut'            => 'OU', 
             'heure_ouverture' => now()
@@ -187,61 +201,85 @@ class SessionBancaireService
      * FERMETURE DE L'AGENCE ET DE LA JOURNÉE
      */
 
-    public function traiterBilanFinJournee($agenceSessionId, $jourComptableId)
-    {
-        return DB::transaction(function () use ($agenceSessionId, $jourComptableId) {
-            
-            // 1. Vérification : Toutes les caisses de l'agence doivent être fermées
-            $caissesOuvertes = CaisseSession::whereHas('guichetSession', function($q) use ($agenceSessionId) {
-                $q->where('agence_session_id', $agenceSessionId);
-            })->where('statut', '!=', 'FE')->exists();
+  public function traiterBilanFinJournee($agenceSessionId, $jourComptableId)
+{
+    return DB::transaction(function () use ($agenceSessionId, $jourComptableId) {
+        
+        // --- 1. VÉRIFICATIONS PRÉALABLES ---
+        $caissesOuvertes = CaisseSession::whereHas('guichetSession', function($q) use ($agenceSessionId) {
+            $q->where('agence_session_id', $agenceSessionId);
+        })->where('statut', '!=', 'FE')->exists();
 
-            if ($caissesOuvertes) {
-                throw new Exception("Le traitement est impossible : toutes les caisses ne sont pas fermées.");
-            }
+        if ($caissesOuvertes) {
+            throw new \Exception("Erreur : Fermez toutes les caisses avant de générer le bilan global.");
+        }
 
-            // 2. Calcul des agrégats pour toutes les caisses
-            $sessionsCaisses = CaisseSession::whereHas('guichetSession', function($q) use ($agenceSessionId) {
-                $q->where('agence_session_id', $agenceSessionId);
-            })->get();
+        // --- 2. AGRÉGATION DES FLUX DE CAISSE (ESPECES) ---
+        $sessionsCaisses = CaisseSession::whereHas('guichetSession', function($q) use ($agenceSessionId) {
+            $q->where('agence_session_id', $agenceSessionId);
+        })->get();
 
-            $bilanGlobal = [
-                'entrees' => 0, 'sorties' => 0, 'theorique' => 0, 'reel' => 0, 'details' => []
+        $bilanEspeces = ['entrees' => 0, 'sorties' => 0, 'theorique' => 0, 'reel' => 0, 'details' => []];
+
+        foreach ($sessionsCaisses as $s) {
+            $stats = $this->genererBilanCaisse($s->id); 
+            $bilanEspeces['entrees']   += $stats['total_entrees'];
+            $bilanEspeces['sorties']   += $stats['total_sorties'];
+            $bilanEspeces['theorique'] += $stats['solde_theorique'];
+            $bilanEspeces['reel']      += $stats['solde_reel'];
+            $bilanEspeces['details'][] = [
+                'caisse_id' => $s->caisse_id,
+                'libelle'   => $s->caisse->libelle ?? 'Caisse '.$s->caisse_id,
+                'entrees'   => $stats['total_entrees'],
+                'sorties'   => $stats['total_sorties'],
+                'solde'     => $stats['solde_reel'],
+                'ecart'     => $stats['ecart']
             ];
+        }
 
-            foreach ($sessionsCaisses as $s) {
-                $stats = $this->genererBilanCaisse($s->id);
-                $bilanGlobal['entrees']   += $stats['total_entrees'];
-                $bilanGlobal['sorties']   += $stats['total_sorties'];
-                $bilanGlobal['theorique'] += $stats['solde_theorique'];
-                $bilanGlobal['reel']      += $stats['solde_reel'];
-                $bilanGlobal['details'][] = [
-                    'caisse_id' => $s->caisse_id,
-                    'libelle'   => $s->caisse->libelle,
-                    'caissier'  => $s->caissier_id,
-                    'ecart'     => $stats['ecart'],
-                    'statut'    => $stats['statut_bilan']
-                ];
-            }
+        // --- 3. SYNTHÈSE DES OPÉRATIONS (Inclut OD, Collectes, Frais, etc.) ---
+        // On utilise COALESCE pour regrouper les écritures sans journal sous "DIVERS"
+        $syntheseComptable = DB::table('mouvements_comptables')
+            ->select(
+                DB::raw('COALESCE(journal, "DIVERS") as type_operation'), 
+                DB::raw('SUM(montant_debit) as total_debit'), 
+                DB::raw('SUM(montant_credit) as total_credit'),
+                DB::raw('COUNT(*) as nbr_transactions')
+            )
+            ->where('jours_comptable_id', $jourComptableId)
+            ->where('statut', 'COMPTABILISE')
+            ->groupBy('journal')
+            ->get();
 
-            // 3. Enregistrement ou Mise à jour du Snapshot (Bilan Journalier)
-            // On utilise updateOrInsert pour pouvoir relancer le traitement si besoin avant fermeture
-            return DB::table('bilan_journalier_agences')->updateOrInsert(
-                ['jour_comptable_id' => $jourComptableId],
-                [
-                    'date_comptable'         => now()->toDateString(),
-                    'total_especes_entree'   => $bilanGlobal['entrees'],
-                    'total_especes_sortie'   => $bilanGlobal['sorties'],
-                    'solde_theorique_global' => $bilanGlobal['theorique'],
-                    'solde_reel_global'      => $bilanGlobal['reel'],
-                    'ecart_global'           => $bilanGlobal['reel'] - $bilanGlobal['theorique'],
-                    'resume_caisses'         => json_encode($bilanGlobal['details']),
-                    'created_at'             => now(),
-                    'updated_at'             => now()
-                ]
-            );
-        });
-    }
+        // --- 4. CALCUL DES TOTAUX ---
+        $totalDebitGlobal  = $syntheseComptable->sum('total_debit');
+        $totalCreditGlobal = $syntheseComptable->sum('total_credit');
+
+        // --- 5. ENREGISTREMENT OU MISE À JOUR ---
+        return DB::table('bilan_journalier_agences')->updateOrInsert(
+            ['jours_comptable_id' => $jourComptableId],
+            [
+                'date_comptable'         => now()->toDateString(),
+                'total_especes_entree'   => $bilanEspeces['entrees'],
+                'total_especes_sortie'   => $bilanEspeces['sorties'],
+                'solde_theorique_global' => $bilanEspeces['theorique'],
+                'solde_reel_global'      => $bilanEspeces['reel'],
+                'ecart_global'           => $bilanEspeces['reel'] - $bilanEspeces['theorique'],
+                
+                // Ici, tu auras un JSON structuré par tes journaux d'OD (MATA_BOOST, CHARGES, etc.)
+                'details_operations'     => json_encode($syntheseComptable), 
+                'total_debit_journalier' => $totalDebitGlobal,
+                'total_credit_journalier'=> $totalCreditGlobal,
+                
+                'resume_caisses'         => json_encode($bilanEspeces['details']),
+                // Équilibre strict (Débit == Crédit)
+                'statut_cloture'         => (abs($totalDebitGlobal - $totalCreditGlobal) < 0.01) ? 'EQUILIBRE' : 'DESEQUILIBRE',
+                'created_at'             => now(),
+                'updated_at'             => now()
+            ]
+        );
+    });
+}
     public function fermerAgenceEtJournee($agenceSessionId, $jourComptableId) {
         return DB::transaction(function () use ($agenceSessionId, $jourComptableId) {
 
@@ -249,7 +287,7 @@ class SessionBancaireService
                 ->whereIn('statut', ['OU'])->exists();
             
             if ($guichetsOuverts) throw new Exception("Des guichets sont encore ouverts.");
-                        $bilanExiste = BilanJournalierAgence::where('jour_comptable_id',$jourComptableId)->exists();
+                        $bilanExiste = BilanJournalierAgence::where('jours_comptable_id',$jourComptableId)->exists();
                 
                 if (!$bilanExiste) {
                     throw new Exception("Impossible de clôturer : Le traitement des bilans (TFJ) n'a pas été effectué.");

@@ -6,9 +6,11 @@ use Illuminate\Database\Eloquent\Model;
 use App\Models\compte\Compte;
 use Carbon\Carbon;
 use App\Models\chapitre\PlanComptable;
+use App\Models\Concerns\UsesDateComptable;
 
 class ContratDat extends Model
 {
+    use UsesDateComptable;
     protected $table = 'dat_contracts';
 
        protected $fillable = [
@@ -32,7 +34,9 @@ class ContratDat extends Model
     'date_valeur',
     'date_maturite',
     'is_blocked',
-    'nb_tranches_actuel'
+    'nb_tranches_actuel',
+    'date_comptable',
+    'jour_comptable_id'
 ];
 
     protected $appends = ['jours_restants', 'progression_temps', 'montant_interets_precomptes'];

@@ -5,10 +5,11 @@ namespace App\Models\frais;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use App\Models\compte\Compte;
+use App\Models\Concerns\UsesDateComptable;
 
 class MouvementRubriqueMata extends Model
 {
-    use HasFactory;
+    use HasFactory, UsesDateComptable;
 
     protected $table = 'mouvements_rubriques_mata';
 

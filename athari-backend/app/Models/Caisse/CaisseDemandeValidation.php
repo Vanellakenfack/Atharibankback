@@ -5,9 +5,11 @@ namespace App\Models\Caisse;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 use App\Models\User;
+use App\Models\Concerns\UsesDateComptable;
 
 class CaisseDemandeValidation extends Model
 {
+    use UsesDateComptable;
     // On précise le nom de la table créée précédemment
     protected $table = 'caisse_demandes_validation';
 
@@ -20,7 +22,11 @@ class CaisseDemandeValidation extends Model
         'code_validation',
         'statut',
         'motif_rejet',
-        'date_approbation'
+        'date_approbation',
+        'date_comptable',
+        'jour_comptable_id',
+        'role_destination', // <--- AJOUTEZ CECI
+        'reference_unique', // <--- AJOUTEZ CETTE LIGNE IMPÉRATIVEMENT
     ];
 
     /**

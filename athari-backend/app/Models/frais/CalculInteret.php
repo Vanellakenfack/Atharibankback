@@ -7,10 +7,11 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use App\Models\compte\Compte;
 use App\Models\compte\TypeCompte;
 use App\Models\chapitre\PlanComptable;
+use App\Models\Concerns\UsesDateComptable;
 
 class CalculInteret extends Model
 {
-    use HasFactory;
+    use HasFactory, UsesDateComptable;
 
     protected $table = 'calculs_interets';
     

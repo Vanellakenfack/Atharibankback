@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Services\CaisseService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
 use Exception;
 
 class RetraitController extends Controller
@@ -15,6 +16,7 @@ class RetraitController extends Controller
     public function __construct(CaisseService $caisseService)
     {
         $this->caisseService = $caisseService;
+        // Note: Middleware 'check.agence.ouverte' est appliqué au niveau des routes (api.php)
     }
 
    public function store(Request $request)
@@ -22,12 +24,7 @@ class RetraitController extends Controller
     $validator = Validator::make($request->all(), [
         'compte_id'             => 'required|exists:comptes,id',
         'montant_brut'          => 'required|numeric|min:1',
-        //'pc_caisse_id'          => 'required|exists:plan_comptable,id',
-        //'pc_client_id'          => 'required|exists:plan_comptable,id',
         'billetage'             => 'required|array',
-       // 'net_a_percevoir_payer' => 'required|numeric',
-        
-        // On utilise uniquement l'objet tiers pour l'identité du porteur
         'tiers.nom_complet'     => 'required|string|max:255',
         'tiers.type_piece'      => 'required|string',
         'tiers.numero_piece'    => 'required|string',
@@ -37,27 +34,51 @@ class RetraitController extends Controller
         return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
     }
 
- try {
-        $resultat = $this->caisseService->traiterOperation('RETRAIT', $request->all(), $request->billetage);
+    //  Transaction atomique : tout ou rien
+    try {
+    $resultat = DB::transaction(function () use ($request) {
+        return $this->caisseService->traiterOperation('RETRAIT', $request->all(), $request->billetage);
+    });
 
-        // --- AJOUT : Vérifier si c'est une demande de validation ---
-        if (is_array($resultat) && isset($resultat['requires_validation'])) {
-            return response()->json($resultat, 202); // 202 = Accepted (en attente)
-        }
-
-        // --- Sinon, on traite comme une transaction réussie (Objet) ---
+    // --- 1. SÉCURITÉ : Si c'est un tableau, on renvoie direct le JSON ---
+           // Dans RetraitController.php
+               if (is_array($resultat) && data_get($resultat, 'requires_validation') === true) {
+                return response()->json([
+                    'success' => false,
+                    'requires_validation' => true,
+                    'demande_id' => data_get($resultat, 'id'),
+                    'message' => data_get($resultat, 'message') ?? "Validation requise par un supérieur",
+                    'data' => $resultat
+                ], 202); // 202 Accepted : La requête est acceptée mais sera traitée plus tard
+            }
+    // --- 2. SÉCURITÉ : On vérifie que c'est bien un OBJET avant d'utiliser "->" ---
+    if (is_object($resultat)) {
         return response()->json([
             'success' => true,
             'message' => 'Retrait effectué avec succès',
             'data' => [
-                'reference' => $resultat->reference_unique,
-                'montant'   => $resultat->montant_brut,
-                'guichet'   => $resultat->code_guichet
+                'reference'         => $resultat->reference_unique ?? 'N/A',
+                'montant'           => $resultat->montant_brut ?? 0,
+                'guichet'           => $resultat->code_guichet ?? 'N/A',
+                'date_comptable'    => $resultat->date_comptable ?? null,
+                'jour_comptable_id' => $resultat->jour_comptable_id ?? null,
             ]
         ]);
-    } catch (Exception $e) {
-        return response()->json(['success' => false, 'message' => $e->getMessage()], 400);
     }
+
+    // --- 3. CAS IMPRÉVU ---
+    throw new Exception("Le service a renvoyé un format de donnée invalide.");
+
+} catch (Exception $e) {
+    return response()->json([
+        'success' => false, 
+        'message' => $e->getMessage(),
+        // Ces deux lignes vous diront EXACTEMENT où se trouve l'erreur dans votre code
+        'debug_file' => $e->getFile(),
+        'debug_line' => $e->getLine(),
+        'trace'   => $e->getTraceAsString() // Ceci va nous dire TOUT le chemin de l'erreur
+    ], 400);
+}
 }
 
 public function imprimerRecu($id)

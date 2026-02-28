@@ -4,10 +4,11 @@ namespace App\Models\Caisse;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Concerns\UsesDateComptable;
 
 class TransactionTier extends Model
 {
-    use HasFactory;
+    use HasFactory, UsesDateComptable;
 
     // Nom de la table créée par votre migration
     protected $table = 'transaction_tiers';

@@ -19,8 +19,18 @@ class GetComptesClientRequest extends FormRequest
             'gestion des clients',
             'consulter logs',
             'gestion agence',
-            'consulter compte'
+            'consulter compte',
+            'saisir depot retrait',  'saisi dat',
+            'edition du journal des od',
+
         ]);
+
+        return $user->hasAnyRole([
+        'DG', 
+        'Chef d\Agence (CA)', 
+        'Assistant Comptable (AC)',
+        'Admin','Chef Comptable'
+    ]);
     }
 
     /**

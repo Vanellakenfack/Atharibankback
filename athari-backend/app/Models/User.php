@@ -53,5 +53,37 @@ class User extends Authenticatable
         ];
     }
 
+    /**
+     * Relation: Un utilisateur peut être assigné à plusieurs agences
+     */
+    public function agencies()
+    {
+        return $this->belongsToMany(\App\Models\Agency::class, 'agency_user')
+                    ->withTimestamps()
+                    ->withPivot('is_primary', 'assigned_at');
+    }
+
+    /**
+     * Helper: Récupérer l'agence primaire de l'utilisateur
+     */
+    public function getPrimaryAgency()
+    {
+        return $this->agencies()->wherePivot('is_primary', true)->first();
+    }
+
+    /**
+     * Helper: Récupérer l'agence_id (compatibilité avec le code existant)
+     * Retourne l'id de l'agence primaire ou la première agence assignée
+     */
+    public function getAgenceIdAttribute()
+    {
+        $primary = $this->getPrimaryAgency();
+        if ($primary) {
+            return $primary->id;
+        }
+        
+        // Fallback: première agence assignée
+        return $this->agencies()->first()?->id;
+    }
     
 }

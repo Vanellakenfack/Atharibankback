@@ -5,6 +5,7 @@ namespace App\Models\compte;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
+use App\Models\Concerns\UsesDateComptable;
 
 /**
  * Modèle représentant un document associé à un compte

@@ -7,6 +7,7 @@ use Illuminate\Http\JsonResponse;
 use App\Http\Resources\Compte\CompteResource;
 use Illuminate\Http\Request;
 use App\Models\compte\Compte;
+use Illuminate\Support\Facades\DB;
 
 class CompteValidationController extends Controller
 {
@@ -15,6 +16,7 @@ class CompteValidationController extends Controller
     public function __construct(CompteService $compteService)
     {
         $this->compteService = $compteService;
+        // Note: Middleware 'check.agence.ouverte' est appliqué au niveau des routes (api.php)
     }
 
     public function valider(Request $request, int $id)
@@ -29,31 +31,35 @@ class CompteValidationController extends Controller
             ], 403);
         }
 
+        // ✅ Transaction atomique pour la validation
         try {
-            $roleActuel = $user->hasRole("Chef d'Agence (CA)") ? "Chef d'Agence (CA)" : "Assistant Juridique (AJ)";
+            $compte = DB::transaction(function () use ($request, $user, $id) {
+                $roleActuel = $user->hasRole("Chef d'Agence (CA)") ? "Chef d'Agence (CA)" : "Assistant Juridique (AJ)";
 
-            // 1. On récupère les checkboxes et le NUI depuis la requête
-            $checkboxes = $request->input('checkboxes', []); 
-            $nui = $request->input('nui');
+                // 1. On récupère les checkboxes et le NUI depuis la requête
+                $checkboxes = $request->input('checkboxes', []); 
+                $nui = $request->input('nui');
 
-            // 2. Appel du service avec les nouveaux paramètres
-            $compte = $this->compteService->validerOuvertureCompte(
-                $id, 
-                $roleActuel, 
-                $checkboxes, 
-                $nui
-            );
+                // 2. Appel du service avec les nouveaux paramètres
+                return $this->compteService->validerOuvertureCompte(
+                    $id, 
+                    $roleActuel, 
+                    $checkboxes, 
+                    $nui
+                );
+            });
 
             // 3. Retour via la Ressource pour un JSON standardisé
             return (new CompteResource($compte))
                 ->additional([
                     'status' => 'success',
-                    'message' => $roleActuel === "Chef d'Agence (CA)" 
+                    'message' => $user->hasRole("Chef d'Agence (CA)") 
                         ? "Validation Agence effectuée." 
                         : "Conformité juridique enregistrée."
                 ]);
 
         } catch (\Exception $e) {
+            // ✅ Rollback automatique en cas d'erreur
             return response()->json([
                 'status' => 'error',
                 'message' => $e->getMessage()

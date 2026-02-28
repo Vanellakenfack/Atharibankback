@@ -1,12 +1,18 @@
 <?php
 
-namespace App\Models;
+namespace App\Models\OD;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Models\Compte\MouvementComptable;
+use App\Models\Agency;
+use App\Models\User;
+Use App\Models\compte\Compte;
+use App\Models\Concerns\UsesDateComptable;
 
 class OdHistorique extends Model
 {
+    use UsesDateComptable;
     protected $table = 'od_historique';
     
     public $timestamps = true;
@@ -21,6 +27,8 @@ class OdHistorique extends Model
         'donnees_modifiees',
         'ip_address',
         'user_agent',
+        'date_comptable',
+        'jour_comptable_id'
     ];
 
     protected $casts = [

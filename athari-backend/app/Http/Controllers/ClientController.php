@@ -22,9 +22,7 @@ class ClientController extends Controller
     public function index()
     {
         $user = Auth::user();
-        if (!$user || !$user->can('gestion des clients')) {
-            return response()->json(['message' => 'Accès non autorisé'], 403);
-        }
+       
 
         $clients = Client::with(['physique', 'morale', 'agency'])
             ->actifs()
@@ -43,16 +41,21 @@ class ClientController extends Controller
      */
     public function storePhysique(Request $request)
     {
+
+    $user = Auth::user();
+        if (!$user || !$user->can('gestion des clients')) {
+            return response()->json(['message' => 'Accès non autorisé'], 403);
+        }
         // 1. Valider les données JSON
         $validator = validator($request->all(), [
-            'agency_id' => 'required|exists:agencies,id',
-            'nom_prenoms' => 'required|string|max:255',
-            'sexe' => 'required|in:M,F',
-            'date_naissance' => 'required|date',
-            'cni_numero' => 'required|string|unique:clients_physiques,cni_numero',
-            'telephone' => 'required|string',
-            'adresse_ville' => 'required|string',
-            'adresse_quartier' => 'required|string',
+            'agency_id' => 'nullable|exists:agencies,id',
+            'nom_prenoms' => 'nullable|string|max:255',
+            'sexe' => 'nullable|in:M,F',
+            'date_naissance' => 'nullable|date',
+            'cni_numero' => 'nullable|string|unique:clients_physiques,cni_numero',
+            'telephone' => 'nullable|string',
+            'adresse_ville' => 'nullable|string',
+            'adresse_quartier' => 'nullable|string',
             'email' => 'nullable|email',
             'lieu_dit_domicile' => 'nullable|string',
             'lieu_dit_activite' => 'nullable|string',
@@ -92,6 +95,10 @@ class ClientController extends Controller
             'niu_image' => 'nullable|image|max:2048',
             'attestation_conformite_pdf' => 'nullable|mimes:pdf|max:5120',
             // NOUVEAUX CHAMPS COMMUNS (sans liste_membres)
+            // agency_id est requis SAUF SI client_id est présent
+    
+    // client_id est optionnel mais doit exister si fourni
+    'client_id' => 'nullable|exists:clients,id',
         ]);
 
         if ($validator->fails()) {
@@ -126,11 +133,15 @@ class ClientController extends Controller
                 ->where('cni_numero', $request->cni_numero)
                 ->exists();
             
-            if ($doublonCni) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Un client avec le même numéro de CNI existe déjà'
-                ], 422);
+           if (!empty($cniSaisie)) {
+                $doublonCni = ClientPhysique::where('cni_numero', $cniSaisie)->exists();
+
+                if ($doublonCni) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Un client avec le même numéro de CNI existe déjà'
+                    ], 422);
+                }
             }
 
             // Vérification de doublon par NUI
@@ -259,12 +270,12 @@ class ClientController extends Controller
     {
         // 1. Valider les données
         $validator = validator($request->all(), [
-            'agency_id' => 'required|exists:agencies,id',
-            'raison_sociale' => 'required|string|max:255',
-            'forme_juridique' => 'required|string',
-            'type_entreprise' => 'required|in:entreprise,association',
+            'agency_id' => 'nullable|exists:agencies,id',
+            'raison_sociale' => 'nullable|string|max:255',
+            'forme_juridique' => 'nullable|string',
+            'type_entreprise' => 'nullable|in:entreprise,association',
             'rccm' => 'nullable|string|unique:clients_morales,rccm',
-            'nui' => 'required|string',
+            'nui' => 'nullable|string',
             'nom_gerant' => 'nullable|string',
             'telephone_gerant' => 'nullable|string',
             'photo_gerant' => 'nullable|image|max:2048',
@@ -275,9 +286,9 @@ class ClientController extends Controller
             'photo_gerant2' => 'nullable|image|max:2048',
             
             // Informations de contact
-            'telephone' => 'required|string',
-            'adresse_ville' => 'required|string',
-            'adresse_quartier' => 'required|string',
+            'telephone' => 'nullable|string',
+            'adresse_ville' => 'nullable|string',
+            'adresse_quartier' => 'nullable|string',
             'email' => 'nullable|email',
             'sigle' => 'nullable|string',
             'lieu_dit_domicile' => 'nullable|string',
@@ -362,16 +373,16 @@ class ClientController extends Controller
             }
 
             // Vérification de doublon par RCCM
-            $doublonRccm = DB::table('clients_morales')
-                ->where('rccm', $request->rccm)
-                ->exists();
+           // $doublonRccm = DB::table('clients_morales')
+             //   ->where('rccm', $request->rccm)
+             //  ->exists();
         
-            if ($doublonRccm) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Une entreprise avec le même numéro RCCM existe déjà'
-                ], 422);
-            }
+           // if ($doublonRccm) {
+           //      return response()->json([
+           //          'success' => false,
+           //          'message' => 'Une entreprise avec le même numéro RCCM existe déjà'
+           //      ], 422);
+           //  }
 
             // Vérification de doublon par NUI
             if ($request->nui) {
@@ -1211,24 +1222,26 @@ class ClientController extends Controller
      */
     public function destroy($id)
     {
-        $user = Auth::user();
+        return DB::transaction(function () use ($id) {
+            $user = Auth::user();
 
-        if (!$user || !$user->hasAnyRole(['DG', 'Admin'])) {
+            if (!$user || !$user->hasAnyRole(['DG', 'Admin'])) {
+                return response()->json([
+                    'message' => 'Seul le DG ou l\'Administrateur peut supprimer un client'
+                ], 403);
+            }
+
+            $client = Client::findOrFail($id);
+
+            // Marquer le client comme supprimé
+            $client->marquerCommeSupprime();
+
             return response()->json([
-                'message' => 'Seul le DG ou l\'Administrateur peut supprimer un client'
-            ], 403);
-        }
-
-        $client = Client::findOrFail($id);
-
-        // Marquer le client comme supprimé
-        $client->marquerCommeSupprime();
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Client marqué comme supprimé avec succès',
-            'data'    => $client
-        ]);
+                'success' => true,
+                'message' => 'Client marqué comme supprimé avec succès',
+                'data'    => $client
+            ]);
+        });
     }
 
     /**
@@ -1410,8 +1423,8 @@ class ClientController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'numero_signataire' => 'required|in:1,2,3',
-            'nom' => 'required|string|max:255',
+            'numero_signataire' => 'nullable|in:1,2,3',
+            'nom' => 'nullable|string|max:255',
             'sexe' => 'nullable|in:M,F',
             'ville' => 'nullable|string|max:100',
             'quartier' => 'nullable|string|max:100',
@@ -1515,5 +1528,86 @@ class ClientController extends Controller
                 'data'    => $client
             ]);
         });
+    }
+
+    public function exportPdf()
+    {
+        $user = Auth::user();
+        if (!$user || !$user->can('gestion des clients')) {
+            return response()->json(['message' => 'Accès non autorisé'], 403);
+        }
+
+        $clients = Client::with(['physique', 'morale', 'agency'])
+            ->actifs()
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        $clientsData = $clients->map(function ($client) {
+            $data = [
+                'id' => $client->id,
+                'num_client' => $client->num_client,
+                'type_client' => $client->type_client === 'physique' ? 'Particulier' : 'Entreprise',
+                'telephone' => $client->telephone,
+                'email' => $client->email,
+                'adresse' => trim($client->adresse_ville . ' ' . $client->adresse_quartier),
+                'ville_activite' => $client->ville_activite,
+                'quartier_activite' => $client->quartier_activite,
+                'bp' => $client->bp,
+                'pays_residence' => $client->pays_residence,
+                'solde_initial' => number_format($client->solde_initial, 0, ',', ' '),
+                'date_creation' => $client->created_at->format('d/m/Y'),
+                'agency' => $client->agency ? $client->agency->nom : 'Non assigné',
+            ];
+
+            if ($client->type_client === 'physique' && $client->physique) {
+                $data['nom_complet'] = $client->physique->nom_prenoms;
+                $data['sexe'] = $client->physique->sexe === 'M' ? 'Masculin' : 'Féminin';
+                $data['date_naissance'] = $client->physique->date_naissance ? 
+                    date('d/m/Y', strtotime($client->physique->date_naissance)) : null;
+                $data['lieu_naissance'] = $client->physique->lieu_naissance;
+                $data['nationalite'] = $client->physique->nationalite;
+                $data['cni'] = $client->physique->cni_numero;
+                $data['nui'] = $client->physique->nui;
+                $data['profession'] = $client->physique->profession;
+                $data['employeur'] = $client->physique->employeur;
+                $data['situation_familiale'] = $client->physique->situation_familiale;
+                $data['nom_conjoint'] = $client->physique->nom_conjoint;
+                $data['photo'] = $client->physique->photo ? 
+                    public_path('storage/' . $client->physique->photo) : null;
+            } 
+            elseif ($client->type_client === 'morale' && $client->morale) {
+                $data['raison_sociale'] = $client->morale->raison_sociale;
+                $data['sigle'] = $client->morale->sigle;
+                $data['forme_juridique'] = $client->morale->forme_juridique;
+                $data['type_entreprise'] = $client->morale->type_entreprise === 'entreprise' ? 
+                    'Entreprise' : 'Association';
+                $data['rccm'] = $client->morale->rccm;
+                $data['nui'] = $client->morale->nui;
+                $data['nom_gerant'] = $client->morale->nom_gerant;
+                $data['telephone_gerant'] = $client->morale->telephone_gerant;
+                $data['nom_gerant2'] = $client->morale->nom_gerant2;
+                $data['telephone_gerant2'] = $client->morale->telephone_gerant2;
+                $data['photo_gerant'] = $client->morale->photo_gerant ? 
+                    public_path('storage/' . $client->morale->photo_gerant) : null;
+                $data['nombre_signataires'] = $client->morale->signataires()->count();
+            }
+
+            return $data;
+        });
+
+        $stats = [
+            'total_clients' => $clients->count(),
+            'total_physiques' => $clients->where('type_client', 'physique')->count(),
+            'total_morales' => $clients->where('type_client', 'morale')->count(),
+            'date_export' => now()->format('d/m/Y H:i:s'),
+            'exported_by' => $user->name ?? $user->email,
+        ];
+
+        // SOLUTION: Utiliser \PDF au lieu de Pdf
+        $pdf = \PDF::loadView('pdf.clients-pdf', compact('clientsData', 'stats'));
+        
+        $pdf->setPaper('A4', 'landscape');
+        
+        return $pdf->download('liste-clients-' . date('Y-m-d') . '.pdf');
     }
 }

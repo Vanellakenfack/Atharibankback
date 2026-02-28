@@ -10,6 +10,9 @@ use App\Models\SessionAgence\GuichetSession; // Vérifiez votre chemin de modèl
 use App\Models\SessionAgence\BilanJournalierAgence;
 use Illuminate\Support\Facades\DB;
 use App\Models\SessionAgence\CaisseSession;
+use App\Models\Agency;
+use App\Models\Caisse\Guichet;
+use App\Models\Caisse\Caisse;
 use Exception;
 
 class SessionAgenceController extends Controller
@@ -25,48 +28,65 @@ class SessionAgenceController extends Controller
      * ÉTAPE 1 & 2 : OUVERTURE DE LA JOURNÉE ET DE L'AGENCE
      * POST /api/sessions/ouvrir-agence
      */
-    public function ouvrirAgence(Request $request)
-    {
-        $request->validate([
-            'agence_id' => 'required|exists:agencies,id',
-            'date_comptable' => 'required|date',
-        ]);
-
-        try {
-            return DB::transaction(function () use ($request) {
-                // 1. Ouvrir le jour comptable
-                $jour = $this->sessionService->ouvrirJourneeComptable(
-                    $request->agence_id,
-                    $request->date_comptable,
-                    auth()->id()
-                );
-
-                // 2. Ouvrir la session agence liée
-                $session = $this->sessionService->ouvrirAgenceSession(
-                    $request->agence_id,
-                    $jour->id,
-                    auth()->id()
-                );
-
-                return response()->json([
-                    'statut' => 'success',
-                    'message' => 'Journée comptable et Agence ouvertes avec succès',
-                    'data' => [
-                        'jour_comptable_id' => $jour->id,
-                        'agence_session_id' => $session->id,
-                        'date_comptable' => $jour->date_du_jour
-                    ]
-                ], 201);
-            });
-        } catch (Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 422);
-        }
+public function ouvrirAgence(Request $request)
+{
+    if (!auth()->check()) {
+        return response()->json(['statut' => 'error', 'message' => 'Session expirée.'], 401);
     }
 
-    /**
-     * ÉTAPE 3 : OUVERTURE DU GUICHET
-     */
-    public function ouvrirGuichet(Request $request)
+    $request->validate([
+        'agence_id' => 'required|exists:agencies,id',
+        'date_comptable' => 'required|date',
+    ]);
+
+    $dateSaisie = \Carbon\Carbon::parse($request->date_comptable)->startOfDay();
+    $aujourdhui = \Carbon\Carbon::today();
+    $user = auth()->user();
+
+    $estAutoriseRattrapage = $user->hasRole("DG") /*|| $user->hasRole('Chef Comptable')*/;
+
+    if ($dateSaisie->lt($aujourdhui) && !$estAutoriseRattrapage) {
+        return response()->json([
+            'statut' => 'error',
+            'message' => "Accès refusé : Seul le dg  peut ouvrir une journée en rattrapage."
+        ], 403);
+    }
+
+    try {
+        // ... (Vérification session existante inchangée)
+
+        // CORRECTION ICI : On ajoute $dateSaisie dans le 'use' de la transaction
+        return DB::transaction(function () use ($request, $estAutoriseRattrapage, $dateSaisie) {
+            
+            $jour = $this->sessionService->ouvrirJourneeComptable(
+                $request->agence_id,
+                $request->date_comptable, // On passe la string brute, le service fera le reste
+                auth()->id(),
+                $estAutoriseRattrapage
+            );
+
+            $session = $this->sessionService->ouvrirAgenceSession(
+                $request->agence_id,
+                $jour->id,
+                auth()->id()
+            );
+
+            return response()->json([
+                'statut' => 'success',
+                // Utilisation de $dateSaisie ici nécessite qu'elle soit dans le 'use'
+                'message' => 'Journée ' . ($estAutoriseRattrapage && $dateSaisie->lt(\Carbon\Carbon::today()) ? 'de rattrapage ' : '') . 'ouverte avec succès',
+                'data' => [
+                    'jours_comptable_id' => $jour->id,
+                    'agence_session_id' => $session->id,
+                    'date_comptable' => $jour->date_du_jour
+                ]
+            ], 201);
+        });
+    } catch (Exception $e) {
+        return response()->json(['statut' => 'error', 'message' => $e->getMessage()], 422);
+    }
+}
+ public function ouvrirGuichet(Request $request)
     {
         $request->validate([
             'agence_session_id' => 'required|exists:agence_sessions,id',
@@ -91,7 +111,6 @@ class SessionAgenceController extends Controller
             return response()->json(['error' => $e->getMessage()], 422);
         }
     }
-
     /**
      * ÉTAPE 4 : OUVERTURE DE LA CAISSE
      */
@@ -207,28 +226,61 @@ class SessionAgenceController extends Controller
             return response()->json(['error' => $e->getMessage()], 422);
         }
     }
-public function executerTraitementFinJournee(Request $request) 
-    {
-        $request->validate([
-            'agence_session_id' => 'required|exists:agence_sessions,id',
-            'jour_comptable_id' => 'required|exists:jours_comptables,id'
+/**
+     * TRAITEMENT DE FIN DE JOURNÉE (TFJ)
+     * Cette méthode fait le lien entre le Frontend et le Service
+     */
+   public function executerTraitementFinJournee(Request $request) 
+{
+    try {
+        $agenceSessionId = $request->input('agence_session_id');
+        $session = AgenceSession::with('agence')->findOrFail($agenceSessionId);
+
+        $jourComptableId = $request->input('jours_comptable_id');
+        if (!$jourComptableId) {
+            $jourActif = \App\Models\SessionAgence\JourComptable::where('agence_id', $session->agence_id)
+                ->where('statut', 'OUVERT')
+                ->first();
+            
+            if (!$jourActif) throw new Exception("Aucune journée comptable ouverte.");
+            $jourComptableId = $jourActif->id;
+        }
+
+        // 1. Calcul et enregistrement des agrégats (La fonction qu'on a modifiée ensemble)
+        $this->sessionService->traiterBilanFinJournee($agenceSessionId, $jourComptableId);
+
+        // 2. Récupération des données fraîchement calculées pour la vue
+        $bilan = DB::table('bilan_journalier_agences')
+                    ->where('jours_comptable_id', $jourComptableId)
+                    ->first();
+
+        // On formate les données des caisses pour la vue
+        $caisses = json_decode($bilan->resume_caisses, true);
+
+        // Si vous utilisez DomPDF ou Snappy pour le PDF :
+        /*
+        $pdf = PDF::loadView('votre_vue_bilan', [
+            'bilan'    => $bilan,
+            'agence'   => $session->agence->nom,
+            'caisses'  => $caisses,
+            'edite_le' => now()->format('d/m/Y H:i')
+        ]);
+        return $pdf->download('Brouillard_Caisse_'.$bilan->date_comptable.'.pdf');
+        */
+
+        return response()->json([
+            'statut' => 'success',
+            'message' => 'Bilan consolidé généré avec succès.',
+            'data' => $bilan
         ]);
 
-        try {
-            $this->sessionService->traiterBilanFinJournee(
-                $request->agence_session_id, 
-                $request->jour_comptable_id
-            );
-
-            return response()->json([
-                'statut' => 'success',
-                'message' => 'Traitement des bilans (TFJ) effectué avec succès. Vous pouvez maintenant consulter le bilan global avant clôture.'
-            ]);
-        } catch (Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 422);
-        }
+    } catch (Exception $e) {
+        return response()->json([
+            'statut' => 'error',
+            'message' => 'Erreur TFJ : ' . $e->getMessage()
+        ], 422);
     }
-
+}
     public function getEtatAgence($agenceSessionId)
     {
         try {
@@ -256,6 +308,7 @@ public function executerTraitementFinJournee(Request $request)
             ], 500);
         }
     }
+
     /**
      * TRAITEMENT DE FIN DE JOURNÉE (TFJ)
      * POST /api/sessions/fermer-agence
@@ -312,7 +365,7 @@ public function executerTraitementFinJournee(Request $request)
 public function imprimerBrouillard($jourId)
 {
     $bilan = BilanJournalierAgence::with('jourComptable')
-                ->where('jour_comptable_id', $jourId)
+                ->where('jours_comptable_id', $jourId)
                 ->firstOrFail();
 
     // On prépare les données pour la vue PDF
@@ -355,4 +408,171 @@ public function getSessionActive()
         return response()->json(['error' => $e->getMessage()], 500);
     }
 }
+
+
+
+
+/**
+ * GET /api/sessions/agence/active
+ * Récupère UNIQUEMENT la session AGENCE (peu importe son statut)
+ */
+public function getAgenceActive()
+{
+    try {
+        $session = AgenceSession::latest()->first();
+        
+        if (!$session) {
+            return response()->json([
+                'statut' => 'success',
+                'session' => null
+            ]);
+        }
+        
+        $agence = Agency::find($session->agence_id);
+        
+        return response()->json([
+            'statut' => 'success',
+            'session' => [
+                'id' => $session->id,
+                'agence_id' => $session->agence_id,
+                'nom_agence' => $agence->nom ?? 'Agence Principale',
+                'date_comptable' => $session->date_comptable,
+                'jour_comptable_id' => $session->jours_comptable_id, // <--- AJOUTER CETTE LIGNE
+                'statut' => $session->statut
+            ]
+        ]);
+    } catch (Exception $e) {
+        return response()->json(['statut' => 'error', 'message' => $e->getMessage()], 500);
+    }
+}
+
+
+
+/**
+     * Récupère la session de guichet active
+     * GET /api/sessions/guichet/active
+     */
+    public function getGuichetActive()
+    {
+        try {
+            // 1. On récupère la dernière session d'agence
+            $sessionAgence = AgenceSession::latest()->first();
+            
+            if (!$sessionAgence) {
+                return response()->json([
+                    'statut' => 'success', 
+                    'session' => null, 
+                    'message' => 'Aucune session agence trouvée'
+                ]);
+            }
+            
+            // 2. On cherche la session guichet liée
+            $session = GuichetSession::where('agence_session_id', $sessionAgence->id)
+                ->latest()
+                ->first();
+            
+            if (!$session) {
+                return response()->json([
+                    'statut' => 'success', 
+                    'session' => null, 
+                    'message' => 'Aucune session guichet trouvée'
+                ]);
+            }
+            
+            // 3. Récupération des infos du guichet
+            $guichet = Guichet::find($session->guichet_id);
+            
+            return response()->json([
+                'statut' => 'success',
+                'session' => [
+                    'id' => $session->id,
+                    'guichet_id' => $session->guichet_id,
+                    'agence_session_id' => $session->agence_session_id,
+                    'nom' => $guichet->nom_guichet ?? null,
+                    'code' => $guichet->code_guichet ?? null,
+                    'statut' => $session->statut,
+                    'created_at' => $session->created_at
+                ],
+                'message' => 'Session guichet récupérée'
+            ]);
+            
+        } catch (Exception $e) {
+            return response()->json([
+                'statut' => 'error', 
+                'message' => 'Erreur lors de la récupération du guichet: ' . $e->getMessage()
+            ], 500);
+        }
+    }/**
+ * GET /api/sessions/caisse/active
+ * Récupère UNIQUEMENT la session CAISSE (peu importe son statut)
+ */
+public function getCaisseActive()
+{
+    try {
+        // 1. Récupérer la toute dernière session agence (Idéalement ajouter ->where('statut', 'OU'))
+        $sessionAgence = AgenceSession::latest()->first();
+        
+        if (!$sessionAgence) {
+            return response()->json([
+                'statut' => 'success',
+                'session' => null,
+                'message' => 'Aucune session agence trouvée'
+            ]);
+        }
+        
+        // 2. CORRECTION : On cherche la session guichet liée à l'ID de la session agence
+        // Tu utilisais $sessionAgence->agence_session_id qui n'existe probablement pas sur ce modèle
+        $sessionGuichet = GuichetSession::where('agence_session_id', $sessionAgence->id)
+            ->latest()
+            ->first();
+        
+        if (!$sessionGuichet) {
+            return response()->json([
+                'statut' => 'success',
+                'session' => null,
+                'message' => 'Aucune session guichet trouvée'
+            ]);
+        }
+        
+        // 3. CORRECTION : On cherche la session caisse liée à l'ID de la SESSION guichet
+        // Note : On utilise $sessionGuichet->id (la clé primaire de la table guichet_sessions)
+        $session = CaisseSession::where('guichet_session_id', $sessionGuichet->id)
+            ->with(['caisse']) // Eager loading pour éviter de refaire un find() plus bas
+            ->latest()
+            ->first();
+        
+        if (!$session) {
+            return response()->json([
+                'statut' => 'success',
+                'session' => null,
+                'message' => 'Aucune session caisse trouvée'
+            ]);
+        }
+        
+        return response()->json([
+            'statut' => 'success',
+            'session' => [
+                'id' => $session->id,
+                'caisse_id' => $session->caisse_id,
+                'guichet_session_id' => $session->guichet_session_id,
+                'caissier_id' => $session->caissier_id,
+                'libelle' => $session->caisse->libelle ?? null,
+                'code' => $session->caisse->code_caisse ?? null,
+                'solde_ouverture' => $session->solde_ouverture,
+                'solde_actuel' => $session->caisse->solde_actuel ?? 0,
+                'statut' => $session->statut,
+                'created_at' => $session->created_at
+            ],
+            'message' => 'Session caisse récupérée'
+        ]);
+        
+    } catch (Exception $e) {
+        return response()->json([
+            'statut' => 'error',
+            'message' => 'Erreur: ' . $e->getMessage()
+        ], 500);
+    }
+}
+
+
 }

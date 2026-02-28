@@ -11,8 +11,8 @@
         .info-table td { padding: 4px; width: 33%; }
         
         table.main-table { width: 100%; border-collapse: collapse; margin-top: 10px; table-layout: fixed; }
-        table.main-table th { background-color: #f2f2f2; border: 1px solid #ccc; padding: 6px; text-align: left; font-size: 9px; }
-        table.main-table td { border: 1px solid #ccc; padding: 5px; word-wrap: break-word; }
+        table.main-table th { background-color: #f2f2f2; border: 1px solid #ccc; padding: 6px; text-align: left; font-size: 8px; }
+        table.main-table td { border: 1px solid #ccc; padding: 5px; word-wrap: break-word; vertical-align: middle; }
         
         .type-header { background-color: #fcfcfc; font-weight: bold; color: #444; font-size: 10px; }
         .subtotal-row { background-color: #fafafa; font-style: italic; font-weight: bold; color: #555; }
@@ -56,9 +56,10 @@
         <thead>
             <tr>
                 <th width="8%">Date</th>
+                <th width="12%">N° Compte</th>
                 <th width="12%">Référence</th>
                 <th width="15%">Client / Tiers</th>
-                <th width="35%">Libellé de l'opération</th>
+                <th width="23%">Libellé de l'opération</th>
                 <th width="15%" class="text-right">Entrée (Débit)</th>
                 <th width="15%" class="text-right">Sortie (Crédit)</th>
             </tr>
@@ -66,7 +67,7 @@
         <tbody>
             {{-- REPORT DU SOLDE D'OUVERTURE --}}
             <tr class="solde-initial">
-                <td colspan="4">SOLDE D'OUVERTURE (REPORT SYSTÈME)</td>
+                <td colspan="5">SOLDE D'OUVERTURE (REPORT SYSTÈME)</td>
                 <td colspan="2" class="text-right">{{ number_format($ouverture, 0, ',', ' ') }}</td>
             </tr>
 
@@ -85,15 +86,15 @@
 
                 {{-- Entête de groupe par type d'opération --}}
                 <tr class="type-header">
-                    <td colspan="6">TYPE : {{ $type }}</td>
+                    <td colspan="7">TYPE : {{ $type }}</td>
                 </tr>
 
                 @foreach($mouvements as $mvt)
                     <tr>
                         <td class="text-center">{{ date('d/m/Y', strtotime($mvt->date)) }}</td>
-                        <td class="text-bold">{{ $mvt->reference }}</td>
-                        <td>{{ $mvt->tiers }}</td>
-                        <td>{{ $mvt->libelle }}</td>
+                        <td class="text-bold">{{ $mvt->numero_compte ?? 'N/A' }}</td>
+                        <td style="font-size: 8px;">{{ $mvt->reference }}</td>
+                         <td>{{ $mvt->tiers ?: ($mvt->nom_client ?? 'Client Interne') }}</td>                        <td>{{ $mvt->libelle }}</td>
                         <td class="text-right" style="color: {{ $mvt->entree > 0 ? '#1e7e34' : '#333' }};">
                             {{ $mvt->entree > 0 ? number_format($mvt->entree, 0, ',', ' ') : '-' }}
                         </td>
@@ -105,7 +106,7 @@
 
                 {{-- Sous-total pour le type en cours --}}
                 <tr class="subtotal-row">
-                    <td colspan="4" class="text-right">Sous-total {{ $type }} :</td>
+                    <td colspan="5" class="text-right">Sous-total {{ $type }} :</td>
                     <td class="text-right">{{ number_format($sousTotalEntree, 0, ',', ' ') }}</td>
                     <td class="text-right">{{ number_format($sousTotalSortie, 0, ',', ' ') }}</td>
                 </tr>
@@ -113,14 +114,14 @@
 
             {{-- TOTAUX GÉNÉRAUX --}}
             <tr class="total-row">
-                <td colspan="4">TOTAL DES MOUVEMENTS DE LA PÉRIODE</td>
+                <td colspan="5">TOTAL DES MOUVEMENTS DE LA PÉRIODE</td>
                 <td class="text-right">{{ number_format($grandTotalEntree, 0, ',', ' ') }}</td>
                 <td class="text-right">{{ number_format($grandTotalSortie, 0, ',', ' ') }}</td>
             </tr>
 
             {{-- SOLDE FINAL --}}
             <tr class="solde-final">
-                <td colspan="4">SOLDE THÉORIQUE DE CLÔTURE (Ouverture + Flux)</td>
+                <td colspan="5">SOLDE THÉORIQUE DE CLÔTURE (Ouverture + Flux)</td>
                 <td colspan="2" class="text-right">
                     {{ number_format($ouverture + $grandTotalEntree - $grandTotalSortie, 0, ',', ' ') }} FCFA
                 </td>

@@ -21,7 +21,9 @@ class IndexCompteRequest extends FormRequest
             'supprimer compte',
             'gestion agence',
             'consulter logs',
-            'consulter compte'
+            'consulter compte',
+            'saisir depot retrait',  'saisi dat',
+            'edition du journal des od'
         ]);
     }
 

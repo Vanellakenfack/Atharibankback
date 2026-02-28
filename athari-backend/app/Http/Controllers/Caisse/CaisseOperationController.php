@@ -5,6 +5,7 @@ use App\Http\Controllers\Controller;
 use App\Services\CaisseService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
 use Exception;
 
 class CaisseOperationController extends Controller
@@ -14,6 +15,7 @@ class CaisseOperationController extends Controller
     public function __construct(CaisseService $caisseService)
     {
         $this->caisseService = $caisseService;
+        // Note: Middleware 'check.agence.ouverte' est appliqué au niveau des routes (api.php)
     }
 
     public function store(Request $request)
@@ -46,13 +48,16 @@ class CaisseOperationController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        // ✅ Transaction atomique : tout ou rien
         try {
             // 2. Appel du service (Logique des 8 chapitres et argent à part)
-            $transaction = $this->caisseService->traiterOperation(
-                $request->type_flux,
-                $request->all(),
-                $request->input('billets', [])
-            );
+            $transaction = DB::transaction(function () use ($request) {
+                return $this->caisseService->traiterOperation(
+                    $request->type_flux,
+                    $request->all(),
+                    $request->input('billets', [])
+                );
+            });
 
             return response()->json([
                 'status' => 'success',
@@ -61,11 +66,15 @@ class CaisseOperationController extends Controller
                 'details' => [
                     'montant' => $transaction->montant_brut,
                     'mode' => $transaction->type_versement,
-                    'client' => $request->telephone_client ?? 'Client Banque'
+                    'client' => $request->telephone_client ?? 'Client Banque',
+                    // ✅ La date_comptable et jour_comptable_id seront remplis par le trait
+                    'date_comptable' => $transaction->date_comptable ?? null,
+                    'jour_comptable_id' => $transaction->jour_comptable_id ?? null,
                 ]
             ], 201);
 
         } catch (Exception $e) {
+            // ✅ Rollback automatique en cas d'erreur
             return response()->json([
                 'status' => 'error',
                 'message' => $e->getMessage()

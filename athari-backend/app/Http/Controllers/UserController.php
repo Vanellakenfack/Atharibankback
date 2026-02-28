@@ -68,50 +68,65 @@ class UserController extends Controller
     /**
      * Crée un nouvel utilisateur avec son rôle.
      */
-    public function store(Request $request)
-    {
-        // Vérification des permissions
-        if (!$request->user()->can('gerer utilisateurs')) {
-            return response()->json(['message' => 'Action non autorisée'], 403);
-        }
-
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
-            'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()],
-            'role' => ['required', 'string', 'exists:roles,name'],
-        ], [
-            'name.required' => 'Le nom est obligatoire.',
-            'email.required' => 'L\'email est obligatoire.',
-            'email.unique' => 'Cet email est déjà utilisé.',
-            'password.required' => 'Le mot de passe est obligatoire.',
-            'password.confirmed' => 'La confirmation du mot de passe ne correspond pas.',
-            'role.required' => 'Le rôle est obligatoire.',
-            'role.exists' => 'Le rôle sélectionné n\'existe pas.',
-        ]);
-
-        $user = User::create([
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'password' => Hash::make($validated['password']),
-        ]);
-
-        // Assigner le rôle
-        $user->assignRole($validated['role']);
-
-        return response()->json([
-            'message' => 'Utilisateur créé avec succès',
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'role' => $validated['role'],
-                'roles' => [$validated['role']],
-                'created_at' => $user->created_at->format('Y-m-d H:i:s'),
-                'updated_at' => $user->updated_at->format('Y-m-d H:i:s'),
-            ],
-        ], 201);
+public function store(Request $request)
+{
+    // Vérification des permissions
+    if (!$request->user()->can('gerer utilisateurs')) {
+        return response()->json(['message' => 'Action non autorisée'], 403);
     }
+
+    $validated = $request->validate([
+        'name' => ['required', 'string', 'max:255'],
+        'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
+        'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()],
+        'role' => ['required', 'string', 'exists:roles,name'],
+        'agency_id' => ['required', 'exists:agencies,id'],
+        'is_primary' => ['boolean'],
+    ], [
+        'name.required' => 'Le nom est obligatoire.',
+        'email.required' => 'L\'email est obligatoire.',
+        'email.unique' => 'Cet email est déjà utilisé.',
+        'password.required' => 'Le mot de passe est obligatoire.',
+        'password.confirmed' => 'La confirmation du mot de passe ne correspond pas.',
+        'role.required' => 'Le rôle est obligatoire.',
+        'role.exists' => 'Le rôle sélectionné n\'existe pas.',
+        'agency_id.required' => 'L\'agence est obligatoire.',
+        'agency_id.exists' => 'L\'agence sélectionnée n\'existe pas.',
+    ]);
+
+    $user = User::create([
+        'name' => $validated['name'],
+        'email' => $validated['email'],
+        'password' => Hash::make($validated['password']),
+    ]);
+
+    // Assigner le rôle
+    $user->assignRole($validated['role']);
+
+    // Assigner l'agence
+    $user->agencies()->attach($validated['agency_id'], [
+        'is_primary' => $validated['is_primary'] ?? true,
+        'assigned_at' => now(),
+    ]);
+
+    // Charger la relation pour la réponse
+    $user->load('agencies');
+
+    return response()->json([
+        'message' => 'Utilisateur créé avec succès',
+        'user' => [
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'role' => $validated['role'],
+            'roles' => [$validated['role']],
+            'agency_id' => $validated['agency_id'],
+            'agency_name' => $user->agencies->first()?->name,
+            'created_at' => $user->created_at->format('Y-m-d H:i:s'),
+            'updated_at' => $user->updated_at->format('Y-m-d H:i:s'),
+        ],
+    ], 201);
+}
 
     /**
      * Affiche un utilisateur spécifique.
@@ -140,69 +155,88 @@ class UserController extends Controller
     /**
      * Met à jour un utilisateur existant.
      */
-    public function update(Request $request, User $user)
-    {
-        // Vérification des permissions
-        if (!$request->user()->can('gerer utilisateurs')) {
-            return response()->json(['message' => 'Action non autorisée'], 403);
-        }
+public function update(Request $request, User $user)
+{
+    // Vérification des permissions
+    if (!$request->user()->can('gerer utilisateurs')) {
+        return response()->json(['message' => 'Action non autorisée'], 403);
+    }
 
-        // Empêcher la modification de son propre rôle (sécurité)
-        if ($request->user()->id === $user->id && $request->has('role')) {
-            $currentRole = $request->user()->getRoleNames()->first();
-            if ($request->role !== $currentRole) {
-                return response()->json([
-                    'message' => 'Vous ne pouvez pas modifier votre propre rôle'
-                ], 403);
-            }
+    // Empêcher la modification de son propre rôle (sécurité)
+    if ($request->user()->id === $user->id && $request->has('role')) {
+        $currentRole = $request->user()->getRoleNames()->first();
+        if ($request->role !== $currentRole) {
+            return response()->json([
+                'message' => 'Vous ne pouvez pas modifier votre propre rôle'
+            ], 403);
         }
+    }
 
-        $validated = $request->validate([
-            'name' => ['sometimes', 'required', 'string', 'max:255'],
-            'email' => ['sometimes', 'required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
-            'password' => ['nullable', 'confirmed', Password::min(8)->mixedCase()->numbers()],
-            'role' => ['sometimes', 'required', 'string', 'exists:roles,name'],
-        ], [
-            'name.required' => 'Le nom est obligatoire.',
-            'email.required' => 'L\'email est obligatoire.',
-            'email.unique' => 'Cet email est déjà utilisé.',
-            'password.confirmed' => 'La confirmation du mot de passe ne correspond pas.',
-            'role.exists' => 'Le rôle sélectionné n\'existe pas.',
-        ]);
+    $validated = $request->validate([
+        'name' => ['sometimes', 'required', 'string', 'max:255'],
+        'email' => ['sometimes', 'required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
+        'password' => ['nullable', 'confirmed', Password::min(8)->mixedCase()->numbers()],
+        'role' => ['sometimes', 'required', 'string', 'exists:roles,name'],
+        'agency_id' => ['sometimes', 'required', 'exists:agencies,id'],
+        'is_primary' => ['boolean'],
+    ], [
+        'name.required' => 'Le nom est obligatoire.',
+        'email.required' => 'L\'email est obligatoire.',
+        'email.unique' => 'Cet email est déjà utilisé.',
+        'password.confirmed' => 'La confirmation du mot de passe ne correspond pas.',
+        'role.exists' => 'Le rôle sélectionné n\'existe pas.',
+        'agency_id.required' => 'L\'agence est obligatoire.',
+        'agency_id.exists' => 'L\'agence sélectionnée n\'existe pas.',
+    ]);
 
-        // Mise à jour des champs de base
-        if (isset($validated['name'])) {
-            $user->name = $validated['name'];
-        }
-        if (isset($validated['email'])) {
-            $user->email = $validated['email'];
-        }
-        if (!empty($validated['password'])) {
-            $user->password = Hash::make($validated['password']);
-        }
+    // Mise à jour des champs de base
+    if (isset($validated['name'])) {
+        $user->name = $validated['name'];
+    }
+    if (isset($validated['email'])) {
+        $user->email = $validated['email'];
+    }
+    if (!empty($validated['password'])) {
+        $user->password = Hash::make($validated['password']);
+    }
+    
+    $user->save();
+
+    // Mise à jour du rôle si fourni
+    if (isset($validated['role'])) {
+        $user->syncRoles([$validated['role']]);
+    }
+
+    // Mise à jour de l'agence si fournie
+    if (isset($validated['agency_id'])) {
+        // Détacher toutes les agences actuelles
+        $user->agencies()->detach();
         
-        $user->save();
-
-        // Mise à jour du rôle si fourni
-        if (isset($validated['role'])) {
-            $user->syncRoles([$validated['role']]);
-        }
-
-        $user->load('roles:id,name');
-
-        return response()->json([
-            'message' => 'Utilisateur mis à jour avec succès',
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'role' => $user->roles->first()?->name,
-                'roles' => $user->roles->pluck('name'),
-                'created_at' => $user->created_at->format('Y-m-d H:i:s'),
-                'updated_at' => $user->updated_at->format('Y-m-d H:i:s'),
-            ],
+        // Attacher la nouvelle agence
+        $user->agencies()->attach($validated['agency_id'], [
+            'is_primary' => $validated['is_primary'] ?? true,
+            'assigned_at' => now(),
         ]);
     }
+
+    // Charger les relations pour la réponse
+    $user->load(['roles:id,name', 'agencies']);
+
+    return response()->json([
+        'message' => 'Utilisateur mis à jour avec succès',
+        'user' => [
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'role' => $user->roles->first()?->name,
+            'roles' => $user->roles->pluck('name'),
+            'agency_id' => $user->agencies->first()?->id,
+            'agency_name' => $user->agencies->first()?->name,
+            'created_at' => $user->created_at->format('Y-m-d H:i:s'),
+            'updated_at' => $user->updated_at->format('Y-m-d H:i:s'),
+        ],
+    ]);
+}
 
     /**
      * Supprime un utilisateur.

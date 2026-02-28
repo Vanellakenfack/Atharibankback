@@ -39,8 +39,8 @@ return new class extends Migration
         $table->date('date_operation');
         $table->date('date_valeur');
         $table->date('date_indisponible')->nullable();
-        $table->string('type_versement')->after('code_caisse')->nullable(); 
-            $table->string('code_validation', 6)->nullable()->after('statut_workflow');
+        $table->string('type_versement')->nullable(); 
+            $table->string('code_validation', 6)->nullable();
 
         // Gestion des Désaccords (Workflow)
         $table->string('code_desaccord')->nullable(); // SPRV, SLIV, CHIN, FRME

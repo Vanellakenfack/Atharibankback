@@ -19,7 +19,7 @@ class StorePhysiqueClientRequest extends FormRequest
             'DG', 
             'Chef d\Agence (CA)', 
             'Assistant Comptable (AC)',
-            'Admin'
+            'Admin','Chef Comptable'
         ]);
     }
 
@@ -29,24 +29,24 @@ class StorePhysiqueClientRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'agency_id'      => 'required|exists:agencies,id',
-            'type_client'    => 'required|in:physique',
-            'nom_prenoms'    => 'required|string|max:255',
-            'date_naissance' => 'required|date',
-            'cni_numero'     => 'required|string|unique:clients_physiques,cni_numero',
-            'telephone'      => 'required|string',
+            'agency_id'      => 'nullable|exists:agencies,id',
+            'type_client'    => 'nullable|in:physique',
+            'nom_prenoms'    => 'nullable|string|max:255',
+            'date_naissance' => 'nullable|date',
+            'cni_numero'     => 'nullable|string|unique:clients_physiques,cni_numero',
+            'telephone'      => 'nullable|string',
             'email'          => 'nullable|email',
-            'adresse_ville'  => 'required|string',
-            'adresse_quartier' => 'required|string',
+            'adresse_ville'  => 'nullable|string',
+            'adresse_quartier' => 'nullable|string',
             'lieu_dit_domicile' => 'nullable|string|max:500',
             'lieu_dit_activite' => 'nullable|string|max:500',
             'ville_activite' => 'nullable|string|max:255',
             'quartier_activite' => 'nullable|string|max:255',
 
             // Champs personnels
-            'nom_prenoms'         => 'required|string|max:255',
-            'sexe'                => 'required|in:M,F',
-            'date_naissance'      => 'required|date',
+            'nom_prenoms'         => 'nullable|string|max:255',
+            'sexe'                => 'nullable|in:M,F',
+            'date_naissance'      => 'nullable|date',
             'lieu_naissance'      => 'nullable|string',
             'nationalite'         => 'nullable|string',
             'nui'                 => 'nullable|string|unique:clients_physiques,nui', 
@@ -57,7 +57,7 @@ class StorePhysiqueClientRequest extends FormRequest
             'photo_localisation_activite' => 'nullable|image|mimes:jpeg,png,jpg|max:2048', 
 
             // Pièces d'identité
-            'cni_numero'          => 'required|string|unique:clients_physiques,cni_numero',
+            'cni_numero'          => 'nullable|string|unique:clients_physiques,cni_numero',
             'cni_delivrance'      => 'nullable|date',
             'cni_expiration'      => 'nullable|date',
 
@@ -96,7 +96,7 @@ class StorePhysiqueClientRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'nom_prenoms.required' => 'Le nom complet est obligatoire.',
+            'nom_prenoms.nullable' => 'Le nom complet est obligatoire.',
             'cni_numero.unique' => 'Ce numéro de CNI est déjà utilisé par un autre client.',
             'nui.unique' => 'Ce NUI est déjà utilisé par un autre client.',
             'niu_image.max' => 'La photocopie NUI ne doit pas dépasser 2 Mo.',

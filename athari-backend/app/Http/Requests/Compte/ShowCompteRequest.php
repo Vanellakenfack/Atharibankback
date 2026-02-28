@@ -20,7 +20,10 @@ class ShowCompteRequest extends FormRequest
             'supprimer compte',
             'gestion agence',
             'consulter logs',
-            'consulter comptes'
+            'consulter comptes',
+            'saisir depot retrait',
+            'saisi dat',
+            'edition du journal des od'
 
         ]);
     }

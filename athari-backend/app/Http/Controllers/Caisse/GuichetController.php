@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Agency; // Assurez-vous que le modèle s'appelle Agence (table 'agencies')
 use Illuminate\Http\Request;
 use App\Models\Caisse\Guichet;
+use App\Models\SessionAgence\AgenceSession;
 
 
 class GuichetController extends Controller
@@ -99,4 +100,52 @@ class GuichetController extends Controller
         return redirect()->route('caisse.guichets.index')
             ->with('success', 'Guichet supprimé.');
     }
+
+
+    /**
+     * Alternative: Récupérer les guichets par ID d'agence
+     * GET /api/guichets/agence/{agenceId}
+     */
+    public function getGuichetsDisponibles($agenceSessionId)
+    {
+        try {
+            // 1. Récupérer la session agence
+            $sessionAgence = AgenceSession::where('id', $agenceSessionId)
+                ->where('statut' , 'OU') // seulement les sessions non fermées
+                ->first();
+            
+            if (!$sessionAgence) {
+                return response()->json([
+                    'statut' => 'error',
+                    'message' => 'Session agence non trouvée ou déjà fermée'
+                ], 404);
+            }
+            
+            // 2. Récupérer l'agence_id
+            $agenceId = $sessionAgence->agence_id;
+            
+            // 3. Récupérer les guichets de CETTE agence seulement
+            $guichets = Guichet::where('agence_id', $agenceId)
+                ->where('est_actif', true)
+                ->get();
+            
+            return response()->json([
+                'statut' => 'success',
+                'message' => 'Guichets disponibles récupérés',
+                'data' => $guichets,
+                'agence' => [
+                    'id' => $agenceId,
+                    'session_id' => $sessionAgence->id
+                ]
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'statut' => 'error',
+                'message' => 'Erreur lors de la récupération des guichets',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+    
 }

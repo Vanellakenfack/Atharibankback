@@ -7,6 +7,7 @@ use App\Models\frais\MouvementRubriqueMata;
 use App\Models\Gestionnaire;
 use App\Services\Frais\GestionRubriqueMataService;
 use App\Models\User;
+use App\Models\Concerns\UsesDateComptable;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -15,7 +16,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Compte extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, UsesDateComptable;
     
 
     protected $fillable = [
@@ -24,7 +25,7 @@ class Compte extends Model
         'type_compte_id',
         'plan_comptable_id', // MODIFICATION: Remplace chapitre_comptable_id
         'devise',
-        'gestionnaire_code',
+        'gestionnaire_id',
         'gestionnaire_nom',    // DOIT ÊTRE PRÉSENT
        'gestionnaire_prenom', // DOIT ÊTRE PRÉSENT
         'rubriques_mata',
@@ -49,7 +50,9 @@ class Compte extends Model
     'juriste_id',
     'dossier_complet',
     'checklist_juridique',
-    'date_validation_juridique'
+    'date_validation_juridique',
+    // AUTO-INJECTION DATE_COMPTABLE
+    'date_comptable', 'jours_comptable_id'
     ];
 
     protected $casts = [
@@ -90,6 +93,14 @@ class Compte extends Model
     public function typeCompte()
     {
         return $this->belongsTo(TypeCompte::class);
+    }
+
+    /**
+     * Relation: Compte lié au jour comptable de création
+     */
+    public function jourComptable()
+    {
+        return $this->belongsTo(\App\Models\SessionAgence\JourComptable::class, 'jours_comptable_id');
     }
 
     /**

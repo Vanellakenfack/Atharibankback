@@ -8,6 +8,7 @@ use App\Models\Compte\DatType;
 use App\Services\Compte\DATService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 use Exception;
 use Illuminate\Support\Facades\Auth;
 
@@ -22,6 +23,8 @@ class DatContratController extends Controller
     public function __construct(DATService $datService)
     {
         $this->datService = $datService;
+
+        // Note: Middleware 'check.agence.ouverte' est appliqué au niveau des routes (api.php)
 
         // Protection des routes par permissions
         $this->middleware('can:saisir dat')->only(['store', 'simulate']);
@@ -93,15 +96,26 @@ class DatContratController extends Controller
                 'date_valeur'              => 'nullable|date',
             ]);
 
-            $contrat = $this->datService->creerContratEnAttente($validated);
+            // ✅ Transaction atomique : tout ou rien
+            $contrat = DB::transaction(function () use ($validated) {
+                return $this->datService->creerContratEnAttente($validated);
+            });
 
             return response()->json([
                 'success' => true,
                 'message' => 'Contrat saisi avec succès. En attente de validation.',
-                'donnees' => $contrat
+                'donnees' => [
+                    'id' => $contrat->id,
+                    'numero_ordre' => $contrat->numero_ordre,
+                    'statut' => $contrat->statut,
+                    // ✅ date_comptable et jour_comptable_id remplis par le trait
+                    'date_comptable' => $contrat->date_comptable ?? null,
+                    'jour_comptable_id' => $contrat->jour_comptable_id ?? null,
+                ]
             ], 201);
 
         } catch (Exception $e) {
+            // ✅ Rollback automatique en cas d'erreur
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
     }
@@ -121,14 +135,24 @@ class DatContratController extends Controller
                 ], 400);
             }
 
-            $resultat = $this->datService->validerEtActiver($contrat);
+            // ✅ Transaction atomique : tout ou rien
+            $resultat = DB::transaction(function () use ($contrat) {
+                return $this->datService->validerEtActiver($contrat);
+            });
 
             return response()->json([
                 'success' => true,
                 'message' => 'Contrat activé et fonds transférés avec succès.',
-                'donnees' => $resultat
+                'donnees' => [
+                    'numero_ordre' => $resultat->numero_ordre,
+                    'statut' => $resultat->statut,
+                    // ✅ date_comptable et jour_comptable_id remplis par le trait
+                    'date_comptable' => $resultat->date_comptable ?? null,
+                    'jour_comptable_id' => $resultat->jour_comptable_id ?? null,
+                ]
             ]);
         } catch (Exception $e) {
+            // ✅ Rollback automatique en cas d'erreur
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
@@ -174,7 +198,10 @@ class DatContratController extends Controller
                 return response()->json(['success' => false, 'message' => 'Seul un contrat ACTIF peut être clôturé.'], 400);
             }
 
-            $details = $this->datService->cloturerContrat($contrat);
+            // ✅ Transaction atomique : tout ou rien
+            $details = DB::transaction(function () use ($contrat) {
+                return $this->datService->cloturerContrat($contrat);
+            });
 
             return response()->json([
                 'success' => true,
@@ -182,6 +209,7 @@ class DatContratController extends Controller
                 'donnees' => $details
             ]);
         } catch (Exception $e) {
+            // ✅ Rollback automatique en cas d'erreur
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }

@@ -19,7 +19,7 @@ class StoreMoraleClientRequest extends FormRequest
             'DG', 
             'Chef d\'Agence (CA)', 
             'Assistant Comptable (AC)',
-            'Admin'
+            'Admin','Chef Comptable'
         ]);
     }
 
@@ -29,13 +29,13 @@ class StoreMoraleClientRequest extends FormRequest
     public function rules(): array
     {
         $rules = [
-            'agency_id' => 'required|exists:agencies,id',
-            'raison_sociale' => 'required|string|max:255',
-            'forme_juridique' => 'required|string',
-            'type_entreprise' => 'required|in:entreprise,association',
+            'agency_id' => 'nullable|exists:agencies,id',
+            'raison_sociale' => 'nullable|string|max:255',
+            'forme_juridique' => 'nullable|string',
+            'type_entreprise' => 'nullable|in:entreprise,association',
             'rccm' => 'nullable|string|unique:clients_morales,rccm',
-            'nui' => 'required|string',
-            'nom_gerant' => 'required|string',
+            'nui' => 'nullable|string',
+            'nom_gerant' => 'nullable|string',
             'telephone_gerant' => 'nullable|string',
             'photo_gerant' => 'nullable|image|max:2048',
             
@@ -102,9 +102,9 @@ class StoreMoraleClientRequest extends FormRequest
             'telephone_signataire3' => 'nullable|string',
             
             // Informations de contact
-            'telephone' => 'required|string',
-            'adresse_ville' => 'required|string',
-            'adresse_quartier' => 'required|string',
+            'telephone' => 'nullable|string',
+            'adresse_ville' => 'nullable|string',
+            'adresse_quartier' => 'nullable|string',
             'email' => 'nullable|email',
             'sigle' => 'nullable|string',
             'lieu_dit_domicile' => 'nullable|string',
@@ -123,7 +123,7 @@ class StoreMoraleClientRequest extends FormRequest
             
             // Documents administratifs - PDF
             'liste_conseil_administration_pdf' => 'nullable|mimes:pdf|max:5120',
-            'attestation_conformite_pdf' => 'required|mimes:pdf|max:5120',
+            'attestation_conformite_pdf' => 'nullable|mimes:pdf|max:5120',
             
             // NOUVEAUX CHAMPS COMMUNS
             'liste_membres_pdf' => 'nullable|mimes:pdf|max:5120',
@@ -153,17 +153,17 @@ class StoreMoraleClientRequest extends FormRequest
         $typeEntreprise = $this->input('type_entreprise');
         
         if ($typeEntreprise === 'entreprise') {
-            $rules['extrait_rccm_image'] = 'required|image|max:2048';
-            $rules['titre_patente_image'] = 'required|image|max:2048';
-            $rules['niu_image'] = 'required|image|max:2048';
-            $rules['statuts_image'] = 'required|image|max:2048';
-            $rules['acte_designation_signataires_pdf'] = 'required|mimes:pdf|max:5120';
+            $rules['extrait_rccm_image'] = 'nullable|image|max:2048';
+            $rules['titre_patente_image'] = 'nullable|image|max:2048';
+            $rules['niu_image'] = 'nullable|image|max:2048';
+            $rules['statuts_image'] = 'nullable|image|max:2048';
+            $rules['acte_designation_signataires_pdf'] = 'nullable|mimes:pdf|max:5120';
         } elseif ($typeEntreprise === 'association') {
-            $rules['pv_agc_image'] = 'required|image|max:2048';
-            $rules['attestation_non_redevance_image'] = 'required|image|max:2048';
-            $rules['proces_verbal_image'] = 'required|image|max:2048';
-            $rules['registre_coop_gic_image'] = 'required|image|max:2048';
-            $rules['recepisse_declaration_association_image'] = 'required|image|max:2048';
+            $rules['pv_agc_image'] = 'nullable|image|max:2048';
+            $rules['attestation_non_redevance_image'] = 'nullable|image|max:2048';
+            $rules['proces_verbal_image'] = 'nullable|image|max:2048';
+            $rules['registre_coop_gic_image'] = 'nullable|image|max:2048';
+            $rules['recepisse_declaration_association_image'] = 'nullable|image|max:2048';
         }
 
         return $rules;
@@ -172,63 +172,5 @@ class StoreMoraleClientRequest extends FormRequest
     /**
      * Messages de validation personnalisés.
      */
-    public function messages(): array
-    {
-        return [
-            'raison_sociale.required' => 'La raison sociale est obligatoire.',
-            'rccm.unique' => 'Ce numéro RCCM est déjà utilisé par une autre entreprise.',
-            'nui.required' => 'Le numéro NUI est obligatoire.',
-            'nui.unique' => 'Ce NUI est déjà utilisé par une autre entreprise.',
-            
-            // Messages pour les fichiers
-            'photo_localisation_domicile.max' => 'La photo de localisation du domicile ne doit pas dépasser 2 Mo.',
-            'photo_localisation_activite.max' => 'La photo de localisation de l\'activité ne doit pas dépasser 2 Mo.',
-            
-            'extrait_rccm_image.required' => 'L\'extrait RCCM est obligatoire pour les entreprises.',
-            'extrait_rccm_image.max' => 'L\'extrait RCCM ne doit pas dépasser 2 Mo.',
-            'titre_patente_image.required' => 'Le titre de patente est obligatoire pour les entreprises.',
-            'titre_patente_image.max' => 'Le titre de patente ne doit pas dépasser 2 Mo.',
-            'niu_image.required' => 'La photocopie NUI est obligatoire pour les entreprises.',
-            'niu_image.max' => 'La photocopie NUI ne doit pas dépasser 2 Mo.',
-            'statuts_image.required' => 'La photocopie des statuts est obligatoire pour les entreprises.',
-            'statuts_image.max' => 'La photocopie des statuts ne doit pas dépasser 2 Mo.',
-            
-            'pv_agc_image.required' => 'Le PV AGC est obligatoire pour les associations.',
-            'pv_agc_image.max' => 'Le PV AGC ne doit pas dépasser 2 Mo.',
-            'attestation_non_redevance_image.required' => 'L\'attestation de non redevance est obligatoire pour les associations.',
-            'attestation_non_redevance_image.max' => 'L\'attestation de non redevance ne doit pas dépasser 2 Mo.',
-            'proces_verbal_image.required' => 'Le procès-verbal est obligatoire pour les associations.',
-            'proces_verbal_image.max' => 'Le procès-verbal ne doit pas dépasser 2 Mo.',
-            'registre_coop_gic_image.required' => 'Le registre COOP-GIC est obligatoire pour les associations.',
-            'registre_coop_gic_image.max' => 'Le registre COOP-GIC ne doit pas dépasser 2 Mo.',
-            'recepisse_declaration_association_image.required' => 'Le récépissé de déclaration est obligatoire pour les associations.',
-            'recepisse_declaration_association_image.max' => 'Le récépissé de déclaration ne doit pas dépasser 2 Mo.',
-            
-            // PDF
-            'acte_designation_signataires_pdf.required' => 'L\'acte de désignation des signataires est obligatoire pour les entreprises.',
-            'acte_designation_signataires_pdf.max' => 'L\'acte de désignation ne doit pas dépasser 5 Mo.',
-            'acte_designation_signataires_pdf.mimes' => 'L\'acte de désignation doit être un fichier PDF.',
-            'liste_conseil_administration_pdf.max' => 'La liste du conseil d\'administration ne doit pas dépasser 5 Mo.',
-            'liste_conseil_administration_pdf.mimes' => 'La liste du conseil d\'administration doit être un fichier PDF.',
-            'attestation_conformite_pdf.required' => 'L\'attestation de conformité est obligatoire.',
-            'attestation_conformite_pdf.max' => 'L\'attestation de conformité ne doit pas dépasser 5 Mo.',
-            'attestation_conformite_pdf.mimes' => 'L\'attestation de conformité doit être un fichier PDF.',
-            
-            // NOUVEAUX PDF COMMUNS
-            'liste_membres_pdf.max' => 'La liste des membres ne doit pas dépasser 5 Mo.',
-            'liste_membres_pdf.mimes' => 'La liste des membres doit être un fichier PDF.',
-            
-            // Plans
-            'plan_localisation_signataire1_image.max' => 'Le plan de localisation du signataire 1 ne doit pas dépasser 2 Mo.',
-            'plan_localisation_signataire2_image.max' => 'Le plan de localisation du signataire 2 ne doit pas dépasser 2 Mo.',
-            'plan_localisation_signataire3_image.max' => 'Le plan de localisation du signataire 3 ne doit pas dépasser 2 Mo.',
-            'plan_localisation_siege_image.max' => 'Le plan de localisation du siège ne doit pas dépasser 2 Mo.',
-            
-            // Factures
-            'facture_eau_signataire1_image.max' => 'La facture d\'eau du signataire 1 ne doit pas dépasser 2 Mo.',
-            'facture_electricite_signataire1_image.max' => 'La facture d\'électricité du signataire 1 ne doit pas dépasser 2 Mo.',
-            'facture_eau_siege_image.max' => 'La facture d\'eau du siège ne doit pas dépasser 2 Mo.',
-            'facture_electricite_siege_image.max' => 'La facture d\'électricité du siège ne doit pas dépasser 2 Mo.',
-        ];
-    }
+
 }

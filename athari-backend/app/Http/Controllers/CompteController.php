@@ -24,7 +24,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
-
 use Barryvdh\DomPDF\Facade\Pdf;
 
 /**
@@ -51,7 +50,7 @@ class CompteController extends Controller
      */
     public function index(IndexCompteRequest $request): JsonResponse
     {
-        $query = Compte::with(['client', 'typeCompte', 'planComptable', 'mandataires']);
+        $query = Compte::with(['jourComptable','client', 'typeCompte', 'planComptable', 'mandataires']);
 
         if ($request->has('client_id')) {
             $query->where('client_id', $request->client_id);
@@ -90,7 +89,8 @@ class CompteController extends Controller
         'typeCompte',
         'documents', 
         'planComptable',
-        'mandataires'
+        'mandataires',
+        'jourComptable'
     ])->findOrFail($id);
 
     // Pour être sûr que React reçoive le nom même si 'appends' ne fonctionne pas
@@ -109,8 +109,9 @@ class CompteController extends Controller
     public function initOuverture(InitOuvertureCompteRequest $request): JsonResponse
     {
         try {
-            // Initialiser la session d'ouverture
-            $this->ouvertureSession->initSession();
+            // ✅ Middleware vérifie déjà que l'agence a une journée ouverte
+            // Initialiser la session d'ouverture (session PHP)
+            session(['etapes_ouverture' => []]);
 
             $typesComptes = TypeCompte::actif()->get();
             $devises = ['FCFA', 'EURO', 'DOLLAR', 'POUND'];
@@ -149,24 +150,43 @@ class CompteController extends Controller
      */
     public function validerEtape1(ValiderEtape1Request $request): JsonResponse
     {
-        DB::beginTransaction();
-
         try {
+            // ✅ Middleware vérifie déjà que l'agence a une journée ouverte
+            DB::beginTransaction();
+
             $donneesValidees = $request->validated();
+
+        // 1. Déterminer l'ID de l'agence à utiliser
+        // Priorité : 
+        //   - L'ID envoyé explicitement par le formulaire (cas de l'Admin qui choisit pour le client)
+        //   - Sinon, l'agence de l'utilisateur connecté (cas de l'agent d'agence standard)
+            $agenceId = $request->input('agence_id') ?? auth()->user()-> agency_id;
+
+        if (!$agenceId) {
+            return response()->json([
+                'success' => false,
+                'message' => "Impossible de déterminer l'agence pour la génération du numéro de compte."
+            ], 422);
+        }
 
             // Générer le numéro de compte
             $numeroCompte = $this->compteService->genererNumeroCompte(
                 $donneesValidees['client_id'],
-                $donneesValidees['code_type_compte']
+                $donneesValidees['code_type_compte'],
+                
             );
 
             $client = Client::findOrFail($donneesValidees['client_id']);
 
             // Mettre à jour la session avec les données de l'étape 1
-            $this->ouvertureSession->updateEtape(1, array_merge(
+            $etapesOuverture = session('etapes_ouverture', []);
+            $etapesOuverture['etape1'] = array_merge(
                 $donneesValidees,
-                ['numero_compte_genere' => $numeroCompte]
-            ));
+                ['numero_compte_genere' => $numeroCompte, 
+                'agence_id' => $agenceId // On stocke l'agence choisie pour la suite
+                ]
+            );
+            session(['etapes_ouverture' => $etapesOuverture]);
 
             DB::commit();
 
@@ -177,6 +197,7 @@ class CompteController extends Controller
                     'donnees' => $donneesValidees,
                     'numero_compte_genere' => $numeroCompte,
                     'client' => $client,
+                    'agence_id' =>  $agenceId, // On retourne aussi l'agence utilisée pour la génération
                     'current_step' => 2
                 ],
             ]);
@@ -204,6 +225,7 @@ class CompteController extends Controller
     public function validerEtape2(ValiderEtape2Request $request): JsonResponse
     {
         try {
+            // ✅ Middleware vérifie déjà que l'agence a une journée ouverte
             $donneesValidees = $request->validated();
 
             return response()->json([
@@ -236,6 +258,7 @@ class CompteController extends Controller
     public function validerEtape3(ValiderEtape3Request $request): JsonResponse
     {
         try {
+            // ✅ Middleware vérifie déjà que l'agence a une journée ouverte
             // Récupérer les données validées
             $validated = $request->validated();
             $mandataire1 = $validated['mandataire_1'];
@@ -289,6 +312,7 @@ class CompteController extends Controller
  public function store(StoreCompteRequest $request): JsonResponse
     {
         try {
+            // ✅ Middleware vérifie déjà que l'agence a une journée ouverte
             $data = $request->all();
 
             // Défauts pour éviter des erreurs 'Undefined array key' côté service
@@ -425,6 +449,7 @@ class CompteController extends Controller
     public function cloturer(CloturerCompteRequest $request, int $id): JsonResponse
     {
         try {
+            // ✅ Middleware vérifie déjà que l'agence a une journée ouverte
             $motif = $request->input('motif');
             $compte = $this->compteService->cloturerCompte($id, $motif);
 
@@ -450,22 +475,23 @@ class CompteController extends Controller
     public function destroy(DestroyCompteRequest $request, int $id): JsonResponse
     {
         try {
-            $compte = Compte::findOrFail($id);
+            return DB::transaction(function () use ($id) {
+                $compte = Compte::findOrFail($id);
 
-            if ($compte->solde != 0) {
+                if ($compte->solde != 0) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Impossible de supprimer un compte avec un solde non nul',
+                    ], 400);
+                }
+
+                $compte->delete();
+
                 return response()->json([
-                    'success' => false,
-                    'message' => 'Impossible de supprimer un compte avec un solde non nul',
-                ], 400);
-            }
-
-            $compte->delete();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Compte supprimé avec succès',
-            ]);
-
+                    'success' => true,
+                    'message' => 'Compte supprimé avec succès',
+                ]);
+            });
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -674,5 +700,55 @@ public function exporterJournalPdf(Request $request)
     $fileName = "journal_ouvertures_" . ($codeAgence ?? 'global') . ".pdf";
 
     return $pdf->download($fileName);
+}
+
+// Dans CompteController.php
+
+/**
+ * GET /api/comptes/{id}/historique
+ * Charger les données pour le tableau React
+ */
+public function getHistorique(Request $request, $id): JsonResponse
+{
+    $compte = Compte::findOrFail($id);
+    
+    $historique = $this->compteService->historiqueCompte(
+        $compte, 
+        $request->query('date_debut'), 
+        $request->query('date_fin')
+    );
+
+    return response()->json([
+        'success' => true,
+        'data' => [
+            'compte' => $compte,
+            'historique' => $historique
+        ]
+    ]);
+}
+
+/**
+ * GET /api/comptes/{id}/export-pdf
+ * Télécharger le fichier PDF
+ */
+public function exporterHistoriquePdf(Request $request, $id)
+{
+    $compte = Compte::with(['client.agency', 'typeCompte'])->findOrFail($id);
+    
+    $historique = $this->compteService->historiqueCompte(
+        $compte, 
+        $request->query('date_debut'), 
+        $request->query('date_fin')
+    );
+
+    $pdf = Pdf::loadView('pdf.historique_compte', [
+        'compte' => $compte,
+        'historique' => $historique,
+        'date_debut' => $request->query('date_debut') ?? 'Début',
+        'date_fin' => $request->query('date_fin') ?? now()->format('d/m/Y'),
+        'date_gen' => now()->format('d/m/Y H:i')
+    ])->setPaper('a4', 'portrait');
+
+    return $pdf->download("Releve_Athari_{$compte->numero_compte}.pdf");
 }
 }

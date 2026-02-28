@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('bilan_journalier_agences', function (Blueprint $table) {
     $table->id();
-    $table->foreignId('jour_comptable_id')->constrained('jours_comptables');
+    $table->foreignId('jours_comptable_id')->constrained('jours_comptables');
     $table->date('date_comptable');
     $table->decimal('total_especes_entree', 15, 2);
     $table->decimal('total_especes_sortie', 15, 2);

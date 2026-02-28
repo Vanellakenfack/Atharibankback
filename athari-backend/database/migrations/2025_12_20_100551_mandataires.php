@@ -20,7 +20,7 @@ return new class extends Migration
             $table->tinyInteger('ordre')->comment('1 pour mandataire principal, 2 pour secondaire');
             
             // Informations personnelles
-            $table->enum('sexe', ['masculin', 'feminin'])->comment('Sexe du mandataire');
+            $table->enum('sexe', ['masculin', 'feminin'])->nullable();
             $table->string('nom')->comment('Nom du mandataire');
             $table->string('prenom')->comment('Prénom du mandataire');
             $table->date('date_naissance')->comment('Date de naissance');

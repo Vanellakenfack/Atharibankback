@@ -5,6 +5,7 @@ namespace App\Services\Compte;
 use App\Models\compte\Compte;
 use App\Models\client\Client;
 use App\Models\chapitre\PlanComptable;
+use App\Models\compte\MouvementComptable;
 use App\Models\compte\TypeCompte;
 use Illuminate\Support\Facades\DB;
 use App\Notifications\CompteActiveNotification;
@@ -98,6 +99,30 @@ class CompteService
                 );
             }
 
+            // Récupérer l'agence_id depuis le client
+            $client = Client::findOrFail($donneesEtape1['client_id']);
+           $agenceId = request()->input('agency_id') 
+                  ?? request()->input('agence_id') 
+                  ?? $client->agence_id;
+
+        if (!$agenceId) {
+            throw new \Exception("L'identifiant de l'agence est requis pour ouvrir un compte.");
+        }
+
+        if (Compte::where('numero_compte', $numeroCompte)->exists()) {
+            throw new \Exception("Erreur critique : Le numéro de compte généré [$numeroCompte] existe déjà dans le système.");
+        }
+
+        // 2. Récupération de la session via le service (plus propre que de requêter le modèle ici)
+        // Note: Le middleware a déjà dû vérifier cela, mais on sécurise la logique métier.
+        $session = \App\Services\ComptabiliteService::getSessionActive($agenceId);
+        
+        if (!$session) {
+            throw new \Exception("Opération impossible : La journée comptable n'est pas ouverte pour cette agence.");
+        }
+
+        $jourComptableId = $session->jours_comptable_id;
+
             // Créer le compte avec plan_comptable_id
             $compte = Compte::create([
                 'numero_compte' => $numeroCompte,
@@ -106,18 +131,22 @@ class CompteService
                'plan_comptable_id'  => $donneesEtape2['plan_comptable_id'],
                 'devise' => $donneesEtape1['devise'],
                 'gestionnaire_id' => $donneesEtape2['gestionnaire_id'] ,
-               'created_by' => auth()->id() ?? 1, // Si pas connecté, on met l'ID 1 par défaut                'rubriques_mata' => $donneesEtape1['rubriques_mata'] ?? null,
+               'created_by' => auth()->id() ?? 1, // Si pas connecté, on met l'ID 1 par défaut
+                'rubriques_mata' => $donneesEtape1['rubriques_mata'] ?? null,
                 'duree_blocage_mois' => $donneesEtape1['duree_blocage_mois'] ?? null,
                 
-                'statut'             => 'en_attente', 
-                'est_en_opposition'  => true, // Bloqué jusqu'à validation CA + Juridique
-                'validation_chef_agence' => false,
-                'validation_juridique'   => false,
+                'statut'             => 'actif', 
+                'est_en_opposition'  => false, // Bloqué jusqu'à validation CA + Juridique
+                'validation_chef_agence' => true,
+                'validation_juridique'   => true,
 
-                'solde' => $donneesEtape2['solde'] ?? 0, // <--- AJOUTEZ LE ?? 0 ICI               'notice_acceptee' => $donneesEtape4['notice_acceptee'],
+                'solde' => $donneesEtape2['solde'] ?? 0,
+                'notice_acceptee' => $donneesEtape4['notice_acceptee'],
                 'date_acceptation_notice' => now(),
                 'signature_path' => $donneesEtape4['signature_path'] ?? null,
-                'date_ouverture' => now(),
+                'date_ouverture'    => $session->jourComptable->date_du_jour, 
+                'jours_comptable_id' => $jourComptableId,                   
+                'date_comptable'    => $session->jourComptable->date_du_jour, // Optionnel mais conseillé
             ]);
 
             // Créer les mandataires
@@ -148,7 +177,7 @@ class CompteService
         // On appelle la fonction qui va générer les écritures de mouvement
         $this->traiterOuvertureComptable($compte, $montantInitial);
 
-            return $compte->load(['client', 'typeCompte', 'planComptable.categorie', 'mandataires', 'documents']);
+            return $compte->load(['client', 'typeCompte', 'planComptable.categorie', 'mandataires', 'documents', 'jourComptable']);
         });
     }
 
@@ -164,10 +193,11 @@ class CompteService
     {
         return validator($donnees, [
             'client_id' => 'required|exists:clients,id',
+            'agence_id' => 'nullable|exists:agencies,id', // Ajout de l'agence_id obligatoire
             'type_compte_id' => 'required|exists:types_comptes,id',
             'code_type_compte' => 'required|string|size:2',
             'devise' => 'required|in:FCFA,EURO,DOLLAR,POUND',
-        
+             'agency_id'        => 'required|exists:agencies,id', // Obligatoire pour le middleware
             'rubriques_mata' => 'nullable|array',
             'rubriques_mata.*' => 'in:SANTE,BUSINESS,FETE,FOURNITURE,IMMO,SCOLARITE',
             'duree_blocage_mois' => 'nullable|integer|between:3,12',
@@ -202,17 +232,17 @@ class CompteService
     {
         $rules = [
             // Mandataire 1 (obligatoire)
-            'mandataire_1.sexe' => 'required|in:masculin,feminin',
-            'mandataire_1.nom' => 'required|string|max:255',
-            'mandataire_1.prenom' => 'required|string|max:255',
-            'mandataire_1.date_naissance' => 'required|date|before:today',
-            'mandataire_1.lieu_naissance' => 'required|string|max:255',
-            'mandataire_1.telephone' => 'required|string|max:20',
-            'mandataire_1.adresse' => 'required|string',
-            'mandataire_1.nationalite' => 'required|string|max:255',
-            'mandataire_1.profession' => 'required|string|max:255',
+            'mandataire_1.sexe' => 'nullable|in:masculin,feminin',
+            'mandataire_1.nom' => 'nullable|string|max:255',
+            'mandataire_1.prenom' => 'nullable|string|max:255',
+            'mandataire_1.date_naissance' => 'nullable|date|before:today',
+            'mandataire_1.lieu_naissance' => 'nullable|string|max:255',
+            'mandataire_1.telephone' => 'nullable|string|max:20',
+            'mandataire_1.adresse' => 'nullable|string',
+            'mandataire_1.nationalite' => 'nullable|string|max:255',
+            'mandataire_1.profession' => 'nullable|string|max:255',
             'mandataire_1.nom_jeune_fille_mere' => 'nullable|string|max:255',
-            'mandataire_1.numero_cni' => 'required|string|max:50',
+            'mandataire_1.numero_cni' => 'nullable|string|max:50',
             'mandataire_1.situation_familiale' => 'required|in:marie,celibataire,autres',
             'mandataire_1.nom_conjoint' => 'required_if:mandataire_1.situation_familiale,marie|nullable|string|max:255',
             'mandataire_1.date_naissance_conjoint' => 'required_if:mandataire_1.situation_familiale,marie|nullable|date',
@@ -256,7 +286,7 @@ class CompteService
             'signature_path' => 'nullable|string',
             'documents' => 'required|array|min:1',
             'documents.*.type_document' => 'required|string',
-            'documents.*.fichier' => 'required|file|mimes:pdf,jpg,jpeg,png|max:10240', // 10 MB
+            'documents.*.fichier' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240', // 10 MB
         ])->validate();
     }
 
@@ -346,18 +376,18 @@ public function traiterOuvertureComptable(Compte $compte, float $montantDepot)
 
     // 1. Calcul du total des frais + minimum
     $fraisTotal = 0;
-    if ($type->frais_ouverture_actif) $fraisTotal += $type->frais_ouverture;
+   // if ($type->frais_ouverture_actif) $fraisTotal += $type->frais_ouverture;
     //if ($type->commission_sms_actif) $fraisTotal += $type->commission_sms;
-    if ($type->frais_carnet_actif)   $fraisTotal += $type->frais_carnet;
-    if ($type->frais_livret_actif)   $fraisTotal += $type->frais_livret;
+   // if ($type->frais_carnet_actif)   $fraisTotal += $type->frais_carnet;
+    //if ($type->frais_livret_actif)   $fraisTotal += $type->frais_livret;
 
     // On récupère le minimum obligatoire
-    $minimumCompte = $type->minimum_compte_actif ? $type->minimum_compte : 0;
+   // $minimumCompte = $type->minimum_compte_actif ? $type->minimum_compte : 0;
      
-    return DB::transaction(function () use ($compte, $type, $montantDepot, $fraisTotal, $minimumCompte) {
+    return DB::transaction(function () use ($compte, $type, $montantDepot, $fraisTotal) {
         
         // --- ÉTAPE 1 : DÉPÔT (0 ou plus) ---
-        if ($montantDepot > 0) {
+     /*   if ($montantDepot > 0) {
             $this->enregistrerEcriture(
                 $compte,
                 $montantDepot,
@@ -366,13 +396,13 @@ public function traiterOuvertureComptable(Compte $compte, float $montantDepot)
                 $type->chapitre_defaut_id,
                 'CAISSE'
             );
-        }
+        }*/
 
         // --- ÉTAPE 2 : DÉDUCTION DES FRAIS ---
 
 
                 // Frais d'ouverture
-        if ($type->frais_ouverture_actif && $type->frais_ouverture > 0) {
+      /*  if ($type->frais_ouverture_actif && $type->frais_ouverture > 0) {
             $this->enregistrerEcriture(
                 $compte,
                 $type->frais_ouverture,
@@ -381,12 +411,12 @@ public function traiterOuvertureComptable(Compte $compte, float $montantDepot)
                 $type->chapitre_frais_ouverture_id, // Crédit : Banque
                 'BANQUE'
             );
-        }
+        }*/
 
      
 
         // Frais de carnet
-        if ( $type->frais_carnet_actif && $type->frais_carnet > 0) {
+       /* if ( $type->frais_carnet_actif && $type->frais_carnet > 0) {
             $this->enregistrerEcriture(
                 $compte,
                 $type->frais_carnet,
@@ -410,11 +440,11 @@ public function traiterOuvertureComptable(Compte $compte, float $montantDepot)
         }
 
 
-
+*/
  
         // --- ÉTAPE 3 : MISE À JOUR DU SOLDE (Incluant le minimum) ---
         // Le solde devient : Dépôt - Frais - MinimumObligatoire
-        $soldeFinal = $montantDepot - ($fraisTotal + $minimumCompte);
+        $soldeFinal = $montantDepot - ($fraisTotal );
         
         $compte->update([
             'solde' => $soldeFinal 
@@ -426,17 +456,35 @@ public function traiterOuvertureComptable(Compte $compte, float $montantDepot)
 
 private function enregistrerEcriture($compte, $montant, $libelle, $debitId, $creditId, $journal = 'BANQUE')
 {
+    $reference = 'OP-' . strtoupper(Str::random(8));
+    $date = now();
+
+    // 1. LA LIGNE DU DÉBIT
+    \App\Models\compte\MouvementComptable::create([
+        'compte_id'         => $compte->id,
+        'date_mouvement'    => $date,
+        'libelle_mouvement' => $libelle . ' (D)',
+        'montant_debit'     => $montant,
+        'montant_credit'    => 0, // Zéro ici
+        'compte_debit_id'   => $debitId,
+        'compte_credit_id'  => $creditId,
+        'journal'           => $journal, 
+        'statut'            => 'COMPTABILISE',
+        'reference'         => $reference
+    ]);
+
+    // 2. LA LIGNE DU CRÉDIT
     return \App\Models\compte\MouvementComptable::create([
         'compte_id'         => $compte->id,
-        'date_mouvement'    => now(),
-        'libelle_mouvement' => $libelle,
-        'montant_debit'     => $montant,
+        'date_mouvement'    => $date,
+        'libelle_mouvement' => $libelle . ' (C)',
+        'montant_debit'     => 0, // Zéro ici
         'montant_credit'    => $montant,
         'compte_debit_id'   => $debitId,
         'compte_credit_id'  => $creditId,
         'journal'           => $journal, 
         'statut'            => 'COMPTABILISE',
-        'reference'         => 'OP-' . strtoupper(Str::random(8)) 
+        'reference'         => $reference
     ]);
 }
 
@@ -449,7 +497,7 @@ private function enregistrerEcriture($compte, $montant, $libelle, $debitId, $cre
  * Tente d'activer le compte et de lever l'opposition 
  * si et seulement si toutes les validations sont au vert.
  */
-private function tenterActivationFinale(Compte $compte)
+/*private function tenterActivationFinale(Compte $compte)
 {
     // On rafraîchit pour avoir dossier_complet mis à jour par le juriste
     $compte->refresh();
@@ -461,7 +509,7 @@ private function tenterActivationFinale(Compte $compte)
          * Si le dossier est complet, on lève l'opposition (false).
          * Si des documents manquent, on maintient l'opposition (true).
          */
-        $maintenirOpposition = ! (bool) ($compte->dossier_complet ?? false);
+     /*   $maintenirOpposition = ! (bool) ($compte->dossier_complet ?? false);
 
         $compte->update([
             'statut' => 'actif',
@@ -478,11 +526,11 @@ private function tenterActivationFinale(Compte $compte)
             \Illuminate\Support\Facades\Log::error("Erreur notification : " . $e->getMessage());
         }
     }
-}
+}*/
 /**
  * Gère la validation par étapes pour lever l'opposition
  */
-public function validerOuvertureCompte(int $compteId, string $roleApprobateur, array $checkboxes = [], ?string $nui = null)
+/*public function validerOuvertureCompte(int $compteId, string $roleApprobateur, array $checkboxes = [], ?string $nui = null)
 {
     return DB::transaction(function () use ($compteId, $roleApprobateur, $checkboxes, $nui) {
         $compte = Compte::with('client')->lockForUpdate()->findOrFail($compteId);
@@ -565,17 +613,17 @@ $user = auth()->user(); // Récupère le Chef d'Agence ou le Juriste connecté
 
         return $compte;
     });
-}
+}*/
 
 // Dans CompteController.php
-public function showForValidation($id)
+/*public function showForValidation($id)
 {
     // On récupère le compte avec le client et tous ses documents chargés
     $compte = Compte::with(['client', 'documents', 'mandataires', 'typeCompte'])
                     ->findOrFail($id);
 
     return response()->json($compte);
-}
+}*/
  
  /* Récupère le journal détaillé des ouvertures de comptes
  */
@@ -594,8 +642,8 @@ public function showForValidation($id)
     ]);
 
     
-    $query->whereDate('date_ouverture', '>=', $dateDebut)
-          ->whereDate('date_ouverture', '<=', $dateFin);
+    $query->whereDate('date_comptable', '>=', $dateDebut)
+          ->whereDate('date_comptable', '<=', $dateFin);
 
 
     if ($codeAgence) {
@@ -647,4 +695,70 @@ public function resumeClotureOuvertures($date = null, $codeAgence = null)
  * Vérifie si le dépôt couvre les frais + le minimum obligatoire
  */
 
+
+/**
+ * Récupère l'historique des mouvements d'un compte avec calcul du solde progressif
+ * * @param Compte $compte
+ * @param string|null $dateDebut
+ * @param string|null $dateFin
+ * @return \Illuminate\Support\Collection
+ * 
+ * 
+ */
+
+public function historiqueCompte(Compte $compte, $dateDebut = null, $dateFin = null)
+{
+    // 1. CALCUL DU SOLDE INITIAL (Avant la date de début)
+    // On somme tous les mouvements passés avant la date demandée
+    $soldeInitial = 0;
+    if ($dateDebut) {
+        $mouvementsPrecedents = MouvementComptable::where('compte_id', $compte->id)
+            ->whereDate('date_mouvement', '<', $dateDebut)
+            ->selectRaw('SUM(montant_credit) - SUM(montant_debit) as solde')
+            ->first();
+        
+        $soldeInitial = (float) ($mouvementsPrecedents->solde ?? 0);
+    }
+
+    // 2. RÉCUPÉRATION DES MOUVEMENTS DE LA PÉRIODE
+    $query = MouvementComptable::where('compte_id', $compte->id)
+        ->orderBy('date_mouvement', 'asc') // Chronologique pour le calcul
+        ->orderBy('created_at', 'asc');    // Second tri pour l'ordre de saisie exact
+
+    if ($dateDebut) $query->whereDate('date_mouvement', '>=', $dateDebut);
+    if ($dateFin) $query->whereDate('date_mouvement', '<=', $dateFin);
+
+    $mouvements = $query->get();
+
+    // 3. CALCUL PROGRESSIF
+    $soldeProgressif = $soldeInitial;
+
+    $historique = $mouvements->map(function ($mvt) use (&$soldeProgressif) {
+        $debit = (float) $mvt->montant_debit;
+        $credit = (float) $mvt->montant_credit;
+
+        // Formule : Solde précédent + ce qui rentre - ce qui sort
+        $soldeProgressif += ($credit - $debit);
+
+        return [
+            'id' => $mvt->id,
+            'date' => $mvt->date_mouvement,
+            'reference' => $mvt->reference,
+            'libelle' => $mvt->libelle_mouvement,
+            'debit' => $debit,
+            'credit' => $credit,
+            'solde_apres' => $soldeProgressif, // C'est le solde à cet instant T
+            'journal' => $mvt->journal,
+            'statut' => $mvt->statut
+        ];
+    });
+
+    // 4. RETOUR ET TRI POUR L'AFFICHAGE
+    // On inverse à la fin pour que l'utilisateur voit le plus récent en haut du tableau
+    return [
+        'solde_initial' => $soldeInitial,
+        'mouvements' => $historique->reverse()->values(),
+        'solde_final' => $soldeProgressif
+    ];
+}
 }

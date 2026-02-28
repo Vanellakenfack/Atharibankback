@@ -8,6 +8,7 @@ use App\Models\Compte\Compte;
 use App\Models\Caisse\TransactionTier;
 use App\Models\Caisse\TransactionBilletage;
 use App\Models\Caisse\Caisse;
+use App\Models\Caisse\CaisseDigitale;
 use App\Models\SessionAgence\CaisseSession;
 use Illuminate\Support\Facades\DB;
 use App\Models\Caisse\CaisseDemandeValidation;
@@ -33,25 +34,48 @@ public function traiterOperation(string $type, array $data, array $billetage)
        
         
         $typeVersement = $data['type_versement'] ?? 'ESPECE';
-        $montant = $data['montant_brut'];
-
+        $montant = (float) $data['montant_brut']; // Forcer le type float pour la comparaison
         // 1. Session et Plafond (Contrôle bloquant)
         $session = CaisseSession::with(['caisse.guichet.agence'])->where('caissier_id', $user->id)->where('statut', 'OU')->first();
         if (!$session) throw new Exception("Session de caisse introuvable.");
 
+       $seuilCaissiere = 500000;
+        
+        if ($type === 'RETRAIT' && $montant > $seuilCaissiere) {
+            // Si pas de code de validation fourni par le front
+            if (!isset($data['code_validation']) || empty($data['code_validation'])) {
+                
+                // On détermine le rôle cible
+               
 
+                 if ($montant > 10000000) {
+                        $roleCible = 'DG';
+                    } elseif ($montant > 5000000) {
+                        $roleCible = 'Chef Comptable';
+                    } elseif ($montant > 500000) {
+                        $roleCible = 'Assistant Comptable (AC)';
+                    }else {
+                        $roleCible = 'Chef d\'Agence';
+                    }
+
+                // STOP : On génère la demande et on arrête tout
+                return $this->creerDemandeValidation($type, $data, $billetage, $user, $roleCible);
+            }
+
+            // Si un code est présent, on vérifie qu'il est valide
+            $this->verifierCodeApprouve($data['code_validation'], $user->id, $montant);
+        }
 
         //flux digital sans plafond
         if (in_array($typeVersement, ['ORANGE_MONEY', 'MOBILE_MONEY'])) {
             return $this->traiterFluxDigital($type, $data, $billetage, $session);
         }
 
-        if ($type === 'RETRAIT' && $montant > ($session->caisse->plafond_autonomie_caissiere ?? 500000)) {
-            if (!isset($data['code_validation'])) {
-                return $this->creerDemandeValidation($type, $data, $billetage, $user);
-            }
-            $this->verifierCodeApprouve($data['code_validation'], $user->id, $montant);
-        }
+         // plafond de 500 000 FCFA pour les opérations en espèces
+
+
+         // --- Gestion des seuils de validation ---
+      
 
         // 2. Préparation des données (Calcul commission AVANT traitement)
         $compte = Compte::with('typeCompte')->where('id', $data['compte_id'])->lockForUpdate()->first();
@@ -73,6 +97,8 @@ public function traiterOperation(string $type, array $data, array $billetage)
         $transaction = $this->enregistrerTransactionCaisse($type, $data, $dateBancaire, $session);
         
         // Enregistrement Tiers... (votre code ici)
+
+        $this->enregistrerTiers($transaction->id, $data);
 
         // 5. Gestion de l'argent physique (UNE SEULE FOIS)
         if ($typeVersement === 'ESPECE') {
@@ -101,37 +127,55 @@ public function traiterOperation(string $type, array $data, array $billetage)
             $this->gererRenouvellementBlocage($compte);
         }
 
+        
+
         return $transaction;
     });
 }
 
 
+
 private function traiterFluxDigital($type, $data, $billetage, $session)
 {
-    $typeVersement = $data['type_versement'];
-    $isPassage = empty($data['compte_id']); // Client externe vs Client Banque
-    $montant = $data['montant_brut'];
+    $operateur = $data['type_versement']; // ORANGE_MONEY ou MOBILE_MONEY
+    $isPassage = empty($data['compte_id']); 
+    $montant = (float) $data['montant_brut'];
 
-    // 1. Schéma comptable parmi les 8 chapitres
-    $schema = $this->getSchemaComptableDigital($type, $typeVersement, $isPassage);
-
-    // 2. Enregistrement Transaction
-    $transaction = $this->enregistrerTransactionCaisseDigital($type, $data, $session);
-
-    // 3. Écritures Comptables (Principale + Commission)
-    $this->genererEcrituresDigitales($transaction, $schema, $data);
-
-    // 4. Gestion des flux financiers (L'argent à part)
-    if ($isPassage) {
-        // Impacte solde_om_espece ou solde_momo_espece (Enveloppes dédiées)
-        $this->actualiserArgentPhysiqueDedie($type, $session, $typeVersement, $montant);
-    } else {
-        // Impacte le compte bancaire du client
-        $compte = Compte::findOrFail($data['compte_id']);
+    // 1. GESTION COMPTE BANCAIRE (Si client banque)
+    $compte = null;
+    $commission = 0;
+    if (!$isPassage) {
+        $compte = Compte::with('typeCompte')->where('id', $data['compte_id'])->lockForUpdate()->first();
+        $this->verifierStatutCompte($type, $compte);
+        
+        if ($type === 'RETRAIT' && $compte->typeCompte->chapitre_commission_retrait_id) {
+            $commission = $this->calculerCommissionRetrait($compte, $montant);
+        }
+        $this->validerEligibilite($type, $compte, $montant);
+        
+        // Mise à jour du solde bancaire (informatique) uniquement
         $this->actualiserSoldeCompte($type, $compte, $montant);
     }
+    $data['commissions'] = $commission;
 
-    // 5. Mise à jour du bilan informatique global
+    // 2. ENREGISTREMENT DANS LA TABLE DIGITALE DÉDIÉE
+    $transaction = $this->enregistrerSeuleTransactionDigitale($type, $data, $session);
+    
+    // 3. ACTUALISATION DE LA CAISSE DIGITALE (Exclusivement)
+    // C'est ici que l'argent physique est mouvementé dans la "pochette"
+    $this->actualiserCaisseDigitale($type, $session->caisse_id, $operateur, $montant);
+
+    // 4. ÉCRITURES COMPTABLES
+    $schema = $this->getSchemaComptableDigital($type, $operateur, $isPassage);
+    $this->genererEcrituresDigitales($transaction, $schema, $data, $session);
+
+    // 5. BILLETAGE (Si retrait, le caissier prend les billets dans sa pochette digitale)
+    if ($type === 'RETRAIT' && !empty($billetage)) {
+        $this->validerBilletage($billetage, $montant);
+        $this->enregistrerBilletage($transaction->id, $billetage, 'DIGITAL');
+    }
+
+    // 6. SOLDE INFORMATIQUE DE SESSION (Pour le pointage de fin de journée)
     $operation = in_array($type, ['VERSEMENT', 'ENTREE_CAISSE']) ? 'increment' : 'decrement';
     $session->$operation('solde_informatique', $montant);
 
@@ -173,95 +217,129 @@ private function getSchemaComptableDigital($type, $operateur, $isPassage)
     }
 }
 
-private function actualiserArgentPhysiqueDedie($type, $session, $operateur, $montant)
+private function actualiserCaisseDigitale($type, $caisseId, $operateur, $montant)
 {
-    // On cible la colonne de l'enveloppe spécifique
-    $colonne = ($operateur === 'ORANGE_MONEY') ? 'solde_om_espece' : 'solde_momo_espece';
-    
-    // Si VERSEMENT : Le client donne du cash -> L'enveloppe augmente
-    // Si RETRAIT : On donne du cash au client -> L'enveloppe diminue
-    if ($type === 'VERSEMENT') {
-        $session->increment($colonne, $montant);
+    $caisseDigitale = CaisseDigitale::where('caisse_id', $caisseId)
+        ->where('operateur', $operateur)
+        ->lockForUpdate()
+        ->first();
+
+    if (!$caisseDigitale) {
+        throw new \Exception("Caisse digitale non configurée pour l'opérateur $operateur");
+    }
+
+    if (in_array($type, ['VERSEMENT', 'ENTREE_CAISSE'])) {
+        // VERSEMENT (Dépôt) : 
+        // Le caissier reçoit du CASH (+) dans sa pochette
+        // Le caissier perd des UV (-) sur son téléphone
+        $caisseDigitale->increment('solde_espece', $montant);
+        $caisseDigitale->decrement('solde_virtuel_uv', $montant);
     } else {
-        $session->decrement($colonne, $montant);
+        // RETRAIT : 
+        // Le caissier donne du CASH (-) de sa pochette
+        // Le caissier reçoit des UV (+) sur son téléphone
+        $caisseDigitale->decrement('solde_espece', $montant);
+        $caisseDigitale->increment('solde_virtuel_uv', $montant);
     }
 }
 
-private function enregistrerTransactionCaisseDigital($type, $data, $session) 
+private function enregistrerSeuleTransactionDigitale($type, $data, $session) 
 {
-    return DB::transaction(function () use ($type, $data, $session) {
-        // 1. Enregistrement dans la table principale (La Finance)
-        $transaction = CaisseTransaction::create([
-            'reference_unique' => $this->generateReference($type . '_DIG'),
-            'compte_id'        => $data['compte_id'] ?? null,
-            'session_id'       => $session->id,
-            'type_versement'   => $data['type_versement'],
-            'type_flux'        => $type,
-            'montant_brut'     => $data['montant_brut'],
-            'commissions'      => $data['commissions'] ?? 0,
-            'date_operation'   => now(), // ou date comptable ouverte
-            'caissier_id'      => auth()->id(),
-            'statut'           => 'VALIDE'
+    // Récupération de la hiérarchie pour l'audit
+    $caisse = $session->caisse()->with('guichet.agence')->first();
+    
+    return DB::transaction(function () use ($type, $data, $session, $caisse) {
+        return CaisseTransactionDigitale::create([
+            'reference_unique'    => $this->generateReference($type . '_DIG'),
+            'session_id'          => $session->id,
+            'compte_id'           => $data['compte_id'] ?? null,
+            
+            'code_agence'         => $caisse->guichet->agence->code ?? $caisse->agence_id,
+            'code_guichet'        => $caisse->guichet->code_guichet ?? $caisse->guichet_id,
+            'code_caisse'         => $caisse->id,
+            
+            'type_flux'           => $type,
+            'operateur'           => $data['type_versement'], // OM ou MOMO
+            'montant_brut'        => $data['montant_brut'],
+            'commissions'         => $data['commissions'] ?? 0,
+            
+            'reference_operateur' => $data['reference_externe'],
+            'telephone_client'    => $data['telephone_client'] ?? null,
+            
+            'date_operation'      => now(),
+            'date_valeur'         => now(),
+            'caissier_id'         => auth()->id(),
+            'statut'              => 'VALIDE'
         ]);
-
-        // 2. Enregistrement dans la table digitale (La Traçabilité)
-        DB::table('caisse_transactions_digitales')->insert([
-            'caisse_transaction_id' => $transaction->id,
-            'reference_operateur'   => $data['reference_externe'], // Très important pour le pointage
-            'telephone_client'      => $data['telephone_client'] ?? null,
-            'operateur'             => $data['type_versement'],
-            'commission_agent'      => $data['commissions'] ?? 0,
-            'created_at'            => now(),
-        ]);
-
-        return $transaction;
     });
 }
 
-private function genererEcrituresDigitales($transaction, $schema, $data)
+private function genererEcrituresDigitales($transaction, $schema, $data, $session)
 {
     $dateOp = DB::table('jours_comptables')->where('statut', 'OUVERT')->value('date_du_jour');
+    
+    $agenceId = $session->caisse->agence_id 
+                                ?? $session->caisse->guichet->agence_id 
+                                ?? $session->agence_id;
 
-    // Récupération des IDs des comptes à partir des codes
-    $compteDebitId = ($schema['debit'] === 'CLIENT') 
+
+   
+    // 2. RÉCUPÉRER LES IDS DU PLAN COMPTABLE via leurs codes
+    // Débit
+    $compteDebitPlanId = ($schema['debit'] === 'CLIENT') 
         ? Compte::findOrFail($data['compte_id'])->typeCompte->chapitre_defaut_id
         : DB::table('plan_comptable')->where('code', $schema['debit'])->value('id');
 
-    $compteCreditId = ($schema['credit'] === 'CLIENT') 
+    // Crédit
+    $compteCreditPlanId = ($schema['credit'] === 'CLIENT') 
         ? Compte::findOrFail($data['compte_id'])->typeCompte->chapitre_defaut_id
         : DB::table('plan_comptable')->where('code', $schema['credit'])->value('id');
 
-    // 1. Écriture principale
+    // 3. LOGIQUE DU COMPTE CLIENT (L'ID de la table 'comptes')
+    $clientDebitId = ($schema['debit'] === 'CLIENT') ? $data['compte_id'] : null;
+    $clientCreditId = ($schema['credit'] === 'CLIENT') ? $data['compte_id'] : null;
+
+    // --- A. ÉCRITURE DE DÉBIT ---
     MouvementComptable::create([
-        'compte_debit_id'  => $compteDebitId,
-        'compte_credit_id' => $compteCreditId,
-        'montant_debit'    => $transaction->montant_brut,
-        'montant_credit'   => $transaction->montant_brut,
+        'agence_id'           => $agenceId,           // ID numérique
+        'compte_id'           => $clientDebitId,      // ID numérique du client ou null
+        'compte_debit_id'     => $compteDebitPlanId,  // ID numérique du plan comptable
+        'compte_credit_id'    => $compteCreditPlanId,
+        'montant_debit'       => $transaction->montant_brut,
+        'montant_credit'      => 0,
         'reference_operation' => $transaction->reference_unique,
-        'libelle_mouvement'   => "FLUX DIGITAL {$transaction->type_versement} - {$transaction->type_flux}",
-        'date_mouvement'   => $dateOp,
-        'journal'          => 'CAISSE_DIGITALE',
-        'auteur_id'        => auth()->id(),
+        'libelle_mouvement'   => "FLUX DIGITAL {$transaction->operateur} (DEBIT)",
+        'date_mouvement'      => $dateOp,
+        'journal'             => 'CAISSE_DIGITALE',
+        'statut'              => 'COMPTABILISE',
+
+        'auteur_id'           => auth()->id(),
     ]);
 
-    // 2. Écriture de Commission (si renseignée)
+    // --- B. ÉCRITURE DE CRÉDIT ---
+    MouvementComptable::create([
+        'agence_id'           => $agenceId,
+        'compte_id'           => $clientCreditId,
+        'compte_debit_id'     => $compteDebitPlanId,
+        'compte_credit_id'    => $compteCreditPlanId,
+        'montant_debit'       => 0,
+        'montant_credit'      => $transaction->montant_brut,
+        'reference_operation' => $transaction->reference_unique,
+        'libelle_mouvement'   => "FLUX DIGITAL {$transaction->operateur} (CREDIT)",
+        'date_mouvement'      => $dateOp,
+        'journal'             => 'CAISSE_DIGITALE',
+        'auteur_id'           => auth()->id(),
+        'statut'              => 'COMPTABILISE'
+    ]);
+
+    // --- C. GESTION DES COMMISSIONS ---
     if ($transaction->commissions > 0 && $schema['commission']) {
-        $compteCommId = DB::table('plan_comptable')->where('code', $schema['commission'])->value('id');
+        $compteCommPlanId = DB::table('plan_comptable')->where('code', $schema['commission'])->value('id');
         
-        MouvementComptable::create([
-            'compte_debit_id'  => $compteCommId, // Selon votre sens comptable
-            'compte_credit_id' => $compteCreditId,
-            'montant_debit'    => $transaction->commissions,
-            'montant_credit'   => $transaction->commissions,
-            'reference_operation' => $transaction->reference_unique,
-            'libelle_mouvement'   => "COMMISSION MARCHAND {$transaction->type_versement}",
-            'date_mouvement'   => $dateOp,
-            'journal'          => 'CAISSE_DIGITALE',
-            'auteur_id'        => auth()->id(),
-        ]);
+        // La commission est une écriture séparée (Produit pour la banque)
+        //$this->enregistrerCommissionComptable($transaction, $agenceId, $compteCommPlanId, $compteCreditPlanId, $dateOp);
     }
 }
-
 private function enregistrerTransactionCaisse($type, $data, $dateBancaire, $session) {
             $caisse = $session->caisse;
             $guichet = $caisse->guichet;
@@ -366,40 +444,85 @@ private function calculerCommissionRetrait(Compte $compte, float $montantBrut): 
 }
         private function genererEcritureComptable($type, $transaction, $compte, $dateBancaire, $session) {
                 $schema = $this->getSchemaComptable($type, $transaction, $session);
+                // Dans genererEcritureComptable
+                    $agenceId = $session->caisse->agence_id 
+                                ?? $session->caisse->guichet->agence_id 
+                                ?? $session->agence_id;
 
-                if (!$schema['debit'] || !$schema['credit']) {
+                    \Log::info("ID Agence détecté : " . $agenceId); // Vérifie si cette fois il y a un chiffre
+
+                                    if (!$schema['debit'] || !$schema['credit']) {
                     throw new Exception("Erreur: Impossible de trouver l'ID pour les codes comptables fournis.");
                 }
 
                 // Écriture principale
-                MouvementComptable::create([
-                    'compte_id'           => $compte->id,
-                    'date_mouvement'      => $dateBancaire,
-                    'libelle_mouvement'   => " " . $type . " - " ,
-                    'compte_debit_id'     => $schema['debit'],
-                    'compte_credit_id'    => $schema['credit'],
-                    'montant_debit'       => $transaction->montant_brut,
-                    'montant_credit'      => $transaction->montant_brut,
-                    'reference_operation' => $transaction->reference_unique,
-                    'statut'              => 'COMPTABILISE',  
-                    'journal'             => 'CAISSE',
-                    'auteur_id'           => auth()->id(),
-                ]);
+               
 
-                // Écriture de commission si applicable (Lignes 5 et 6 de votre image)
-                if ($schema['commission_account'] && $transaction->commissions > 0) {
+                // --- 1. ENREGISTREMENT DU DÉBIT ---
                     MouvementComptable::create([
-                        'compte_id'           => $compte->id,
+                        'compte_id'           => ($type === 'RETRAIT') ? $compte->id : null,                    
                         'date_mouvement'      => $dateBancaire,
-                        'libelle_mouvement'   => "COMMISSION MARCHAND " . $transaction->type_versement,
-                        'compte_debit_id'     => $schema['commission_account'],
-                        'compte_credit_id'    => $schema['credit'],
-                        'montant_debit'       => $transaction->commissions,
-                        'montant_credit'      => $transaction->commissions,
+                        'libelle_mouvement'   =>   " " . $type . " -client " . $compte->client->nom_complet,
+                        'compte_debit_id'     => $schema['debit'],
+                        'compte_credit_id'    => $schema['credit'], 
+                        'montant_debit'       => $transaction->montant_brut,
+                        'montant_credit'      => 0, // On force le crédit à 0 ici
                         'reference_operation' => $transaction->reference_unique,
+                        'statut'              => 'COMPTABILISE',
+                        'journal'             => 'CAISSE',
+                        'agence_id'           => $agenceId, // Important pour tes filtres de balance !
+                        'auteur_id'           => auth()->id(),
+                    ]);
+
+                    // --- 2. ENREGISTREMENT DU CRÉDIT ---
+                    MouvementComptable::create([
+                        'compte_id'   => ($type === 'VERSEMENT') ? $compte->id : null,
+                        'date_mouvement'      => $dateBancaire,
+                        'libelle_mouvement'   =>   " " . $type . " -client " . $compte->client->nom_complet,
+                        'compte_debit_id'     => $schema['debit'],
+                        'compte_credit_id'    => $schema['credit'],
+                        'montant_debit'       => 0, // On force le débit à 0 ici
+                        'montant_credit'      => $transaction->montant_brut,
+                        'reference_operation' => $transaction->reference_unique,
+                        'statut'              => 'COMPTABILISE',
+                        'agence_id'           => $agenceId, // Important pour tes filtres de balance !
+
                         'journal'             => 'CAISSE',
                         'auteur_id'           => auth()->id(),
                     ]);
+
+                // Écriture de commission si applicable (Lignes 5 et 6 de votre image)
+                if ($schema['commission_account'] && $transaction->commissions > 0) {
+                // Débit de la commission
+                        MouvementComptable::create([
+                            'compte_id'           => $compte->id,
+                            'date_mouvement'      => $dateBancaire,
+                            'libelle_mouvement'   => "COMMISSION " . $transaction->type_versement . " (D)",
+                            'compte_debit_id'     => $schema['commission_account'],
+                            'compte_credit_id'    => $schema['credit'],
+                            'montant_debit'       => $transaction->commissions,
+                            'montant_credit'      => 0,
+                            'reference_operation' => $transaction->reference_unique,
+                            'agence_id'           => $agenceId, // Important pour tes filtres de balance !
+
+                            'journal'             => 'CAISSE',
+                            'auteur_id'           => auth()->id(),
+                        ]);
+
+                        // Crédit de la commission
+                        MouvementComptable::create([
+                            'compte_id'           => $compte->id,
+                            'date_mouvement'      => $dateBancaire,
+                            'libelle_mouvement'   => "COMMISSION " . $transaction->type_versement . " (C)",
+                            'compte_debit_id'     => $schema['commission_account'],
+                            'compte_credit_id'    => $schema['credit'],
+                            'montant_debit'       => 0,
+                            'montant_credit'      => $transaction->commissions,
+                            'reference_operation' => $transaction->reference_unique,
+                            'journal'             => 'CAISSE',
+                            'agence_id'           => $agenceId, // <--- AJOUT ICI
+                            'auteur_id'           => auth()->id(),
+                        ]);
                 }
             }
             private function getSchemaComptable($type, $transaction, $session) {
@@ -543,9 +666,25 @@ private function calculerCommissionRetrait(Compte $compte, float $montantBrut): 
                 'quantite'       => $item['quantite'],
                 'sous_total'     => $item['valeur'] * $item['quantite']
             ]);
+            
         }
     }
 
+
+    
+private function enregistrerTiers($transactionId, $data)
+{
+    if (!isset($data['nom_complet'])) {
+        return; // Pas de tiers fourni
+    }
+
+    TransactionTier::create([
+        'transaction_id' => $transactionId,
+        'nom_complet'    => $data['nom_complet'],
+        'type_piece'     => $data['type_piece'] ?? null,
+        'numero_piece'   => $data['numero_piece'] ?? null,
+    ]);
+}
     private function generateReference($type) {
         return substr($type, 0, 3) . '-' . date('YmdHis') . '-' . strtoupper(str()->random(4));
     }
@@ -553,49 +692,72 @@ private function calculerCommissionRetrait(Compte $compte, float $montantBrut): 
 
     /**
  * Met l'opération en attente et génère une réponse pour le Front-end
- */
-private function creerDemandeValidation($type, $data, $billetage, $user)
+*/
+private function creerDemandeValidation($type, $data, $billetage, $user, $roleCible)
 {
-    // On s'assure que reference_unique existe dans le payload pour le futur reçu
-    if (!isset($data['reference_unique'])) {
-        $data['reference_unique'] = $this->generateReference($type);
-    }
+    // Sécurité : s'assurer que le montant est récupéré proprement
+    $montant = data_get($data, 'montant_brut', 0);
+
+    // 1. Détermination du rôle (Correction : on utilise l'argument passé ou on recalcule)
+    if ($montant > 10000000) { $roleCible = 'DG'; }
+    elseif ($montant > 5000000) { $roleCible = 'Chef Comptable'; }
+    else { $roleCible = 'Assistant Comptable (AC)'; }
+
+    // 2. Génération de la référence
+    $ref = $data['reference_unique'] ?? $this->generateReference($type);
+    $data['reference_unique'] = $ref;
 
     $payload = array_merge($data, ['billetage' => $billetage]);
 
+    // 3. Création de la demande
     $demande = CaisseDemandeValidation::create([
-        'type_operation' => $type,
-        'payload_data'   => $payload,
-        'montant'        => $data['montant_brut'],
-        'caissiere_id'   => $user->id,
-        'statut'         => 'EN_ATTENTE'
+        'type_operation'   => $type,
+        'payload_data'     => $payload, // Laravel s'occupe du json_encode si le cast est mis dans le modèle
+        'montant'          => $montant,
+        'caissiere_id'     => data_get($user, 'id'),
+        'role_destination' => $roleCible,
+        'statut'           => 'EN_ATTENTE',
+        'reference_unique' => $ref, // On stocke la référence unique pour le lien avec la transaction
     ]);
 
-    $assistants = User::whereHas('roles', function($q) {
-        $q->where('name', 'Assistant Comptable ');
+    // 4. Notification (C'est ici que ça plante souvent)
+    // Remplacez votre bloc de notification par celui-ci, plus robuste :
+try {
+    $destinataires = User::whereHas('roles', function($q) use ($roleCible) {
+        $q->where('name', $roleCible);
     })->get();
-
-    // On utilise try/catch pour que la caissière reçoive quand même son message 
-    // même si l'envoi de notification bugge
-    try {
-        Notification::send($assistants, new RetraitDepassementPlafond($demande));
-    } catch (\Exception $e) {
-        // Loggez l'erreur mais ne bloquez pas l'utilisateur
-        \Log::error("Erreur notification: " . $e->getMessage());
+    
+    if ($destinataires->isNotEmpty()) {
+        // On passe un TABLEAU de données à la notification au lieu de l'objet seul
+        // Cela évite que la notification ne cherche des propriétés inexistantes
+        $donneesNotification = [
+            'id'               => $demande->id,
+            'montant'          => $montant,
+            'reference_unique' => $ref, // La référence générée plus haut
+            'caissiere_nom'    => $user->name
+        ];
+        
+        Notification::send($destinataires, new RetraitDepassementPlafond($donneesNotification));
     }
-
+} catch (\Exception $e) {
+    \Log::error("Erreur Notification: " . $e->getMessage());
+}
+    // 5. RETOUR HARMONISÉ
     return [
+        'id'                  => $demande->id,
         'requires_validation' => true,
-        'demande_id' => $demande->id,
-        'message' => "Le montant (" . number_format($data['montant_brut'], 0, ',', ' ') . " FCFA) dépasse votre plafond. Demande envoyée."
+        'role_destination'    => $roleCible,
+        'reference_unique'    => $ref, // On renvoie la variable $ref directe
+        'montant_brut'        => $montant,
+        'message'             => "Validation requise par le " . $roleCible
     ];
 }
-
 /**
  * Vérifie si le code saisi par la caissière est valide et lié à une demande approuvée
  */
-private function verifierCodeApprouve($code, $caissiereId, $montant)
+    private function verifierCodeApprouve($code, $caissiereId, $montant)
 {
+    // On cherche la demande qui correspond au code, à la caissière et au montant exact
     $demande = CaisseDemandeValidation::where('code_validation', $code)
         ->where('caissiere_id', $caissiereId)
         ->where('montant', $montant)
@@ -603,11 +765,22 @@ private function verifierCodeApprouve($code, $caissiereId, $montant)
         ->first();
 
     if (!$demande) {
-        throw new Exception("Code de validation invalide ou l'opération n'a pas encore été approuvée par l'assistant.");
+        // Log de sécurité pour tracer les tentatives de codes erronés
+        \Log::warning("Tentative de validation échouée", [
+            'caissiere_id' => $caissiereId,
+            'montant' => $montant,
+            'code_saisi' => $code
+        ]);
+        
+        throw new Exception("Code de validation invalide, expiré ou l'opération n'a pas encore été approuvée par le responsable compétent.");
     }
 
-    // Très important : Marquer comme EXECUTE pour ne pas réutiliser le même code
-    $demande->update(['statut' => 'EXECUTE']);
+    // Sécurité anti-rejeu : On marque immédiatement comme EXECUTE
+    // On peut aussi enregistrer l'heure de l'exécution
+    $demande->update([
+        'statut' => 'EXECUTE',
+        'executed_at' => now()
+    ]);
 }
 
 public function genererRecu($transactionId)
@@ -640,10 +813,15 @@ public function obtenirJournalCaisseComplet($filtres)
     ->join('caisse_sessions as cs', 'ct.session_id', '=', 'cs.id')
     ->join('caisses as ca', 'cs.caisse_id', '=', 'ca.id') 
     ->join('comptes as c', 'mc.compte_id', '=', 'c.id')
+    ->leftJoin('clients as cl', 'c.client_id', '=', 'cl.id')
+        ->leftJoin('clients_physiques as cp', 'cl.id', '=', 'cp.client_id')
+        ->leftJoin('clients_morales as cm', 'cl.id', '=', 'cm.client_id')
     ->leftJoin('transaction_tiers as tt', 'ct.id', '=', 'tt.transaction_id') 
     ->select([
         'c.numero_compte',
-        'tt.nom_complet as tiers_nom', 
+        'tt.nom_complet as tiers_nom',
+        'cp.nom_prenoms as nom_physique',   // Nom si personne physique
+            'cm.raison_sociale as nom_morale', // Nom si entreprise/association 
         'mc.libelle_mouvement',
         'mc.reference_operation',
         'mc.montant_debit',
@@ -659,10 +837,23 @@ public function obtenirJournalCaisseComplet($filtres)
     ->orderBy('mc.date_mouvement', 'asc')
     ->get();
 
+    $mouvementsTraites = $mouvementsRaw->map(function ($mvt) {
+        if (!empty($mvt->tiers_nom)) {
+            $mvt->tiers_final = $mvt->tiers_nom;
+        } elseif (!empty($mvt->nom_physique)) {
+            $mvt->tiers_final = $mvt->nom_physique;
+        } elseif (!empty($mvt->nom_morale)) {
+            $mvt->tiers_final = $mvt->nom_morale;
+        } else {
+            $mvt->tiers_final = "Client Interne";
+        }
+        return $mvt;
+    });
+
     // 3. GROUPEMENT DES OPÉRATIONS
     $journalGroupe = [
-        'VERSEMENTS' => $mouvementsRaw->where('type_flux', 'VERSEMENT')->values(),
-        'RETRAITS'   => $mouvementsRaw->where('type_flux', 'RETRAIT')->values(),
+        'VERSEMENTS' => $mouvementsTraites->where('type_flux', 'VERSEMENT')->values(),
+        'RETRAITS'   => $mouvementsTraites->where('type_flux', 'RETRAIT')->values(),
     ];
 
     // 4. CALCUL DES TOTAUX
@@ -693,7 +884,7 @@ public function initierRetraitDistance(array $data)
         // 1. Gestion des fichiers
         $pathDemande = isset($data['pj_demande_retrait']) ? $data['pj_demande_retrait']->store('caisse/retraits_distance', 'public') : null;
         $pathProcuration = isset($data['pj_procuration']) ? $data['pj_procuration']->store('caisse/procurations', 'public') : null;
-        $bordereau_retrait = isset($data['bordereau_rerait']) ? $data['bordereau_rerait']->store('caisse/bordereaux_retraits', 'public') : null;
+        $bordereau_retrait = isset($data['bordereau_retrait']) ? $data['bordereau_retrait']->store('caisse/bordereaux_retraits', 'public') : null;
         // 2. Récupération de la session avec chargement forcé des relations
         $session = CaisseSession::with(['caisse.guichet'])
             ->where('caissier_id', $user->id)
@@ -747,9 +938,11 @@ public function initierRetraitDistance(array $data)
     'is_retrait_distance' => true,
     'pj_demande_retrait'  => $pathDemande,
     'pj_procuration'      => $pathProcuration,
-    'bordereau_rerait'     => $bordereau_retrait ,
+    'bordereau_retrait'     => $bordereau_retrait ,
 
 ]);
+$this->enregistrerTiers($transaction->id, $data);
+
     });
 }
 /**
@@ -758,9 +951,9 @@ public function initierRetraitDistance(array $data)
 public function approuverChefAgence($transactionId)
 {
 
-if (!auth()->user()->hasRole('Chef d\'Agence')) { // Adaptez le nom du rôle
+/*if (!auth()->user()->hasRole('Chef d\'Agence')) { // Adaptez le nom du rôle
         throw new Exception("Accès refusé : Seul le Chef d'Agence peut approuver les retraits à distance.");
-    }
+    }*/
     return DB::transaction(function () use ($transactionId) {
         $transaction = CaisseTransaction::findOrFail($transactionId);
 
@@ -862,23 +1055,42 @@ private function apurerFraisEnAttente($compte, $dateBancaire)
             // 2. Marquage de la dette
             $dette->update(['statut' => 'recupere']);
 
-            // 3. Écriture comptable de récupération (Produit pour la banque)
+            // Préparation des IDs de comptes
+            $compteClient_id = $compte->typeCompte->chapitre_defaut_id;
+            $compteProduit_id = DB::table('plan_comptable')->where('code', '72021001')->value('id');
+
+            // 3. ÉCRITURE COMPTABLE - LIGNE DÉBIT (Le Client paie)
             MouvementComptable::create([
                 'compte_id'           => $compte->id,
                 'date_mouvement'      => $dateBancaire,
-                'libelle_mouvement'   => "RECUP. FRAIS IMPAYES - MOIS " . $dette->mois . "/" . $dette->annee,
-                'compte_debit_id'     => $compte->typeCompte->chapitre_defaut_id, // Client
-                'compte_credit_id'    => DB::table('plan_comptable')->where('code', '72021001')->value('id'), // Compte de produit
+                'libelle_mouvement'   => "RECUP. FRAIS IMPAYES (D) - " . $dette->mois . "/" . $dette->annee,
+                'compte_debit_id'     => $compteClient_id,
+                'compte_credit_id'    => $compteProduit_id,
                 'montant_debit'       => $dette->montant,
+                'montant_credit'      => 0, // Zéro car c'est la ligne de débit
+                'reference_operation' => 'RECUP-'.$dette->id,
+                'journal'             => 'CAISSE',
+                'auteur_id'           => auth()->id(),
+                'statut'              => 'COMPTABILISE',
+            ]);
+
+            // 4. ÉCRITURE COMPTABLE - LIGNE CRÉDIT (Le Produit augmente)
+            MouvementComptable::create([
+                'compte_id'           => $compte->id,
+                'date_mouvement'      => $dateBancaire,
+                'libelle_mouvement'   => "RECUP. FRAIS IMPAYES (C) - " . $dette->mois . "/" . $dette->annee,
+                'compte_debit_id'     => $compteClient_id,
+                'compte_credit_id'    => $compteProduit_id,
+                'montant_debit'       => 0, // Zéro car c'est la ligne de crédit
                 'montant_credit'      => $dette->montant,
                 'reference_operation' => 'RECUP-'.$dette->id,
                 'journal'             => 'CAISSE',
                 'auteur_id'           => auth()->id(),
+                'statut'              => 'COMPTABILISE',
             ]);
         }
     }
 }
-
 /**
  * Recalcule la date d'échéance si le compte est de type bloqué
  */

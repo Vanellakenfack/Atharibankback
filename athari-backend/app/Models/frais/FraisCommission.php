@@ -6,10 +6,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use App\Models\compte\TypeCompte;
+use App\Models\Concerns\UsesDateComptable;
 
 class FraisCommission extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, UsesDateComptable;
 
     protected $fillable = [
         'type_compte_id',

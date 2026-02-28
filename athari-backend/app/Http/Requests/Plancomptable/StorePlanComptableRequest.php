@@ -20,12 +20,12 @@ class StorePlanComptableRequest extends FormRequest
         'DG', 
         'Chef d\Agence (CA)', 
         'Assistant Comptable (AC)',
-        'Admin'
+        'Admin','Chef Comptable'
     ]);
 
     // Autorisation : Uniquement le Chef d'Agence ('chef_agence') ou le DG ('dg')
     // Adaptez les chaînes de caractères selon vos noms de rôles en base de données
-    return $user->role === 'Chef d\Agence (CA)' || $user->role === 'DG'|| $user->role === 'Assistant Comptable (AC)';
+    return $user->role === 'Chef d\Agence (CA)' || $user->role === 'DG'|| $user->role === 'Assistant Comptable (AC)'|| $user->role === 'Chef Comptable';
     }
 
 

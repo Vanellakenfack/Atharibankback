@@ -27,6 +27,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
             'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
             'verifier.caisse' => \App\Http\Middleware\VerifierCaisseOuverte::class,
+            'check.agence.ouverte' => \App\Http\Middleware\CheckAgenceOuverte::class,
         ]);
     
     })
